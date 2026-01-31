@@ -1,0 +1,51 @@
+{
+  "manifest_version": 3,
+  "name": "OKAZ - Comparateur d'annonces",
+  "version": "0.4.0",
+  "description": "Comparez LeBonCoin, Vinted et Back Market en une recherche",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "tabs",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://www.leboncoin.fr/*",
+    "https://www.vinted.fr/*",
+    "https://www.backmarket.fr/*"
+  ],
+  "externally_connectable": {
+    "matches": [
+      "http://localhost/*",
+      "http://127.0.0.1/*",
+      "https://*.vercel.app/*",
+      "https://okaz.fr/*",
+      "https://*.okaz.fr/*"
+    ]
+  },
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_title": "OKAZ"
+  },
+  "background": {
+    "service_worker": "src/background/service-worker.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.leboncoin.fr/recherche*"],
+      "js": ["src/content/leboncoin.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.vinted.fr/*"],
+      "js": ["src/content/vinted.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.backmarket.fr/*"],
+      "js": ["src/content/backmarket.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

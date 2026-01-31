@@ -1,0 +1,28 @@
+# Fichiers sensibles - NE JAMAIS COMMITER
+password
+password.*
+*.password
+secrets
+secrets.*
+.env
+.env.*
+*.env
+
+# Credentials
+credentials.json
+service-account.json
+*.pem
+*.key
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Node (au cas où)
+node_modules/

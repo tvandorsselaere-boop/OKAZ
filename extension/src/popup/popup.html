@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OKAZ</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 420px;
+      min-height: 520px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(180deg, #0a0a0f 0%, #111118 100%);
+      color: #f8fafc;
+    }
+
+    /* === ÉCRAN D'ACCUEIL === */
+    .home-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 480px;
+      padding: 40px 24px;
+    }
+
+    .logo {
+      font-size: 42px;
+      font-weight: 700;
+      letter-spacing: -1px;
+      background: linear-gradient(135deg, #818cf8 0%, #a78bfa 50%, #c4b5fd 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 32px;
+    }
+
+    .search-container {
+      width: 100%;
+      max-width: 360px;
+    }
+
+    .search-box {
+      position: relative;
+      margin-bottom: 20px;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 16px 52px 16px 20px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      color: #fff;
+      font-size: 15px;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .search-input::placeholder {
+      color: rgba(255, 255, 255, 0.35);
+    }
+
+    .search-input:focus {
+      border-color: rgba(129, 140, 248, 0.5);
+      box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.15);
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .search-btn {
+      position: absolute;
+      right: 6px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      border: none;
+      border-radius: 12px;
+      color: #fff;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .search-btn:hover {
+      transform: translateY(-50%) scale(1.05);
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+    }
+
+    .search-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: translateY(-50%);
+    }
+
+    .examples {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .example-label {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.4);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+
+    .example {
+      padding: 10px 14px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 10px;
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.6);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .example:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.12);
+      color: rgba(255, 255, 255, 0.9);
+    }
+
+    /* === ÉCRAN RÉSULTATS === */
+    .results-screen {
+      display: none;
+      padding: 16px;
+    }
+
+    .results-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .back-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: none;
+      border: none;
+      color: rgba(255, 255, 255, 0.6);
+      font-size: 13px;
+      cursor: pointer;
+      padding: 8px 12px;
+      margin: -8px -12px;
+      border-radius: 8px;
+      transition: all 0.2s;
+    }
+
+    .back-btn:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: #fff;
+    }
+
+    .results-logo {
+      font-size: 20px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #818cf8, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .search-query {
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.5);
+      margin-bottom: 16px;
+      padding: 8px 12px;
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 8px;
+    }
+
+    .search-query strong {
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    /* Loading */
+    .loading-state {
+      text-align: center;
+      padding: 60px 20px;
+    }
+
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 3px solid rgba(255, 255, 255, 0.08);
+      border-top-color: #818cf8;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 16px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .loading-text {
+      color: rgba(255, 255, 255, 0.6);
+      font-size: 14px;
+    }
+
+    .loading-sub {
+      color: rgba(255, 255, 255, 0.3);
+      font-size: 12px;
+      margin-top: 8px;
+    }
+
+    /* Sections */
+    .results-section {
+      margin-bottom: 20px;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .section-title.recommended {
+      color: #4ade80;
+    }
+
+    .section-title.others {
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    .section-title.avoid {
+      color: #f87171;
+    }
+
+    .section-count {
+      font-weight: 400;
+      opacity: 0.6;
+    }
+
+    /* Cards */
+    .results-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 340px;
+      overflow-y: auto;
+    }
+
+    .result-card {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 14px;
+      padding: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .result-card:hover {
+      background: rgba(255, 255, 255, 0.07);
+      border-color: rgba(255, 255, 255, 0.12);
+      transform: translateY(-1px);
+    }
+
+    .result-card.recommended {
+      border-color: rgba(74, 222, 128, 0.3);
+      background: rgba(74, 222, 128, 0.05);
+    }
+
+    .result-card.avoid {
+      border-color: rgba(248, 113, 113, 0.3);
+      background: rgba(248, 113, 113, 0.05);
+      opacity: 0.7;
+    }
+
+    .card-top {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .result-image {
+      width: 72px;
+      height: 72px;
+      border-radius: 10px;
+      object-fit: cover;
+      background: rgba(255, 255, 255, 0.08);
+      flex-shrink: 0;
+    }
+
+    .result-main {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .result-title {
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 6px;
+      line-height: 1.3;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .result-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .result-price {
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .result-site {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-weight: 500;
+    }
+
+    .site-leboncoin { background: rgba(255, 110, 20, 0.2); color: #FF6E14; }
+    .site-vinted { background: rgba(9, 177, 186, 0.2); color: #09B1BA; }
+    .site-backmarket { background: rgba(0, 209, 193, 0.2); color: #00D1C1; }
+
+    /* Deal indicator */
+    .deal-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 10px;
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 8px;
+      font-size: 12px;
+    }
+
+    .deal-indicator.good {
+      background: rgba(74, 222, 128, 0.1);
+      color: #4ade80;
+    }
+
+    .deal-indicator.neutral {
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    .deal-indicator.bad {
+      background: rgba(248, 113, 113, 0.1);
+      color: #f87171;
+    }
+
+    .deal-icon {
+      font-size: 14px;
+    }
+
+    /* Trust badges */
+    .trust-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .trust-badge {
+      font-size: 10px;
+      padding: 3px 7px;
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .trust-badge.positive {
+      background: rgba(74, 222, 128, 0.15);
+      color: #4ade80;
+    }
+
+    .trust-badge.warning {
+      background: rgba(251, 191, 36, 0.15);
+      color: #fbbf24;
+    }
+
+    .trust-badge.danger {
+      background: rgba(248, 113, 113, 0.15);
+      color: #f87171;
+    }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      padding: 50px 20px;
+    }
+
+    .empty-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+
+    .empty-text {
+      color: rgba(255, 255, 255, 0.5);
+      font-size: 14px;
+    }
+
+    /* Avoid section collapsed */
+    .avoid-section {
+      margin-top: 16px;
+    }
+
+    .avoid-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(248, 113, 113, 0.08);
+      border: 1px solid rgba(248, 113, 113, 0.15);
+      border-radius: 10px;
+      padding: 10px 14px;
+      color: #f87171;
+      font-size: 12px;
+      cursor: pointer;
+      width: 100%;
+      transition: all 0.2s;
+    }
+
+    .avoid-toggle:hover {
+      background: rgba(248, 113, 113, 0.12);
+    }
+
+    .avoid-content {
+      display: none;
+      margin-top: 10px;
+    }
+
+    .avoid-content.open {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <!-- ÉCRAN D'ACCUEIL -->
+  <div class="home-screen" id="homeScreen">
+    <div class="logo">OKAZ</div>
+
+    <div class="search-container">
+      <div class="search-box">
+        <input
+          type="text"
+          class="search-input"
+          id="searchInput"
+          placeholder="Je cherche..."
+          autocomplete="off"
+        >
+        <button class="search-btn" id="searchBtn">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="m21 21-4.35-4.35"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="examples">
+        <div class="example-label">Essayez par exemple</div>
+        <div class="example" data-query="iPhone 13 pas trop cher">iPhone 13 pas trop cher</div>
+        <div class="example" data-query="MacBook Pro 16 pouces">MacBook Pro 16 pouces</div>
+        <div class="example" data-query="PS5 avec manette">PS5 avec manette</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ÉCRAN RÉSULTATS -->
+  <div class="results-screen" id="resultsScreen">
+    <div class="results-header">
+      <button class="back-btn" id="backBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="m15 18-6-6 6-6"/>
+        </svg>
+        Retour
+      </button>
+      <div class="results-logo">OKAZ</div>
+    </div>
+
+    <div class="search-query" id="searchQueryDisplay">
+      Recherche : <strong></strong>
+    </div>
+
+    <div id="resultsContent">
+      <!-- Dynamic content -->
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
