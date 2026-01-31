@@ -1,7 +1,26 @@
 // OKAZ - Configuration Stripe
 import Stripe from 'stripe';
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+// Lazy initialization pour éviter erreur au build
+let _stripe: Stripe | null = null;
+
+export function getStripe(): Stripe {
+  if (!_stripe) {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      throw new Error('STRIPE_SECRET_KEY non configurée');
+    }
+    _stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+  }
+  return _stripe;
+}
+
+// Alias pour compatibilité (deprecated, utiliser getStripe())
+export const stripe = {
+  get checkout() { return getStripe().checkout; },
+  get webhooks() { return getStripe().webhooks; },
+  get customers() { return getStripe().customers; },
+  get subscriptions() { return getStripe().subscriptions; },
+};
 
 // Price IDs (à configurer dans Stripe Dashboard)
 export const STRIPE_PRICES = {
