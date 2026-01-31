@@ -785,6 +785,9 @@ export default function Home() {
   const [currentCriteria, setCurrentCriteria] = useState<SearchCriteria | null>(null);
   const [currentBriefing, setCurrentBriefing] = useState<SearchBriefing | null>(null);
   const [searchPhase, setSearchPhase] = useState<'idle' | 'optimizing' | 'searching' | 'analyzing'>('idle');
+  // Hook géolocalisation (doit être avant les effets qui l'utilisent)
+  const { position, permissionState, isLoading: geoLoading, requestPermission } = useGeolocation();
+
   const [geolocEnabled, setGeolocEnabled] = useState(() => {
     // Charger depuis localStorage au premier render
     if (typeof window !== 'undefined') {
@@ -809,9 +812,6 @@ export default function Home() {
   const [quota, setQuota] = useState<QuotaStatus | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [isUpgrading, setIsUpgrading] = useState(false);
-
-  // Hook géolocalisation
-  const { position, permissionState, isLoading: geoLoading, requestPermission } = useGeolocation();
 
   // Récupérer le quota depuis l'extension
   const fetchQuotaFromExtension = useCallback(() => {
