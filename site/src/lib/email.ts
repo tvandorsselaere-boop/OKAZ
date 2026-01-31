@@ -1,7 +1,18 @@
 // OKAZ - Service Email (Resend)
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Lazy initialization pour éviter erreur au build
+let _resend: Resend | null = null;
+
+function getResend(): Resend {
+  if (!_resend) {
+    if (!process.env.RESEND_API_KEY) {
+      throw new Error('RESEND_API_KEY non configurée');
+    }
+    _resend = new Resend(process.env.RESEND_API_KEY);
+  }
+  return _resend;
+}
 
 const FROM_EMAIL = 'OKAZ <noreply@okaz.facile-ia.com>';
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
@@ -13,7 +24,7 @@ export async function sendMagicLink(email: string, token: string): Promise<boole
   const magicLink = `${APP_URL}/api/auth/verify?token=${token}`;
 
   try {
-    const { error } = await resend.emails.send({
+    const { error } = await getResend().emails.send({
       from: FROM_EMAIL,
       to: email,
       subject: 'Connecte-toi à OKAZ',
@@ -75,7 +86,7 @@ export async function sendMagicLink(email: string, token: string): Promise<boole
  */
 export async function sendWelcomePremium(email: string): Promise<boolean> {
   try {
-    const { error } = await resend.emails.send({
+    const { error } = await getResend().emails.send({
       from: FROM_EMAIL,
       to: email,
       subject: 'Bienvenue dans OKAZ Premium !',
