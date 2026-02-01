@@ -355,32 +355,15 @@ export async function analyzeResultsWithGemini(
     return { analyzed: [] };
   }
 
-  // Limiter à 30 résultats pour couvrir tous les sites
-  // Prendre un échantillon équilibré de chaque site
-  const siteGroups: Record<string, RawResult[]> = {};
-  results.forEach(r => {
-    const site = r.id.split('-')[0]; // bm, lbc, vinted, etc.
-    if (!siteGroups[site]) siteGroups[site] = [];
-    siteGroups[site].push(r);
-  });
-
-  // Prendre max 15 résultats par site, total max 30
-  const limitedResults: RawResult[] = [];
-  const maxPerSite = 15;
-  const maxTotal = 30;
-
-  Object.values(siteGroups).forEach(group => {
-    const toTake = Math.min(maxPerSite, group.length, maxTotal - limitedResults.length);
-    limitedResults.push(...group.slice(0, toTake));
-  });
-
-  console.log('[Gemini] Analyse de', limitedResults.length, 'résultats sur', results.length, 'total');
+  // Analyser TOUS les résultats - l'IA est la valeur ajoutée d'OKAZ
+  // Pas de limite artificielle, on track les coûts pour optimiser plus tard
+  console.log('[Gemini] Analyse de TOUS les', results.length, 'résultats');
 
   try {
     const genAI = getGeminiClient();
     const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
 
-    const prompt = buildAnalysisPrompt(limitedResults, searchQuery);
+    const prompt = buildAnalysisPrompt(results, searchQuery);
     console.log('[Gemini] Envoi analyse...');
 
     const result = await model.generateContent(prompt);
@@ -389,7 +372,7 @@ export async function analyzeResultsWithGemini(
 
     console.log('[Gemini] Réponse analyse brute:', text.substring(0, 500));
 
-    return parseAnalysisResponse(text, limitedResults);
+    return parseAnalysisResponse(text, results);
 
   } catch (error) {
     console.error('[Gemini] Erreur analyse:', error);

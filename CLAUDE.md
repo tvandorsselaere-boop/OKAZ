@@ -125,6 +125,12 @@ Ces prix permettent a Gemini d'interpreter "pas cher" correctement.
 Le filtrage des resultats non pertinents est ENTIEREMENT gere par Gemini.
 Aucune liste de mots-cles, aucune regex, aucune regle en dur.
 L'IA comprend le contexte et decide.
+
+⚠️ REGLE ABSOLUE: ANALYSER TOUS LES RESULTATS ⚠️
+
+Gemini DOIT analyser 100% des resultats, sans limite.
+Pas de "limite pour reduire les couts" - l'IA est la valeur ajoutee.
+On track les couts et on optimise APRES, pas en degradant la qualite.
 ```
 
 ### Score de Confidence (0-100%)
