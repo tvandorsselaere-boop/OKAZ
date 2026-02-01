@@ -355,8 +355,26 @@ export async function analyzeResultsWithGemini(
     return { analyzed: [] };
   }
 
-  // Limiter à 10 résultats pour éviter les coûts excessifs
-  const limitedResults = results.slice(0, 10);
+  // Limiter à 30 résultats pour couvrir tous les sites
+  // Prendre un échantillon équilibré de chaque site
+  const siteGroups: Record<string, RawResult[]> = {};
+  results.forEach(r => {
+    const site = r.id.split('-')[0]; // bm, lbc, vinted, etc.
+    if (!siteGroups[site]) siteGroups[site] = [];
+    siteGroups[site].push(r);
+  });
+
+  // Prendre max 15 résultats par site, total max 30
+  const limitedResults: RawResult[] = [];
+  const maxPerSite = 15;
+  const maxTotal = 30;
+
+  Object.values(siteGroups).forEach(group => {
+    const toTake = Math.min(maxPerSite, group.length, maxTotal - limitedResults.length);
+    limitedResults.push(...group.slice(0, toTake));
+  });
+
+  console.log('[Gemini] Analyse de', limitedResults.length, 'résultats sur', results.length, 'total');
 
   try {
     const genAI = getGeminiClient();

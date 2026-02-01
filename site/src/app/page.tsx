@@ -1252,8 +1252,8 @@ export default function Home() {
               // Créer un map id -> analyse
               analyzeData.analyzed.forEach((a) => {
                 geminiAnalysis[a.id] = a;
-                // Debug: afficher dealScore de chaque résultat
-                console.log(`[OKAZ] Résultat ${a.id}: dealScore=${a.dealScore}, marketPrice=${a.marketPrice}, dealType=${a.dealType}`);
+                // Debug: afficher confidence et dealScore de chaque résultat
+                console.log(`[OKAZ] Gemini analyse ${a.id}: confidence=${a.confidence}%, relevant=${a.relevant}, dealScore=${a.dealScore}, matchDetails="${a.matchDetails}"`);
               });
 
               // Récupérer le topPick si présent
@@ -1273,9 +1273,18 @@ export default function Home() {
           // 2. Pondérer le score par la pertinence : scoreFinal = score × (confidence/100)
           const MIN_CONFIDENCE = 30; // Seuil minimum pour afficher
 
+          // Debug: lister les IDs pour vérifier le matching
+          console.log('[OKAZ] IDs extension:', response.results.map(r => r.id));
+          console.log('[OKAZ] IDs Gemini:', Object.keys(geminiAnalysis));
+
           const correctedResults = response.results.map(r => {
             const analysis = geminiAnalysis[r.id];
-            const confidence = analysis?.confidence ?? 70; // 70% par défaut si pas d'analyse
+            // 50% par défaut si pas d'analyse (classé plus bas que les résultats analysés)
+            const confidence = analysis?.confidence ?? 50;
+
+            if (!analysis) {
+              console.warn(`[OKAZ] ⚠ Pas d'analyse Gemini pour ID: ${r.id} - "${r.title}"`);
+            }
 
             // Filtrer les résultats avec pertinence trop basse
             const isRelevant = confidence >= MIN_CONFIDENCE;
