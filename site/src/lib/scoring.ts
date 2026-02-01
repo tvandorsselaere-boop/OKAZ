@@ -483,6 +483,7 @@ export function analyzeResult(result: SearchResult, marketPrice?: number): Analy
   breakdown.total = finalScore;
 
   // Utiliser le dealType de Gemini s'il est disponible
+  const gemini = (result as AnalyzedResult).geminiAnalysis;
   const dealType = gemini?.dealType || getDealType(finalScore, breakdown.scamPenalty);
   const dealText = gemini?.explanation || getDealText(breakdown, result.price, marketPrice);
   const badges = generateBadges(result);
