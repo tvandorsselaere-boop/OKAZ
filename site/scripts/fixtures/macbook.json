@@ -1,0 +1,15 @@
+{
+  "query": "MacBook Pro",
+  "results": [
+    { "id": "lbc-1", "title": "MacBook Pro 14 M3 Pro 18Go 512Go", "price": 1800, "site": "leboncoin" },
+    { "id": "lbc-2", "title": "MacBook Pro 13 M2 8Go 256Go", "price": 950, "site": "leboncoin" },
+    { "id": "lbc-3", "title": "Apple MacBook Pro 16 M1 Max", "price": 2200, "site": "leboncoin" },
+    { "id": "lbc-4", "title": "MacBook Pro 2021 14 pouces", "price": 1500, "site": "leboncoin" },
+    { "id": "lbc-5", "title": "Housse MacBook Pro 14", "price": 25, "site": "leboncoin" },
+    { "id": "lbc-6", "title": "Chargeur MacBook Pro 96W", "price": 45, "site": "leboncoin" },
+    { "id": "bm-1", "title": "MacBook Pro 13 M2 Reconditionné", "price": 899, "site": "backmarket" },
+    { "id": "bm-2", "title": "MacBook Pro 14 M3 Reconditionné", "price": 1599, "site": "backmarket" },
+    { "id": "bm-3", "title": "Adaptateur USB-C MacBook Pro", "price": 35, "site": "backmarket" },
+    { "id": "bm-4", "title": "Coque MacBook Pro 14 transparente", "price": 20, "site": "backmarket" }
+  ]
+}

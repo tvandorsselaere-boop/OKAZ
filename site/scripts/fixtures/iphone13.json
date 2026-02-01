@@ -1,0 +1,16 @@
+{
+  "query": "iPhone 13",
+  "results": [
+    { "id": "lbc-1", "title": "iPhone 13 128Go Bleu comme neuf", "price": 420, "site": "leboncoin" },
+    { "id": "lbc-2", "title": "iPhone 13 Pro 256Go Graphite", "price": 580, "site": "leboncoin" },
+    { "id": "lbc-3", "title": "Apple iPhone 13 Mini 128Go Rouge", "price": 350, "site": "leboncoin" },
+    { "id": "lbc-4", "title": "iPhone 13 256Go Noir avec facture", "price": 480, "site": "leboncoin" },
+    { "id": "lbc-5", "title": "Coque iPhone 13 silicone Apple", "price": 25, "site": "leboncoin" },
+    { "id": "lbc-6", "title": "Protection écran iPhone 13", "price": 10, "site": "leboncoin" },
+    { "id": "bm-1", "title": "iPhone 13 128Go Reconditionné Excellent", "price": 389, "site": "backmarket" },
+    { "id": "bm-2", "title": "iPhone 13 Pro Max 256Go Reconditionné", "price": 649, "site": "backmarket" },
+    { "id": "bm-3", "title": "Chargeur MagSafe iPhone 13", "price": 35, "site": "backmarket" },
+    { "id": "bm-4", "title": "Câble Lightning iPhone 13", "price": 12, "site": "backmarket" },
+    { "id": "bm-5", "title": "iPhone 13 Mini 256Go Reconditionné", "price": 399, "site": "backmarket" }
+  ]
+}

@@ -287,20 +287,31 @@
           }
         }
 
-        // Détecter la remise en main propre
-        // LBC affiche "Remise en main propre" ou une icône de localisation
-        let handDelivery = false;
+        // Détecter livraison vs main propre
+        // Sur LeBonCoin, le MODE PAR DÉFAUT est main propre
+        // La livraison est une option qui doit être explicitement activée
         const deliveryText = ad.textContent.toLowerCase();
-        if (deliveryText.includes('main propre') ||
-            deliveryText.includes('sur place') ||
-            deliveryText.includes('à retirer')) {
-          handDelivery = true;
-        }
-        // Fallback: si pas de mention "livraison", c'est probablement main propre
+
+        // Détecter si livraison disponible (badge, icône, texte)
         const hasShipping = deliveryText.includes('livraison') ||
                            deliveryText.includes('envoi') ||
                            deliveryText.includes('mondial relay') ||
-                           deliveryText.includes('colissimo');
+                           deliveryText.includes('colissimo') ||
+                           deliveryText.includes('chronopost') ||
+                           deliveryText.includes('relais colis') ||
+                           ad.querySelector('[class*="shipping"]') !== null ||
+                           ad.querySelector('[class*="delivery"]') !== null ||
+                           ad.querySelector('[data-testid*="shipping"]') !== null ||
+                           ad.querySelector('[data-testid*="delivery"]') !== null;
+
+        // Main propre = par défaut sur LBC, SAUF si livraison uniquement mentionnée
+        // Si location est présente et pas de mention "livraison uniquement", c'est main propre
+        const handDelivery = location !== '' ||
+                            deliveryText.includes('main propre') ||
+                            deliveryText.includes('sur place') ||
+                            deliveryText.includes('à retirer') ||
+                            deliveryText.includes('à venir chercher') ||
+                            !hasShipping; // Si pas de livraison détectée, c'est forcément main propre
 
         // Debug pour les premiers éléments
         if (index < 3) {

@@ -27,6 +27,7 @@ export interface SearchResult {
   hasWarranty?: boolean;       // Garantie disponible (BackMarket)
   photoCount?: number;         // Nombre de photos
   hasShipping?: boolean;       // Livraison disponible
+  isLocal?: boolean;           // Résultat de recherche locale (géoloc)
 }
 
 export interface ScoringInput {
@@ -464,16 +465,31 @@ function generateBadges(result: SearchResult): AnalyzedResult['analysis']['badge
 
 /**
  * Analyse un résultat et calcule son score
+ * Le score est déjà pondéré par la pertinence (confidence) dans page.tsx
+ * On utilise directement ce score pondéré
  */
 export function analyzeResult(result: SearchResult, marketPrice?: number): AnalyzedResult {
   const breakdown = calculateScore({ result, marketPrice });
-  const dealType = getDealType(breakdown.total, breakdown.scamPenalty);
-  const dealText = getDealText(breakdown, result.price, marketPrice);
+
+  // Utiliser le score déjà pondéré par la pertinence (calculé dans page.tsx)
+  // Ce score intègre : scoreBase × (confidence / 100)
+  let finalScore = result.score || breakdown.total;
+
+  // Si le score est trop bas (pas de données), mettre un minimum raisonnable
+  if (finalScore < 20) {
+    finalScore = 65; // Score neutre par défaut
+  }
+
+  breakdown.total = finalScore;
+
+  // Utiliser le dealType de Gemini s'il est disponible
+  const dealType = gemini?.dealType || getDealType(finalScore, breakdown.scamPenalty);
+  const dealText = gemini?.explanation || getDealText(breakdown, result.price, marketPrice);
   const badges = generateBadges(result);
 
   return {
     ...result,
-    score: breakdown.total,
+    score: finalScore,
     scoreBreakdown: breakdown,
     analysis: {
       dealType,

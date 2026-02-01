@@ -20,7 +20,7 @@ SOLUTION: L'extension Chrome fait le scraping dans le navigateur de l'utilisateu
 - Pas de blocage IP
 ```
 
-### Architecture Actuelle (v0.3.6)
+### Architecture Actuelle (v0.4.0)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -36,13 +36,23 @@ SOLUTION: L'extension Chrome fait le scraping dans le navigateur de l'utilisateu
                           │ (via externally_connectable)
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                   EXTENSION CHROME v0.3.6                   │
+│                   EXTENSION CHROME v0.4.0                   │
 │                   Le moteur de scraping                     │
 │                                                             │
 │  1. Recoit les criteres structures                          │
 │  2. Construit URLs optimisees pour chaque site             │
 │  3. Ouvre LeBonCoin + Vinted + Back Market en parallele    │
 │  4. Parse les resultats, combine et renvoie au site        │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   FILTRAGE PERTINENCE IA                    │
+│                                                             │
+│  1. POST /api/analyze → Gemini analyse CHAQUE resultat     │
+│  2. Score confidence 0-100% (pertinence vs recherche)      │
+│  3. Filtrage: confidence < 30% = resultat masque           │
+│  4. Ponderation: scoreFinal = score × (confidence / 100)   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -105,6 +115,122 @@ Ces prix permettent a Gemini d'interpreter "pas cher" correctement.
 
 ---
 
+## Filtrage Pertinence IA (v0.4.0)
+
+### Principe: 100% IA, Zero Regle en Dur
+
+```
+⚠️ REGLE ABSOLUE: PAS DE FILTRAGE HARDCODE ⚠️
+
+Le filtrage des resultats non pertinents est ENTIEREMENT gere par Gemini.
+Aucune liste de mots-cles, aucune regex, aucune regle en dur.
+L'IA comprend le contexte et decide.
+```
+
+### Score de Confidence (0-100%)
+
+Gemini evalue chaque resultat:
+
+| Score | Signification | Action |
+|-------|---------------|--------|
+| 90-100 | Match parfait | Affiche, score eleve |
+| 70-89 | Match probable | Affiche |
+| 50-69 | Match partiel | Affiche, score reduit |
+| 30-49 | Match incertain | Affiche, score bas |
+| 0-29 | Hors-sujet | **FILTRE (masque)** |
+
+### Ponderation du Score
+
+```typescript
+// Le score final integre la pertinence
+const MIN_CONFIDENCE = 30;
+const isRelevant = confidence >= MIN_CONFIDENCE;
+const weightedScore = Math.round(originalScore * (confidence / 100));
+```
+
+Exemple:
+- Resultat avec score 80% et confidence 90% → score final 72%
+- Resultat avec score 80% et confidence 40% → score final 32%
+- Resultat avec confidence 25% → **filtre, non affiche**
+
+### Exemples de Filtrage
+
+```
+Recherche: "PS5"
+✅ "PlayStation 5 avec 2 manettes" → confidence 85%, GARDE
+✅ "PS5 Digital + God of War" → confidence 90%, GARDE
+❌ "Volant Thrustmaster PS5" → confidence 15%, FILTRE
+❌ "Casque Sony Pulse 3D" → confidence 20%, FILTRE
+
+Recherche: "iPhone 13"
+✅ "iPhone 13 128Go noir" → confidence 95%, GARDE
+❌ "Coque iPhone 13 silicone" → confidence 10%, FILTRE
+❌ "Protection ecran iPhone 13" → confidence 15%, FILTRE
+```
+
+### Fichiers Cles
+
+| Fichier | Role |
+|---------|------|
+| `site/src/app/api/analyze/route.ts` | API POST /api/analyze |
+| `site/src/lib/gemini.ts` | Prompt Gemini + parsing reponse |
+| `site/src/app/page.tsx` | Application filtrage + ponderation |
+
+---
+
+## Recherche Geolocalisee (v0.4.0)
+
+### Double Recherche LeBonCoin
+
+Quand la geolocation est activee, l'extension fait 2 recherches LeBonCoin en parallele:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  RECHERCHE LOCALE (30km)     │  RECHERCHE NATIONALE        │
+│  → Resultats proches         │  → Tous les resultats       │
+│  → Badge "Local"             │  → Livraison possible       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+Parametres URL LeBonCoin:
+- `lat` / `lng` : Coordonnees GPS
+- `radius` : Rayon en metres (30000 = 30km)
+
+---
+
+## Tests Automatises (v0.4.0)
+
+### Framework de Test Pertinence
+
+```bash
+npm run test:relevance
+```
+
+Analyse les fixtures de test pour valider la qualite du filtrage:
+
+```
+┌─────────────────┬───────┬───────────┬─────────────┬──────────────┐
+│ Recherche       │ Total │ Pertinent │ Accessoires │ Hors-categ.  │
+├─────────────────┼───────┼───────────┼─────────────┼──────────────┤
+│ PS5             │    12 │         5 │           7 │            0 │
+│ iPhone 13       │    11 │         7 │           4 │            0 │
+│ Nike Dunk       │    10 │         7 │           0 │            3 │
+└─────────────────┴───────┴───────────┴─────────────┴──────────────┘
+```
+
+### Fichiers de Test
+
+| Fichier | Role |
+|---------|------|
+| `site/scripts/test-relevance.ts` | Script de test |
+| `site/scripts/fixtures/ps5.json` | Fixture PS5 |
+| `site/scripts/fixtures/iphone13.json` | Fixture iPhone |
+| `site/scripts/fixtures/nikedunk.json` | Fixture Nike Dunk |
+| `site/scripts/fixtures/macbook.json` | Fixture MacBook |
+| `site/scripts/fixtures/switch.json` | Fixture Switch |
+
+---
+
 ## Projet
 
 **OKAZ** est un comparateur de petites annonces (LeBonCoin, Vinted, Back Market) avec:
@@ -122,11 +248,13 @@ Ces prix permettent a Gemini d'interpreter "pas cher" correctement.
 
 | Fichier | Role |
 |---------|------|
-| `site/src/app/page.tsx` | Interface principale + communication extension |
+| `site/src/app/page.tsx` | Interface principale + filtrage pertinence |
 | `site/src/app/api/optimize/route.ts` | API Gemini pour optimiser requetes |
-| `site/src/lib/gemini.ts` | Service Gemini + prix du marche |
+| `site/src/app/api/analyze/route.ts` | API Gemini pour analyser pertinence |
+| `site/src/lib/gemini.ts` | Service Gemini + prompts + parsing |
 | `site/src/lib/scoring.ts` | Analyse et categorisation des resultats |
-| `site/src/components/ui/glass-card.tsx` | Composant glassmorphism |
+| `site/scripts/test-relevance.ts` | Tests automatises pertinence |
+| `site/scripts/fixtures/*.json` | Donnees de test (PS5, iPhone, etc.) |
 
 ### Extension Chrome
 
@@ -240,6 +368,15 @@ cd site && npm run build && vercel --prod
 - [x] Parser Back Market
 - [x] Recherches paralleles (Promise.all)
 - [x] Filtrage pertinence par Gemini (relevant: true/false)
+
+### Phase 3.5: Filtrage IA Avance ✅
+- [x] API /api/analyze pour analyse Gemini
+- [x] Score confidence 0-100% par resultat
+- [x] Ponderation score: scoreFinal = score × (confidence/100)
+- [x] Seuil minimum: confidence < 30% = filtre
+- [x] Double recherche LeBonCoin (locale 30km + nationale)
+- [x] Tests automatises pertinence (npm run test:relevance)
+- [x] Fixtures de test (PS5, iPhone, Nike Dunk, MacBook, Switch)
 
 ### Phase 4: Polish & Deploy (A FAIRE)
 - [ ] UI responsive mobile
@@ -450,4 +587,4 @@ Le meilleur deal = le meilleur deal, affilie ou pas.
 
 ---
 
-*Mis a jour le 31 janvier 2026 - v0.3.6 avec LeBonCoin + Vinted + Back Market + strategie monetisation*
+*Mis a jour le 1 fevrier 2026 - v0.4.0 avec filtrage pertinence IA + tests automatises*

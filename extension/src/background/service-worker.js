@@ -175,14 +175,42 @@ async function handleSearch(query, criteria, sendResponse) {
   try {
     // Lancer les recherches en PARALLÈLE uniquement sur les sites sélectionnés
     const searchPromises = [];
+    const hasUserLocation = criteria?.userLocation?.lat && criteria?.userLocation?.lng;
 
+    // LeBonCoin : si géoloc activée, faire DEUX recherches (locale + nationale)
     if (sitesToSearch.includes('leboncoin')) {
-      searchPromises.push(
-        searchLeBonCoin(query, criteria).catch(err => {
-          console.error('OKAZ SW: Erreur LeBonCoin:', err.message);
-          return [];
-        })
-      );
+      if (hasUserLocation) {
+        // Recherche LOCALE (50km autour de l'utilisateur) - pour main propre
+        console.log('OKAZ SW: LeBonCoin avec géoloc - 2 recherches (locale + nationale)');
+        searchPromises.push(
+          Promise.all([
+            searchLeBonCoin(query, criteria, true).catch(err => {
+              console.error('OKAZ SW: Erreur LeBonCoin LOCAL:', err.message);
+              return [];
+            }),
+            searchLeBonCoin(query, criteria, false).catch(err => {
+              console.error('OKAZ SW: Erreur LeBonCoin NATIONAL:', err.message);
+              return [];
+            })
+          ]).then(([localResults, nationalResults]) => {
+            // Marquer les résultats locaux
+            localResults.forEach(r => r.isLocal = true);
+            // Combiner en évitant les doublons (par URL)
+            const seenUrls = new Set(localResults.map(r => r.url));
+            const uniqueNational = nationalResults.filter(r => !seenUrls.has(r.url));
+            console.log(`OKAZ SW: LBC local=${localResults.length}, national unique=${uniqueNational.length}`);
+            return [...localResults, ...uniqueNational];
+          })
+        );
+      } else {
+        // Pas de géoloc : recherche nationale uniquement
+        searchPromises.push(
+          searchLeBonCoin(query, criteria, false).catch(err => {
+            console.error('OKAZ SW: Erreur LeBonCoin:', err.message);
+            return [];
+          })
+        );
+      }
     } else {
       searchPromises.push(Promise.resolve([]));
     }
@@ -240,7 +268,8 @@ async function handleSearch(query, criteria, sendResponse) {
 }
 
 // Construire l'URL LeBonCoin à partir des critères
-function buildLeBonCoinUrl(query, criteria) {
+// Si localSearch=true et userLocation fourni, ajoute les filtres géo
+function buildLeBonCoinUrl(query, criteria, localSearch = false) {
   const params = new URLSearchParams();
 
   // Utiliser les keywords optimisés si disponibles, sinon la query brute
@@ -261,12 +290,22 @@ function buildLeBonCoinUrl(query, criteria) {
     params.set('owner_type', criteria.ownerType);
   }
 
+  // Recherche LOCALE : ajouter lat/lng/rayon
+  // Format LeBonCoin : lat, lng (coordonnées), radius en mètres
+  if (localSearch && criteria?.userLocation) {
+    const { lat, lng } = criteria.userLocation;
+    params.set('lat', lat.toFixed(6));
+    params.set('lng', lng.toFixed(6));
+    params.set('radius', '30000'); // 30km en mètres (plus précis)
+    console.log(`OKAZ SW: Recherche LOCALE LBC - lat=${lat}, lng=${lng}, rayon=30km`);
+  }
+
   return `https://www.leboncoin.fr/recherche?${params.toString()}`;
 }
 
-async function searchLeBonCoin(query, criteria) {
-  const searchUrl = buildLeBonCoinUrl(query, criteria);
-  console.log('OKAZ SW: Ouverture LeBonCoin...', searchUrl);
+async function searchLeBonCoin(query, criteria, localSearch = false) {
+  const searchUrl = buildLeBonCoinUrl(query, criteria, localSearch);
+  console.log(`OKAZ SW: Ouverture LeBonCoin ${localSearch ? '(LOCAL)' : '(NATIONAL)'}...`, searchUrl);
 
   return new Promise(async (resolve, reject) => {
     let tab = null;

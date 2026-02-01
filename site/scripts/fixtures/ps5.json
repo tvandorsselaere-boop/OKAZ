@@ -1,0 +1,17 @@
+{
+  "query": "PS5",
+  "results": [
+    { "id": "lbc-1", "title": "PS5 Standard Edition avec 2 manettes", "price": 380, "site": "leboncoin" },
+    { "id": "lbc-2", "title": "PlayStation 5 Digital comme neuve", "price": 320, "site": "leboncoin" },
+    { "id": "lbc-3", "title": "PS5 + God of War Ragnarok", "price": 420, "site": "leboncoin" },
+    { "id": "lbc-4", "title": "Console PS5 Disc Edition", "price": 400, "site": "leboncoin" },
+    { "id": "lbc-5", "title": "Manette PS5 DualSense blanche", "price": 45, "site": "leboncoin" },
+    { "id": "lbc-6", "title": "Support vertical PS5", "price": 15, "site": "leboncoin" },
+    { "id": "bm-1", "title": "Volant Thrustmaster T248 PS5/PS4/PC", "price": 204, "site": "backmarket" },
+    { "id": "bm-2", "title": "Casque Sony Pulse 3D PS5", "price": 89, "site": "backmarket" },
+    { "id": "bm-3", "title": "Manette DualSense PS5 Midnight Black", "price": 55, "site": "backmarket" },
+    { "id": "bm-4", "title": "Station de charge PS5", "price": 25, "site": "backmarket" },
+    { "id": "bm-5", "title": "Volant Logitech G923 PS5/PC", "price": 255, "site": "backmarket" },
+    { "id": "bm-6", "title": "PlayStation 5 Slim Reconditionné", "price": 449, "site": "backmarket" }
+  ]
+}

@@ -270,6 +270,8 @@ export async function optimizeQuery(query: string): Promise<OptimizeResult> {
       priceMax: criteria.priceMax,
       shippable: criteria.shippable,
       ownerType: criteria.ownerType,
+      category: criteria.category,
+      sites: criteria.sites,
       originalQuery: query,
     };
 
@@ -498,11 +500,10 @@ function parseAnalysisResponse(text: string, originalResults: RawResult[]): Anal
     const analyzed: AnalyzedResultGemini[] = analyzedArray.map((item: Record<string, unknown>, index: number) => {
       const original = originalResults.find(r => r.id === item.id) || originalResults[index];
 
-      // PERMISSIF: relevant = false UNIQUEMENT si explicitement false
-      // Si confidence >= 30, on considère comme potentiellement pertinent
+      // Confidence = pertinence du résultat (0-100%)
+      // Le filtrage et la pondération du score sont faits dans page.tsx
       const confidence = Math.min(100, Math.max(0, Number(item.confidence) || 50));
-      const explicitlyNotRelevant = item.relevant === false;
-      const relevant = !explicitlyNotRelevant && confidence >= 20;
+      const relevant = confidence >= 30; // Seuil minimum de pertinence
 
       return {
         id: String(item.id || original?.id || index),

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Sparkles, Shield, Zap, ArrowLeft, ExternalLink, AlertTriangle, Settings, Check, Wand2, TrendingDown, Lightbulb, BadgeCheck, ShoppingBag, X, MapPin, Navigation } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
+import { SpotlightCard } from "@/components/ui/spotlight-card";
 import { UpgradeModal, SearchCounter } from "@/components/ui/upgrade-modal";
 import { analyzeResults } from "@/lib/scoring";
 import type { AnalyzedResult, CategorizedResults, SearchResult } from "@/lib/scoring";
@@ -233,12 +234,11 @@ function TopRecommendation({ result, topPick }: { result: AnalyzedResult; topPic
   );
 }
 
-function ResultCard({ result, variant = 'normal' }: { result: AnalyzedResult; variant?: 'normal' }) {
-  const borderClass = 'border-white/10';
-
+function ResultCard({ result, index = 0, showLocalBadge = false }: { result: AnalyzedResult; index?: number; showLocalBadge?: boolean }) {
   // Utiliser l'analyse Gemini si disponible, sinon fallback sur l'analyse locale
   const gemini = result.geminiAnalysis;
   const dealType = gemini?.dealType || result.analysis.dealType;
+  const isLocal = (result as AnalyzedResult & { isLocal?: boolean }).isLocal;
 
   const dealClass = dealType === 'excellent' || dealType === 'good'
     ? 'bg-green-500/10 text-green-400'
@@ -254,104 +254,128 @@ function ResultCard({ result, variant = 'normal' }: { result: AnalyzedResult; va
     : dealType === 'overpriced' ? '📉'
     : '•';
 
+  // Couleur spotlight selon le deal type
+  const spotlightColor = dealType === 'excellent' || dealType === 'good'
+    ? 'rgba(34, 197, 94, 0.12)'
+    : dealType === 'suspicious' || dealType === 'overpriced'
+    ? 'rgba(239, 68, 68, 0.12)'
+    : 'rgba(99, 102, 241, 0.12)';
+
   return (
-    <a
-      href={result.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={`block p-4 rounded-xl border ${borderClass} hover:bg-white/5 transition-all group`}
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, delay: index * 0.05 }}
     >
-      <div className="flex gap-4">
-        <div className="relative w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-white/5">
-          {result.image ? (
-            <img
-              src={result.image}
-              alt={result.title}
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
-              }}
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-2xl">
-              📦
+      <a
+        href={result.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block"
+      >
+        <SpotlightCard
+          spotlightColor={spotlightColor}
+          className="p-4 group cursor-pointer hover:scale-[1.01] transition-transform duration-200"
+        >
+          <div className="flex gap-4">
+            <div className="relative w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-white/5">
+              {result.image ? (
+                <img
+                  src={result.image}
+                  alt={result.title}
+                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-2xl">
+                  📦
+                </div>
+              )}
+              <div
+                className="absolute bottom-0 left-0 right-0 py-0.5 text-[10px] text-white text-center font-medium"
+                style={{ backgroundColor: result.siteColor }}
+              >
+                {result.site}
+              </div>
+              {/* Badge "Près de vous" sur l'image */}
+              {isLocal && showLocalBadge && (
+                <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-green-500/90 text-white text-[8px] font-bold rounded">
+                  LOCAL
+                </div>
+              )}
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <div className="flex items-start justify-between gap-2">
+                <h3 className="text-sm font-medium text-white line-clamp-2 group-hover:text-[var(--primary-light)] transition-colors">
+                  {result.title}
+                </h3>
+                <ExternalLink className="w-4 h-4 text-white/30 group-hover:text-[var(--primary)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all flex-shrink-0" />
+              </div>
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                <span className="text-lg font-bold text-white">
+                  {result.price > 0 ? `${result.price.toLocaleString('fr-FR')} €` : 'Prix non indiqué'}
+                </span>
+                <ScoreBadge score={result.score} />
+                {/* Indicateur de confiance Gemini */}
+                {gemini?.confidence !== undefined && (
+                  <ConfidenceIndicator confidence={gemini.confidence} matchDetails={gemini.matchDetails} />
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Match details si confiance < 70% */}
+          {gemini?.matchDetails && gemini.confidence !== undefined && gemini.confidence < 70 && (
+            <div className="mt-2 px-3 py-1.5 rounded-lg bg-orange-500/5 border border-orange-500/10 text-[11px] text-orange-300/80">
+              {gemini.matchDetails}
             </div>
           )}
-          <div
-            className="absolute bottom-0 left-0 right-0 py-0.5 text-[10px] text-white text-center font-medium"
-            style={{ backgroundColor: result.siteColor }}
-          >
-            {result.site}
-          </div>
-        </div>
 
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2">
-            <h3 className="text-sm font-medium text-white line-clamp-2 group-hover:text-[var(--primary)] transition-colors">
-              {result.title}
-            </h3>
-            <ExternalLink className="w-4 h-4 text-white/30 group-hover:text-white/60 flex-shrink-0" />
-          </div>
-          <div className="flex items-center gap-2 mt-1 flex-wrap">
-            <span className="text-lg font-bold text-white">
-              {result.price > 0 ? `${result.price.toLocaleString('fr-FR')} €` : 'Prix non indique'}
-            </span>
-            <ScoreBadge score={result.score} />
-            {/* Indicateur de confiance Gemini */}
-            {gemini?.confidence !== undefined && (
-              <ConfidenceIndicator confidence={gemini.confidence} matchDetails={gemini.matchDetails} />
-            )}
-          </div>
-        </div>
-      </div>
+          {/* Explication Gemini ou texte local */}
+          {(gemini?.explanation || result.analysis.dealText) && (
+            <div className={`mt-3 px-3 py-2 rounded-lg text-xs flex items-center gap-2 ${dealClass}`}>
+              <span>{dealIcon}</span>
+              <span>{gemini?.explanation || result.analysis.dealText}</span>
+            </div>
+          )}
 
-      {/* Match details si confiance < 70% */}
-      {gemini?.matchDetails && gemini.confidence !== undefined && gemini.confidence < 70 && (
-        <div className="mt-2 px-3 py-1.5 rounded-lg bg-orange-500/5 border border-orange-500/10 text-[11px] text-orange-300/80">
-          {gemini.matchDetails}
-        </div>
-      )}
-
-      {/* Explication Gemini ou texte local */}
-      {(gemini?.explanation || result.analysis.dealText) && (
-        <div className={`mt-3 px-3 py-2 rounded-lg text-xs flex items-center gap-2 ${dealClass}`}>
-          <span>{dealIcon}</span>
-          <span>{gemini?.explanation || result.analysis.dealText}</span>
-        </div>
-      )}
-
-      {/* Badges : RedFlags Gemini + badges locaux */}
-      {((gemini?.redFlags?.length ?? 0) > 0 || result.analysis.badges.length > 0) && (
-        <div className="flex flex-wrap gap-1.5 mt-2">
-          {/* Red flags de Gemini */}
-          {gemini?.redFlags?.map((flag, i) => (
-            <span
-              key={`rf-${i}`}
-              className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full bg-red-500/15 text-red-400"
-            >
-              <Shield className="w-3 h-3" />
-              {flag}
-            </span>
-          ))}
-          {/* Badges locaux */}
-          {result.analysis.badges.map((badge, i) => (
-            <span
-              key={`b-${i}`}
-              className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full ${
-                badge.type === 'positive'
-                  ? 'bg-green-500/15 text-green-400'
-                  : badge.type === 'warning'
-                  ? 'bg-yellow-500/15 text-yellow-400'
-                  : 'bg-red-500/15 text-red-400'
-              }`}
-            >
-              {badge.type === 'danger' && <Shield className="w-3 h-3" />}
-              {badge.text}
-            </span>
-          ))}
-        </div>
-      )}
-    </a>
+          {/* Badges : RedFlags Gemini + badges locaux */}
+          {((gemini?.redFlags?.length ?? 0) > 0 || result.analysis.badges.length > 0) && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {/* Red flags de Gemini */}
+              {gemini?.redFlags?.map((flag, i) => (
+                <span
+                  key={`rf-${i}`}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full bg-red-500/15 text-red-400"
+                >
+                  <Shield className="w-3 h-3" />
+                  {flag}
+                </span>
+              ))}
+              {/* Badges locaux */}
+              {result.analysis.badges.map((badge, i) => (
+                <span
+                  key={`b-${i}`}
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full ${
+                    badge.type === 'positive'
+                      ? 'bg-green-500/15 text-green-400'
+                      : badge.type === 'warning'
+                      ? 'bg-yellow-500/15 text-yellow-400'
+                      : 'bg-red-500/15 text-red-400'
+                  }`}
+                >
+                  {badge.type === 'danger' && <Shield className="w-3 h-3" />}
+                  {badge.text}
+                </span>
+              ))}
+            </div>
+          )}
+        </SpotlightCard>
+      </a>
+    </motion.div>
   );
 }
 
@@ -370,53 +394,155 @@ function HandDeliverySection({ results, userLocation }: { results: AnalyzedResul
     return { ...result, distance };
   });
 
-  // Trier par distance si géoloc active
-  const sortedResults = userLocation
-    ? [...resultsWithDistance].sort((a, b) => {
-        if (a.distance === null && b.distance === null) return 0;
-        if (a.distance === null) return 1;
-        if (b.distance === null) return -1;
-        return a.distance - b.distance;
-      })
-    : resultsWithDistance;
+  // Toujours trier par score (le plus pertinent en premier)
+  const sortedResults = [...resultsWithDistance].sort((a, b) => b.score - a.score);
+
+  // Trouver la meilleure offre (score + deal type + distance)
+  const bestDeal = sortedResults.length > 0 ? sortedResults.reduce((best, current) => {
+    const currentDealType = current.geminiAnalysis?.dealType || current.analysis.dealType;
+    const bestDealType = best.geminiAnalysis?.dealType || best.analysis.dealType;
+
+    // Score composite: score de base + bonus deal type + bonus distance
+    const getDealBonus = (dealType: string) => {
+      if (dealType === 'excellent') return 30;
+      if (dealType === 'good') return 20;
+      if (dealType === 'fair') return 5;
+      return 0;
+    };
+
+    const currentComposite = current.score + getDealBonus(currentDealType || '') + (current.distance !== null && current.distance < 20 ? 10 : 0);
+    const bestComposite = best.score + getDealBonus(bestDealType || '') + (best.distance !== null && best.distance < 20 ? 10 : 0);
+
+    return currentComposite > bestComposite ? current : best;
+  }, sortedResults[0]) : null;
+
+  // Filtrer le bestDeal des autres résultats
+  const otherResults = bestDeal ? sortedResults.filter(r => r.id !== bestDeal.id) : sortedResults;
 
   return (
-    <div className="space-y-3">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ delay: 0.3 }}
+      className="space-y-4"
+    >
       <div className="flex items-center gap-2">
         <span className="text-lg">🤝</span>
         <h3 className="text-sm font-semibold text-white/70 uppercase tracking-wide">
           Main propre
           <span className="text-white/30 font-normal ml-2">({results.length})</span>
         </h3>
-        {userLocation && (
-          <span className="text-xs text-blue-400 flex items-center gap-1">
-            <Navigation className="w-3 h-3" />
-            Trié par distance
-          </span>
-        )}
       </div>
 
-      <div className="space-y-3">
-        {sortedResults.map((result) => (
-          <div key={result.id} className="relative">
-            <ResultCard result={result} variant="normal" />
-            {/* Badge distance si géoloc active */}
-            {userLocation && result.distance !== null && (
-              <div className="absolute top-2 right-2 px-2 py-1 bg-blue-500/20 text-blue-400 text-[10px] rounded-full flex items-center gap-1">
-                <MapPin className="w-3 h-3" />
-                {formatDistance(result.distance)}
+      {/* Meilleur deal main propre - Carte mise en avant */}
+      {bestDeal && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+        >
+          <a
+            href={bestDeal.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block p-4 rounded-xl bg-gradient-to-br from-emerald-500/10 to-teal-500/10 border-2 border-emerald-500/30 hover:border-emerald-500/50 hover:scale-[1.01] transition-all group relative overflow-hidden"
+          >
+            {/* Badge "Meilleur deal" */}
+            <div className="absolute top-0 right-0 bg-gradient-to-l from-emerald-500 to-teal-500 text-white text-[10px] font-bold px-3 py-1 rounded-bl-lg">
+              🎯 MEILLEUR DEAL
+            </div>
+
+            <div className="flex gap-4">
+              <div className="relative w-24 h-24 rounded-xl overflow-hidden flex-shrink-0 bg-white/5 ring-2 ring-emerald-500/30">
+                {bestDeal.image ? (
+                  <img
+                    src={bestDeal.image}
+                    alt={bestDeal.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-3xl">📦</div>
+                )}
+                <div
+                  className="absolute bottom-0 left-0 right-0 py-0.5 text-[10px] text-white text-center font-medium"
+                  style={{ backgroundColor: bestDeal.siteColor }}
+                >
+                  {bestDeal.site}
+                </div>
               </div>
-            )}
-            {/* Afficher la ville si pas de géoloc */}
-            {!userLocation && result.location && (
-              <div className="absolute top-2 right-2 px-2 py-1 bg-white/10 text-white/50 text-[10px] rounded-full">
-                {result.location}
+
+              <div className="flex-1 min-w-0 pt-2">
+                <h4 className="text-base font-semibold text-white line-clamp-2 group-hover:text-emerald-300 transition-colors">
+                  {bestDeal.title}
+                </h4>
+                <div className="flex items-center gap-3 mt-2">
+                  <span className="text-2xl font-bold text-white">
+                    {bestDeal.price > 0 ? `${bestDeal.price.toLocaleString('fr-FR')} €` : 'Prix sur demande'}
+                  </span>
+                  <ScoreBadge score={bestDeal.score} />
+                </div>
+
+                {/* Infos localisation */}
+                <div className="flex items-center gap-2 mt-2 text-xs text-emerald-400">
+                  <MapPin className="w-3 h-3" />
+                  {bestDeal.distance !== null ? (
+                    <span>{formatDistance(bestDeal.distance)} de vous</span>
+                  ) : bestDeal.location ? (
+                    <span>{bestDeal.location}</span>
+                  ) : (
+                    <span>Localisation non précisée</span>
+                  )}
+                </div>
               </div>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
+
+              <ExternalLink className="w-5 h-5 text-emerald-400/50 group-hover:text-emerald-400 transition-colors flex-shrink-0 mt-2" />
+            </div>
+          </a>
+        </motion.div>
+      )}
+
+      {/* Autres résultats */}
+      {otherResults.length > 0 && (
+        <div className="space-y-3">
+          {otherResults.map((result, index) => (
+            <div key={result.id} className="relative">
+              <ResultCard result={result} index={index} />
+              {/* Badge distance si géoloc active */}
+              {userLocation && result.distance !== null && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.1 + index * 0.05 }}
+                  className="absolute top-4 right-4 px-2 py-1 bg-blue-500/20 backdrop-blur-sm text-blue-400 text-[10px] rounded-full flex items-center gap-1 border border-blue-500/30"
+                >
+                  <MapPin className="w-3 h-3" />
+                  {formatDistance(result.distance)}
+                </motion.div>
+              )}
+              {/* Badge "Près de vous" pour résultats locaux */}
+              {(result as AnalyzedResult & { isLocal?: boolean }).isLocal && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.1 + index * 0.05 }}
+                  className="absolute top-4 left-4 px-2 py-1 bg-green-500/20 backdrop-blur-sm text-green-400 text-[10px] rounded-full flex items-center gap-1 border border-green-500/30"
+                >
+                  <Navigation className="w-3 h-3" />
+                  Près de vous
+                </motion.div>
+              )}
+              {/* Afficher la ville si pas de géoloc */}
+              {!userLocation && result.location && (
+                <div className="absolute top-4 right-4 px-2 py-1 bg-white/10 backdrop-blur-sm text-white/50 text-[10px] rounded-full border border-white/10">
+                  {result.location}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </motion.div>
   );
 }
 
@@ -435,25 +561,39 @@ function SearchResults({ data, onBack }: { data: { query: string; categorized: C
     : results;
 
   // Séparer les résultats : Livraison vs Main propre
-  const shippingResults = otherResults.filter(r => r.hasShipping === true || r.handDelivery !== true);
-  const handDeliveryResults = otherResults.filter(r => r.handDelivery === true);
+  // - Livraison = a une option livraison (même si main propre aussi possible)
+  // - Main propre = UNIQUEMENT main propre (pas de livraison)
+  const shippingResults = otherResults.filter(r => r.hasShipping === true);
+  const handDeliveryResults = otherResults.filter(r => r.handDelivery === true && r.hasShipping !== true);
 
   const wasOptimized = criteria && criteria.keywords !== criteria.originalQuery;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <button
+        <motion.button
           onClick={onBack}
-          className="flex items-center gap-2 text-white/60 hover:text-white transition-colors"
+          whileHover={{ x: -2 }}
+          whileTap={{ scale: 0.95 }}
+          className="flex items-center gap-2 text-white/60 hover:text-white transition-colors btn-secondary px-3 py-1.5 rounded-lg"
         >
           <ArrowLeft className="w-4 h-4" />
           Retour
-        </button>
-        <span className="text-2xl font-bold gradient-text">OKAZ</span>
+        </motion.button>
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--primary)] to-[var(--accent)] flex items-center justify-center shadow-lg">
+            <Search className="w-4 h-4 text-white" />
+          </div>
+          <span className="text-xl font-bold logo-gradient">OKAZ</span>
+        </div>
       </div>
 
-      <div className="px-4 py-3 bg-white/5 rounded-xl space-y-2">
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="glass-card p-4 rounded-xl space-y-2"
+      >
         <div>
           <div className="text-sm text-white/50">Recherche :</div>
           <div className="text-white font-medium">{query}</div>
@@ -509,9 +649,9 @@ function SearchResults({ data, onBack }: { data: { query: string; categorized: C
         )}
 
         <div className="text-xs text-white/40">
-          {totalResults} resultat{totalResults > 1 ? 's' : ''} en {(duration / 1000).toFixed(1)}s
+          {totalResults} résultat{totalResults > 1 ? 's' : ''} en {(duration / 1000).toFixed(1)}s
         </div>
-      </div>
+      </motion.div>
 
       {totalResults === 0 && (
         <div className="text-center py-12">
@@ -527,7 +667,12 @@ function SearchResults({ data, onBack }: { data: { query: string; categorized: C
 
       {/* Section Livraison */}
       {shippingResults.length > 0 && (
-        <div className="space-y-3">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.2 }}
+          className="space-y-3"
+        >
           <div className="flex items-center gap-2">
             <span className="text-lg">📦</span>
             <h3 className="text-sm font-semibold text-white/70 uppercase tracking-wide">
@@ -536,11 +681,11 @@ function SearchResults({ data, onBack }: { data: { query: string; categorized: C
             </h3>
           </div>
           <div className="space-y-3">
-            {shippingResults.map((result) => (
-              <ResultCard key={result.id} result={result} variant="normal" />
+            {shippingResults.map((result, index) => (
+              <ResultCard key={result.id} result={result} index={index} showLocalBadge={true} />
             ))}
           </div>
-        </div>
+        </motion.div>
       )}
 
       {/* Section Main propre */}
@@ -801,12 +946,7 @@ export default function Home() {
     localStorage.setItem('okaz_geoloc_enabled', geolocEnabled.toString());
   }, [geolocEnabled]);
 
-  // Auto-activer si position en cache et permission granted
-  useEffect(() => {
-    if (position && permissionState === 'granted' && !geolocEnabled) {
-      setGeolocEnabled(true);
-    }
-  }, [position, permissionState, geolocEnabled]);
+  // Note: On n'auto-active plus la géoloc pour permettre à l'utilisateur de la désactiver
 
   // État du quota
   const [quota, setQuota] = useState<QuotaStatus | null>(null);
@@ -930,9 +1070,17 @@ export default function Home() {
 
   // Demander la permission quand on active la checkbox
   const handleGeolocToggle = async () => {
-    if (!geolocEnabled && permissionState !== 'granted') {
+    console.log('[OKAZ] Geoloc toggle clicked, current state:', { geolocEnabled, permissionState, position });
+
+    // Si on n'a pas de position, toujours la demander (peu importe geolocEnabled)
+    if (!position) {
+      console.log('[OKAZ] No position, requesting...');
       await requestPermission();
+      setGeolocEnabled(true);
+      return;
     }
+
+    // On a une position, toggle l'état
     setGeolocEnabled(!geolocEnabled);
   };
 
@@ -1059,12 +1207,19 @@ export default function Home() {
       setSearchPhase('searching');
 
       // Étape 2: Envoyer les critères à l'extension
+      // Si géoloc activée, ajouter la position pour recherche locale LeBonCoin
+      const searchCriteria = {
+        ...criteria,
+        userLocation: geolocEnabledRef.current && positionRef.current ? positionRef.current : undefined
+      };
+
       console.log('[OKAZ] 3. Envoi à l\'extension MAINTENANT...');
       console.log('[OKAZ] 3a. Keywords:', criteria.keywords);
       console.log('[OKAZ] 3b. PriceMax:', criteria.priceMax);
       console.log('[OKAZ] 3c. Shippable:', criteria.shippable);
+      console.log('[OKAZ] 3d. UserLocation:', searchCriteria.userLocation ? 'OUI' : 'NON');
       // @ts-ignore
-      chrome.runtime.sendMessage(extensionId, { type: 'SEARCH', query: criteria.keywords, criteria }, async (response: ExtensionResponse) => {
+      chrome.runtime.sendMessage(extensionId, { type: 'SEARCH', query: criteria.keywords, criteria: searchCriteria }, async (response: ExtensionResponse) => {
         // @ts-ignore
         if (chrome.runtime.lastError) {
           // @ts-ignore
@@ -1090,46 +1245,55 @@ export default function Home() {
             });
             const analyzeData: AnalyzeResponse = await analyzeRes.json();
 
+            console.log('[OKAZ] 5a. Réponse API analyze:', analyzeData);
+
             if (analyzeData.success && analyzeData.analyzed) {
-              console.log('[OKAZ] 5a. ✓ Analyse Gemini terminée:', analyzeData.analyzed.length);
+              console.log('[OKAZ] 5b. ✓ Analyse Gemini terminée:', analyzeData.analyzed.length);
               // Créer un map id -> analyse
               analyzeData.analyzed.forEach((a) => {
                 geminiAnalysis[a.id] = a;
+                // Debug: afficher dealScore de chaque résultat
+                console.log(`[OKAZ] Résultat ${a.id}: dealScore=${a.dealScore}, marketPrice=${a.marketPrice}, dealType=${a.dealType}`);
               });
 
               // Récupérer le topPick si présent
               if (analyzeData.topPick) {
                 topPick = analyzeData.topPick;
-                console.log('[OKAZ] 5b. ✓ TopPick identifié:', topPick.id, '-', topPick.headline);
+                console.log('[OKAZ] 5c. ✓ TopPick identifié:', topPick.id, '-', topPick.headline);
               }
+            } else {
+              console.warn('[OKAZ] 5b. ⚠ Analyse Gemini: success=false ou pas de données', analyzeData);
             }
           } catch (analyzeErr) {
-            console.warn('[OKAZ] 5c. Analyse Gemini échouée:', analyzeErr);
+            console.error('[OKAZ] 5d. ❌ Analyse Gemini échouée:', analyzeErr);
           }
 
           // Appliquer les corrections Gemini
-          // On garde TOUS les résultats sauf ceux explicitement hors-sujet (relevant: false)
+          // 1. Filtrer si confidence < 30% (vraiment hors-sujet)
+          // 2. Pondérer le score par la pertinence : scoreFinal = score × (confidence/100)
+          const MIN_CONFIDENCE = 30; // Seuil minimum pour afficher
+
           const correctedResults = response.results.map(r => {
             const analysis = geminiAnalysis[r.id];
-            if (analysis) {
-              // Logique permissive: on filtre UNIQUEMENT si:
-              // 1. relevant === false explicitement ET
-              // 2. confidence < 20 (vraiment hors-sujet)
-              const confidence = analysis.confidence ?? 50;
-              const explicitlyNotRelevant = analysis.relevant === false;
-              const isRelevant = !(explicitlyNotRelevant && confidence < 20);
+            const confidence = analysis?.confidence ?? 70; // 70% par défaut si pas d'analyse
 
-              console.log(`[OKAZ] Résultat ${r.id}: relevant=${analysis.relevant}, confidence=${confidence} → ${isRelevant ? 'GARDÉ' : 'FILTRÉ'}`);
-              return {
-                ...r,
-                price: analysis.correctedPrice || r.price,
-                geminiAnalysis: analysis,
-                relevant: isRelevant
-              };
-            }
-            // Pas d'analyse Gemini = on garde par défaut (fail-open)
-            return { ...r, relevant: true };
-          }).filter(r => r.relevant); // Ne filtre que les vraiment hors-sujet
+            // Filtrer les résultats avec pertinence trop basse
+            const isRelevant = confidence >= MIN_CONFIDENCE;
+
+            // Pondérer le score par la pertinence
+            const originalScore = r.score || 75;
+            const weightedScore = Math.round(originalScore * (confidence / 100));
+
+            console.log(`[OKAZ] Résultat ${r.id}: confidence=${confidence}%, score=${originalScore} → ${isRelevant ? `GARDÉ (score pondéré: ${weightedScore})` : 'FILTRÉ'}`);
+
+            return {
+              ...r,
+              price: analysis?.correctedPrice || r.price,
+              score: weightedScore, // Score pondéré par la pertinence
+              geminiAnalysis: analysis,
+              relevant: isRelevant
+            };
+          }).filter(r => r.relevant);
 
           const duration = Date.now() - startTime;
           const categorized = analyzeResults(correctedResults, q);
@@ -1227,19 +1391,30 @@ export default function Home() {
             animate={{ opacity: 1, y: 0 }}
             className="text-center mb-12"
           >
-            <h1 className="text-5xl sm:text-6xl font-bold gradient-text mb-4">
-              OKAZ
-            </h1>
-            <p className="text-lg text-[var(--text-secondary)]">
+            {/* Logo Icon + Text */}
+            <div className="flex items-center justify-center gap-4 mb-6">
+              <motion.div
+                className="logo-icon"
+                whileHover={{ scale: 1.05, rotate: 2 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <Search className="w-7 h-7 text-[var(--primary-light)]" />
+              </motion.div>
+              <h1 className="logo-text text-5xl sm:text-6xl logo-gradient logo-glow">
+                OKAZ
+              </h1>
+            </div>
+
+            <p className="text-lg text-[var(--text-secondary)] max-w-md mx-auto">
               Comparez <strong className="text-white">LeBonCoin</strong>,{" "}
               <strong className="text-white">Vinted</strong> et{" "}
               <strong className="text-white">Back Market</strong> en une recherche
             </p>
             {extensionConnected && (
-              <div className="mt-2 flex items-center justify-center gap-4">
-                <div className="inline-flex items-center gap-2 text-xs text-green-400">
+              <div className="mt-4 flex items-center justify-center gap-4">
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-500/10 border border-green-500/20 text-xs text-green-400">
                   <Check className="w-3 h-3" />
-                  Extension connectee
+                  Extension connectée
                 </div>
                 {quota && (
                   <SearchCounter
@@ -1257,7 +1432,8 @@ export default function Home() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
           >
-            <GlassCard variant="bordered" className="p-6">
+            <div className="glass-card glass-card-hover p-6 rounded-2xl">
+              {/* Form de recherche */}
               <form onSubmit={(e) => { e.preventDefault(); handleSearch(); }}>
                 <div className="relative">
                   <input
@@ -1265,55 +1441,56 @@ export default function Home() {
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Que cherchez-vous ?"
-                    className="w-full px-6 py-4 pr-14 text-lg bg-white/5 border border-white/10 rounded-2xl text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 focus:border-transparent"
+                    className="input-glass w-full px-6 py-4 pr-16 text-lg rounded-xl text-white placeholder:text-white/40 focus:outline-none"
                   />
                   <button
                     type="submit"
                     disabled={!isSearching && !query.trim()}
-                    className={`absolute right-2 top-1/2 -translate-y-1/2 p-3 rounded-xl transition-all ${
+                    className={`absolute right-3 top-1/2 -translate-y-1/2 z-10 p-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95 ${
                       isSearching
                         ? 'bg-red-500 hover:bg-red-600'
-                        : 'bg-[var(--primary)] hover:bg-[var(--primary-dark)] disabled:opacity-50'
+                        : 'search-btn'
                     }`}
+                    onClick={(e) => { console.log('[OKAZ] Search button clicked'); }}
                   >
                     {isSearching ? <X className="w-5 h-5 text-white" /> : <Search className="w-5 h-5 text-white" />}
                   </button>
                 </div>
-
-                {/* Option géolocalisation */}
-                <div className="mt-4 flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={handleGeolocToggle}
-                    disabled={geoLoading || isSearching}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-                      geolocEnabled && position
-                        ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                        : 'bg-white/5 text-white/60 border border-white/10 hover:bg-white/10'
-                    }`}
-                  >
-                    {geoLoading ? (
-                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <MapPin className={`w-4 h-4 ${geolocEnabled && position ? 'text-blue-400' : ''}`} />
-                    )}
-                    <span>
-                      {geolocEnabled && position
-                        ? 'Localisation activée'
-                        : 'Activer ma position'}
-                    </span>
-                    {geolocEnabled && position && (
-                      <Check className="w-4 h-4 text-blue-400" />
-                    )}
-                  </button>
-
-                  {geolocEnabled && permissionState === 'denied' && (
-                    <span className="text-xs text-yellow-400">
-                      Permission refusée
-                    </span>
-                  )}
-                </div>
               </form>
+
+              {/* Option géolocalisation - EN DEHORS du form */}
+              <div className="mt-4 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleGeolocToggle}
+                  disabled={geoLoading || isSearching}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.02] active:scale-[0.98] ${
+                    geolocEnabled && position
+                      ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.2)]'
+                      : 'bg-white/5 border border-white/10 text-white/60 hover:bg-white/10 hover:border-white/20'
+                  }`}
+                >
+                  {geoLoading ? (
+                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <MapPin className={`w-4 h-4 ${geolocEnabled && position ? 'text-blue-400' : ''}`} />
+                  )}
+                  <span>
+                    {geolocEnabled && position
+                      ? 'Localisation activée'
+                      : 'Activer ma position'}
+                  </span>
+                  {geolocEnabled && position && (
+                    <Check className="w-4 h-4 text-blue-400" />
+                  )}
+                </button>
+
+                {geolocEnabled && permissionState === 'denied' && (
+                  <span className="text-xs text-yellow-400 px-2 py-1 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
+                    Permission refusée
+                  </span>
+                )}
+              </div>
 
               {/* Loading state */}
               <AnimatePresence>
@@ -1407,18 +1584,20 @@ export default function Home() {
                       "Nintendo Switch",
                       "AirPods Pro"
                     ].map((example) => (
-                      <button
+                      <motion.button
                         key={example}
                         onClick={() => handleExampleClick(example)}
-                        className="px-3 py-1.5 text-sm bg-white/5 border border-white/10 rounded-lg text-white/60 hover:bg-white/10 hover:text-white transition-colors"
+                        whileHover={{ scale: 1.02, y: -1 }}
+                        whileTap={{ scale: 0.98 }}
+                        className="tag-hover px-3 py-1.5 text-sm bg-white/5 border border-white/10 rounded-lg text-white/60"
                       >
                         {example}
-                      </button>
+                      </motion.button>
                     ))}
                   </div>
                 </div>
               )}
-            </GlassCard>
+            </div>
           </motion.div>
 
           {/* Settings button */}
@@ -1428,13 +1607,15 @@ export default function Home() {
             transition={{ delay: 0.3 }}
             className="mt-4 text-center"
           >
-            <button
+            <motion.button
               onClick={() => setShowSetup(true)}
-              className="text-xs text-white/40 hover:text-white/60 transition-colors inline-flex items-center gap-1"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="text-xs text-white/40 hover:text-white/60 transition-all inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-white/5"
             >
               <Settings className="w-3 h-3" />
               Configurer l'extension
-            </button>
+            </motion.button>
           </motion.div>
 
           {/* Features */}
@@ -1442,34 +1623,48 @@ export default function Home() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="mt-12 flex flex-wrap justify-center gap-6"
+            className="mt-12 flex flex-wrap justify-center gap-4"
           >
-            <div className="flex items-center gap-2 text-sm text-white/60">
-              <Zap className="w-4 h-4 text-[var(--primary)]" />
-              3 sites en parallele
-            </div>
-            <div className="flex items-center gap-2 text-sm text-white/60">
-              <Shield className="w-4 h-4 text-green-400" />
-              Detection arnaques
-            </div>
-            <div className="flex items-center gap-2 text-sm text-white/60">
-              <Sparkles className="w-4 h-4 text-yellow-400" />
-              Score de pertinence
-            </div>
+            {[
+              { icon: Zap, text: "3 sites en parallèle", color: "var(--primary)", bg: "rgba(99, 102, 241, 0.1)", border: "rgba(99, 102, 241, 0.2)" },
+              { icon: Shield, text: "Détection arnaques", color: "#22c55e", bg: "rgba(34, 197, 94, 0.1)", border: "rgba(34, 197, 94, 0.2)" },
+              { icon: Sparkles, text: "Score de pertinence", color: "#eab308", bg: "rgba(234, 179, 8, 0.1)", border: "rgba(234, 179, 8, 0.2)" },
+            ].map((feature, i) => (
+              <motion.div
+                key={feature.text}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 + i * 0.1 }}
+                whileHover={{ scale: 1.02, y: -2 }}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm text-white/70 transition-all cursor-default"
+                style={{
+                  background: feature.bg,
+                  border: `1px solid ${feature.border}`,
+                }}
+              >
+                <feature.icon className="w-4 h-4" style={{ color: feature.color }} />
+                {feature.text}
+              </motion.div>
+            ))}
           </motion.div>
 
           {/* Footer */}
-          <div className="mt-16 text-center text-xs text-white/40">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.4 }}
+            className="mt-16 text-center text-xs text-white/40"
+          >
             Un projet{" "}
             <a
               href="https://facile-ia.fr"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[var(--primary)] hover:underline"
+              className="text-[var(--primary)] hover:text-[var(--primary-light)] transition-colors font-medium"
             >
               Facile-IA
             </a>
-          </div>
+          </motion.div>
         </div>
       </div>
 

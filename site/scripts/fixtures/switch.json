@@ -1,0 +1,15 @@
+{
+  "query": "Nintendo Switch",
+  "results": [
+    { "id": "lbc-1", "title": "Nintendo Switch OLED Blanche", "price": 280, "site": "leboncoin" },
+    { "id": "lbc-2", "title": "Switch V2 avec dock et jeux", "price": 220, "site": "leboncoin" },
+    { "id": "lbc-3", "title": "Nintendo Switch Lite Turquoise", "price": 150, "site": "leboncoin" },
+    { "id": "lbc-4", "title": "Console Switch + Zelda TOTK", "price": 320, "site": "leboncoin" },
+    { "id": "lbc-5", "title": "Manette Pro Controller Switch", "price": 45, "site": "leboncoin" },
+    { "id": "lbc-6", "title": "Joy-Con Nintendo Switch", "price": 55, "site": "leboncoin" },
+    { "id": "lbc-7", "title": "Housse transport Switch", "price": 15, "site": "leboncoin" },
+    { "id": "vinted-1", "title": "Nintendo Switch Animal Crossing Edition", "price": 250, "site": "vinted" },
+    { "id": "vinted-2", "title": "Switch OLED Splatoon Edition", "price": 300, "site": "vinted" },
+    { "id": "vinted-3", "title": "Protection écran Switch", "price": 8, "site": "vinted" }
+  ]
+}

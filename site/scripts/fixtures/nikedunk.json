@@ -1,0 +1,15 @@
+{
+  "query": "Nike Dunk",
+  "results": [
+    { "id": "vinted-1", "title": "Nike Dunk Low Panda 42", "price": 120, "site": "vinted" },
+    { "id": "vinted-2", "title": "Nike Dunk High Noir 40", "price": 95, "site": "vinted" },
+    { "id": "vinted-3", "title": "Dunk Low Retro White Black", "price": 130, "site": "vinted" },
+    { "id": "vinted-4", "title": "Nike Dunk Low Rose 38", "price": 85, "site": "vinted" },
+    { "id": "lbc-1", "title": "Nike Dunk Low Grey Fog 43", "price": 110, "site": "leboncoin" },
+    { "id": "lbc-2", "title": "Nike Dunk High Syracuse 41", "price": 140, "site": "leboncoin" },
+    { "id": "lbc-3", "title": "Lacets Nike Dunk", "price": 8, "site": "leboncoin" },
+    { "id": "bm-1", "title": "Apple Watch Series 8 45mm", "price": 329, "site": "backmarket" },
+    { "id": "bm-2", "title": "Samsung Galaxy Watch 5", "price": 199, "site": "backmarket" },
+    { "id": "bm-3", "title": "iPhone 14 Pro 128Go", "price": 899, "site": "backmarket" }
+  ]
+}
