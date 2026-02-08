@@ -4,7 +4,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Sites disponibles pour la recherche
-export type SearchSite = 'leboncoin' | 'vinted' | 'backmarket';
+export type SearchSite = 'leboncoin' | 'vinted' | 'backmarket' | 'amazon';
 
 // Types pour les critères de recherche
 export interface SearchCriteria {
@@ -31,20 +31,26 @@ export interface VisualContext {
 
 // Mapping catégorie → sites pertinents
 const SITES_BY_CATEGORY: Record<string, SearchSite[]> = {
-  tech: ['leboncoin', 'backmarket'],           // Tech = LBC + Back Market (pas Vinted)
-  mode: ['vinted', 'leboncoin'],               // Mode = Vinted + LBC (pas Back Market)
-  auto: ['leboncoin'],                         // Auto = LBC seulement
-  immo: ['leboncoin'],                         // Immo = LBC seulement
-  maison: ['leboncoin', 'vinted'],             // Maison = LBC + Vinted
-  loisirs: ['leboncoin', 'vinted'],            // Loisirs = LBC + Vinted
-  autre: ['leboncoin', 'vinted', 'backmarket'], // Autre = tous
+  tech: ['leboncoin', 'backmarket', 'amazon'],  // Tech = LBC + Back Market + Amazon
+  mode: ['vinted', 'leboncoin', 'amazon'],      // Mode = Vinted + LBC + Amazon
+  auto: ['leboncoin'],                          // Auto = LBC seulement (pas Amazon)
+  immo: ['leboncoin'],                          // Immo = LBC seulement (pas Amazon)
+  maison: ['leboncoin', 'vinted', 'amazon'],    // Maison = LBC + Vinted + Amazon
+  loisirs: ['leboncoin', 'vinted', 'amazon'],   // Loisirs = LBC + Vinted + Amazon
+  autre: ['leboncoin', 'vinted', 'backmarket', 'amazon'], // Autre = tous
 };
 
 // Briefing Pré-Chasse - Contenu affiché pendant le loading
 export interface SearchBriefing {
-  marketPriceRange: {
+  newProductPrice?: {
+    price: number;
+    label: string;            // Ex: "iPhone 13 neuf ~449€"
+  };
+  marketPriceRange?: {
     min: number;
     max: number;
+    median?: number;
+    count?: number;           // Nombre d'annonces utilisées pour le calcul
     label: string;            // Ex: "280-380€ en bon état"
   };
   warningPrice: number;       // Seuil de méfiance (arnaque probable)
@@ -55,6 +61,32 @@ export interface SearchBriefing {
     estimatedPrice?: number;
     url: string;              // URL affiliée
     label: string;            // Ex: "iPhone 13 reconditionné"
+  };
+}
+
+// Prix réels calculés à partir des résultats scrapés
+export interface RealPriceStats {
+  median: number;
+  min: number;
+  max: number;
+  count: number;
+}
+
+// Calculer les stats de prix à partir des résultats scrapés
+export function computePriceStats(prices: number[]): RealPriceStats | null {
+  const valid = prices.filter(p => p > 0).sort((a, b) => a - b);
+  if (valid.length === 0) return null;
+
+  const mid = Math.floor(valid.length / 2);
+  const median = valid.length % 2 === 0
+    ? Math.round((valid[mid - 1] + valid[mid]) / 2)
+    : valid[mid];
+
+  return {
+    median,
+    min: valid[0],
+    max: valid[valid.length - 1],
+    count: valid.length,
   };
 }
 
@@ -133,10 +165,10 @@ Génère aussi des keywords simplifiés pour Back Market si la catégorie est te
 Ex: LBC "MacBook Pro 14 M4 16Go" → Back Market "MacBook Pro M4"
 
 PARTIE 3 - BRIEFING:
-1. Prix du marché occasion (fourchette réaliste en bon état)
-2. Prix de méfiance (en dessous = arnaque probable, -30% du min)
-3. 3 conseils SPÉCIFIQUES au produit (pas génériques!)
-4. Prix reconditionné estimé (Back Market)
+1. Prix de méfiance occasion (en dessous = arnaque probable)
+2. 3 conseils SPÉCIFIQUES au produit (pas génériques!)
+3. Prix reconditionné estimé (Back Market)
+NOTE: NE PAS estimer le prix occasion ni le prix neuf — ils seront calculés automatiquement.
 
 PARTIE 4 - CLARIFICATION (RARE, seulement si produit ambigu):
 Si et SEULEMENT SI le produit est vraiment ambigu (ex: "13 pro" = iPhone ou MacBook ?), génère:
@@ -178,8 +210,6 @@ RÉPONDS EN JSON UNIQUEMENT (pas de markdown):
     "acceptedModels": ["string"] (modèles acceptés si multi-produits: ["MacBook Pro", "Mac mini"])
   },
   "briefing": {
-    "marketPriceMin": number,
-    "marketPriceMax": number,
     "warningPrice": number,
     "tips": ["string", "string", "string"],
     "refurbishedPrice": number | null
@@ -219,17 +249,12 @@ function parseGeminiResponse(text: string, query: string): ParsedGeminiResponse 
     let briefing: SearchBriefing | undefined;
     if (parsed.briefing) {
       const b = parsed.briefing;
-      const minPrice = b.marketPriceMin || 0;
-      const maxPrice = b.marketPriceMax || 0;
+      const warningPrice = b.warningPrice || 0;
 
       briefing = {
-        marketPriceRange: {
-          min: minPrice,
-          max: maxPrice,
-          label: `${minPrice}-${maxPrice}€ en bon état`,
-        },
-        warningPrice: b.warningPrice || Math.round(minPrice * 0.7),
-        warningText: `Méfiance sous ${b.warningPrice || Math.round(minPrice * 0.7)}€`,
+        // newProductPrice et marketPriceRange sont remplis APRÈS les résultats (prix réels)
+        warningPrice: warningPrice,
+        warningText: warningPrice > 0 ? `Méfiance sous ${warningPrice}€` : '',
         tips: Array.isArray(b.tips) ? b.tips.slice(0, 3) : [],
         backMarketAlternative: b.refurbishedPrice ? {
           available: true,
@@ -394,8 +419,11 @@ export async function optimizeQuery(options: OptimizeOptions | string): Promise<
   try {
     console.log('[Gemini] Initialisation client...');
     const genAI = getGeminiClient();
-    const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
-    console.log('[Gemini] ✓ Client initialisé');
+    const model = genAI.getGenerativeModel({
+      model: GEMINI_MODEL,
+      generationConfig: { temperature: 0.2 },
+    });
+    console.log('[Gemini] ✓ Client initialisé (temperature: 0.2)');
 
     // v0.5.0 - Build prompt with context (image + URL)
     const prompt = buildPromptWithContext(query, !!imageBase64, referenceUrl, clarifications);
@@ -520,7 +548,8 @@ export interface AnalysisResult {
 export async function analyzeResultsWithGemini(
   results: RawResult[],
   searchQuery: string,
-  visualContext?: VisualContext  // v0.5.0 - Contexte visuel pour ajuster le scoring
+  visualContext?: VisualContext,  // v0.5.0 - Contexte visuel pour ajuster le scoring
+  priceStats?: RealPriceStats    // Prix réels calculés des résultats scrapés
 ): Promise<AnalysisResult> {
   console.log('[Gemini] ====== ANALYSE DES RÉSULTATS ======');
   console.log('[Gemini] Nombre de résultats à analyser:', results.length);
@@ -541,11 +570,11 @@ export async function analyzeResultsWithGemini(
     const genAI = getGeminiClient();
     const model = genAI.getGenerativeModel({
       model: GEMINI_MODEL,
-      generationConfig: { thinkingConfig: { thinkingBudget: 0 } } as any,
+      generationConfig: { temperature: 0.2, thinkingConfig: { thinkingBudget: 0 } } as any,
     });
 
-    // v0.5.0 - Passer le contexte visuel au prompt
-    const prompt = buildAnalysisPrompt(results, searchQuery, visualContext);
+    // v0.5.0 - Passer le contexte visuel au prompt + prix réels
+    const prompt = buildAnalysisPrompt(results, searchQuery, visualContext, priceStats);
     console.log('[Gemini] Envoi analyse (thinking désactivé)...');
 
     const result = await model.generateContent(prompt);
@@ -563,7 +592,7 @@ export async function analyzeResultsWithGemini(
 }
 
 // Prompt pour l'analyse des résultats
-function buildAnalysisPrompt(results: RawResult[], query: string, visualContext?: VisualContext): string {
+function buildAnalysisPrompt(results: RawResult[], query: string, visualContext?: VisualContext, priceStats?: RealPriceStats): string {
   const resultsJson = results.map(r => ({
     id: r.id,
     title: r.title,
@@ -650,10 +679,14 @@ EXEMPLES AVEC COULEUR (si contexte visuel fourni):
 - La couleur est un critère MAJEUR pour les vêtements/chaussures
 
 === PARTIE 2: ANALYSE DU DEAL ===
-
+${priceStats ? `
+=== DONNÉES RÉELLES DU MARCHÉ (calculées des annonces scrapées) ===
+Médiane : ${priceStats.median}€, Min : ${priceStats.min}€, Max : ${priceStats.max}€ (${priceStats.count} annonces)
+RÈGLE : Utilise la médiane (${priceStats.median}€) comme marketPrice pour TOUS les résultats pertinents.
+Ne te base PAS sur ton estimation interne — utilise UNIQUEMENT cette médiane réelle.
+` : ''}
 Pour chaque annonce PERTINENTE (relevant: true):
-1. marketPrice: Prix du marché occasion en bon état — estime UN prix cohérent pour le même produit.
-   IMPORTANT: Utilise le MÊME marketPrice pour toutes les annonces du même produit.
+1. marketPrice: ${priceStats ? `Utilise la médiane réelle : ${priceStats.median}€ pour toutes les annonces du même produit.` : 'Prix du marché occasion en bon état — estime UN prix cohérent pour le même produit.\n   IMPORTANT: Utilise le MÊME marketPrice pour toutes les annonces du même produit.'}
 
 2. dealScore (1-10): Compare le prix de l'annonce au marketPrice.
    Tu n'as PAS besoin de calculer — utilise cette grille de lecture :
@@ -815,7 +848,10 @@ export async function recommendNewProduct(
 
   try {
     const genAI = getGeminiClient();
-    const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+    const model = genAI.getGenerativeModel({
+      model: GEMINI_MODEL,
+      generationConfig: { temperature: 0.2 },
+    });
 
     // Contexte des résultats occasion trouvés
     const resultsContext = topResults && topResults.length > 0
@@ -827,23 +863,22 @@ Les résultats occasion trouvés sont dans la fourchette ${priceMin}€ - ${pric
 ${resultsContext}
 IMPORTANT: Ton knowledge a une date de coupure. Si des résultats occasion montrent un produit (ex: Mac mini M4), ce produit EXISTE. Ne dis jamais qu'il "n'est pas encore disponible".
 
-Recommande-tu un produit NEUF comme alternative ? Réponds en JSON UNIQUEMENT (pas de markdown) :
+Recommande le produit NEUF équivalent. Réponds en JSON UNIQUEMENT (pas de markdown) :
 {
   "hasRecommendation": true/false,
-  "productName": "Nom exact du produit",
-  "estimatedPrice": 29,
+  "productName": "Nom exact du produit (modèle précis)",
+  "estimatedPrice": number (prix de DÉPART officiel en France, config la moins chère),
   "reason": "Phrase courte expliquant pourquoi (ton ami expert, pas commercial)",
   "searchQuery": "requête optimisée pour trouver ce produit sur Amazon"
 }
 
 Règles :
 - IMPORTANT: Base-toi sur les résultats occasion trouvés ci-dessus pour comprendre quel produit exact est recherché. Ne suppose PAS qu'un produit n'existe pas s'il apparaît dans les résultats.
-- Recommande uniquement si ça a du sens (pas de neuf pour du vintage/collection/voiture/immobilier)
-- Recommande la CONFIG LA MOINS CHÈRE en neuf qui correspond à la recherche (pas la version haut de gamme)
-  Ex: Si l'utilisateur cherche un Mac mini M4 16Go, recommande le modèle d'entrée (256Go SSD) pas le 512Go ou 1To
-- Le prix estimé doit être le prix de DÉPART du modèle neuf, pas une config supérieure
-- Compare ton prix neuf au MEILLEUR prix occasion trouvé (le plus bas dans les résultats ci-dessus)
-  Si le neuf est plus de 40% plus cher que la meilleure occasion → hasRecommendation: false
+- hasRecommendation: false UNIQUEMENT pour vintage/collection/voiture/immobilier. Pour TOUT le reste → true.
+- Recommande la CONFIG LA MOINS CHÈRE en neuf (pas la version haut de gamme)
+  Ex: "Mac mini M4" → Mac mini M4 256Go (699€), pas le 512Go.
+  Ex: "macbook m4" → MacBook Air M4 13" (1299€), pas le Pro.
+- estimatedPrice = prix catalogue officiel de DÉPART en France. Sois PRÉCIS.
 - Le ton est celui d'un ami qui s'y connaît, pas d'un vendeur
 - searchQuery doit être optimisée pour Amazon (nom produit précis, pas de phrases)`;
 

@@ -2,17 +2,20 @@
 
 import { motion } from "framer-motion";
 import { ExternalLink } from "lucide-react";
-import { buildAmazonSearchLink } from "@/lib/affiliate";
+import { buildAmazonSearchLink, wrapAffiliateLink } from "@/lib/affiliate";
 
 interface NewProductBannerProps {
   productName: string;
   estimatedPrice?: number;
   reason: string;
   searchQuery: string;
+  amazonUrl?: string;
+  isRealPrice?: boolean;
 }
 
-export function NewProductBanner({ productName, estimatedPrice, reason, searchQuery }: NewProductBannerProps) {
-  const amazonLink = buildAmazonSearchLink(searchQuery);
+export function NewProductBanner({ productName, estimatedPrice, reason, searchQuery, amazonUrl, isRealPrice }: NewProductBannerProps) {
+  // Si on a un lien direct Amazon (scrapé), l'utiliser wrappé affilié. Sinon, lien de recherche.
+  const amazonLink = amazonUrl ? wrapAffiliateLink(amazonUrl) : buildAmazonSearchLink(searchQuery);
 
   return (
     <motion.div
@@ -30,7 +33,9 @@ export function NewProductBanner({ productName, estimatedPrice, reason, searchQu
           <p className="text-white font-medium mt-1">
             {productName}
             {estimatedPrice && (
-              <span className="ml-2 text-indigo-400">~{estimatedPrice} €</span>
+              <span className="ml-2 text-indigo-400">
+                {isRealPrice ? '' : '~'}{estimatedPrice} €
+              </span>
             )}
           </p>
           <p className="text-xs text-white/60 mt-1 leading-relaxed">

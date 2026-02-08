@@ -31,11 +31,12 @@ const EXTENSION_ID_KEY = 'okaz_extension_id';
 interface ExtensionResponse {
   success: boolean;
   results?: SearchResult[];
+  amazonNewResults?: SearchResult[];
   version?: string;
   error?: string;
 }
 
-type SearchSite = 'leboncoin' | 'vinted' | 'backmarket';
+type SearchSite = 'leboncoin' | 'vinted' | 'backmarket' | 'amazon';
 
 interface SearchCriteria {
   keywords: string;
@@ -53,9 +54,15 @@ interface SearchCriteria {
 
 // Briefing Pré-Chasse
 interface SearchBriefing {
-  marketPriceRange: {
+  newProductPrice?: {
+    price: number;
+    label: string;
+  };
+  marketPriceRange?: {
     min: number;
     max: number;
+    median?: number;
+    count?: number;
     label: string;
   };
   warningPrice: number;
@@ -103,6 +110,8 @@ interface NewRecommendation {
   estimatedPrice?: number;
   reason: string;
   searchQuery: string;
+  amazonUrl?: string;
+  isRealPrice?: boolean;
 }
 
 interface AnalyzeResponse {
@@ -856,8 +865,8 @@ function HandDeliverySection({ results, userLocation }: { results: AnalyzedResul
   );
 }
 
-function SearchResults({ data, onBack }: { data: { query: string; categorized: CategorizedResults; totalResults: number; duration: number; criteria?: SearchCriteria; topPick?: TopPick; userLocation?: { lat: number; lng: number }; newRecommendation?: NewRecommendation | null }; onBack: () => void }) {
-  const { categorized, totalResults, duration, query, criteria, topPick, userLocation, newRecommendation } = data;
+function SearchResults({ data, onBack }: { data: { query: string; categorized: CategorizedResults; totalResults: number; duration: number; criteria?: SearchCriteria; topPick?: TopPick; userLocation?: { lat: number; lng: number }; newRecommendation?: NewRecommendation | null; briefing?: SearchBriefing | null }; onBack: () => void }) {
+  const { categorized, totalResults, duration, query, criteria, topPick, userLocation, newRecommendation, briefing } = data;
   const { results } = categorized;
 
   // v0.5.0 - Nouveau layout simplifié avec 2 top choices
@@ -965,6 +974,40 @@ function SearchResults({ data, onBack }: { data: { query: string; categorized: C
           </div>
         </motion.div>
 
+        {/* Briefing prix — persistant sur la page de résultats */}
+        {totalResults > 0 && briefing && (briefing.newProductPrice || briefing.marketPriceRange) && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="flex flex-wrap gap-2"
+          >
+            {briefing.newProductPrice && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                <ShoppingBag className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-xs text-emerald-400 font-medium">Neuf : {briefing.newProductPrice.label}</span>
+              </div>
+            )}
+            {briefing.marketPriceRange && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                <TrendingDown className="w-3.5 h-3.5 text-blue-400" />
+                <span className="text-xs text-blue-400 font-medium">
+                  Occasion : médiane {briefing.marketPriceRange.median}€
+                  {briefing.marketPriceRange.count && (
+                    <span className="text-blue-400/50 ml-1">({briefing.marketPriceRange.count} annonces)</span>
+                  )}
+                </span>
+              </div>
+            )}
+            {briefing.warningPrice > 0 && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20">
+                <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+                <span className="text-xs text-red-400 font-medium">{briefing.warningText}</span>
+              </div>
+            )}
+          </motion.div>
+        )}
+
         {totalResults === 0 && (
           <div className="text-center py-12">
             <div className="text-4xl mb-4">😕</div>
@@ -995,6 +1038,8 @@ function SearchResults({ data, onBack }: { data: { query: string; categorized: C
             estimatedPrice={newRecommendation.estimatedPrice}
             reason={newRecommendation.reason}
             searchQuery={newRecommendation.searchQuery}
+            amazonUrl={newRecommendation.amazonUrl}
+            isRealPrice={newRecommendation.isRealPrice}
           />
         )}
 
@@ -1061,24 +1106,26 @@ function LoadingBriefing({ briefing, searchPhase }: { briefing: SearchBriefing |
       animate={{ opacity: 1 }}
       className="space-y-3 mt-4"
     >
-      {/* Carte 1: Prix du marché */}
-      {visibleCards >= 1 && (
+      {/* Carte 1: Prix neuf */}
+      {visibleCards >= 1 && briefing.newProductPrice && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="p-3 rounded-lg bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border border-blue-500/20"
+          className="p-3 rounded-lg bg-gradient-to-r from-emerald-500/10 to-green-500/10 border border-emerald-500/20"
         >
           <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-              <TrendingDown className="w-4 h-4 text-blue-400" />
+            <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
+              <ShoppingBag className="w-4 h-4 text-emerald-400" />
             </div>
             <div className="flex-1">
-              <p className="text-sm font-medium text-blue-400">Prix du marché</p>
-              <p className="text-white font-semibold">{briefing.marketPriceRange.label}</p>
-              <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
-                <AlertTriangle className="w-3 h-3" />
-                {briefing.warningText}
-              </p>
+              <p className="text-sm font-medium text-emerald-400">Prix neuf</p>
+              <p className="text-white font-semibold">{briefing.newProductPrice.label}</p>
+              {briefing.warningText && (
+                <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" />
+                  {briefing.warningText}
+                </p>
+              )}
             </div>
           </div>
         </motion.div>
@@ -1105,6 +1152,31 @@ function LoadingBriefing({ briefing, searchPhase }: { briefing: SearchBriefing |
                   </li>
                 ))}
               </ul>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Carte 3: Prix du marché occasion (basé sur résultats réels) */}
+      {visibleCards >= 3 && briefing.marketPriceRange && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="p-3 rounded-lg bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border border-blue-500/20"
+        >
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+              <TrendingDown className="w-4 h-4 text-blue-400" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-blue-400">Prix du marché occasion</p>
+              <p className="text-white font-semibold">{briefing.marketPriceRange.label}</p>
+              {briefing.marketPriceRange.count && (
+                <p className="text-xs text-blue-400/60 mt-1 flex items-center gap-1">
+                  <BadgeCheck className="w-3 h-3" />
+                  Basé sur {briefing.marketPriceRange.count} annonces réelles
+                </p>
+              )}
             </div>
           </div>
         </motion.div>
@@ -1218,7 +1290,7 @@ export default function Home() {
   const [query, setQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [isOptimizing, setIsOptimizing] = useState(false);
-  const [searchData, setSearchData] = useState<{ query: string; categorized: CategorizedResults; totalResults: number; duration: number; criteria?: SearchCriteria; topPick?: TopPick; userLocation?: { lat: number; lng: number }; newRecommendation?: NewRecommendation | null } | null>(null);
+  const [searchData, setSearchData] = useState<{ query: string; categorized: CategorizedResults; totalResults: number; duration: number; criteria?: SearchCriteria; topPick?: TopPick; userLocation?: { lat: number; lng: number }; newRecommendation?: NewRecommendation | null; briefing?: SearchBriefing | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [extensionId, setExtensionId] = useState<string | null>(null);
   const [showSetup, setShowSetup] = useState(false);
@@ -1728,6 +1800,12 @@ export default function Home() {
         if (response && response.success && response.results) {
           console.log('[OKAZ] 4. Résultats reçus de l\'extension:', response.results.length);
 
+          // Extraire les résultats Amazon Neuf (séparés des résultats occasion)
+          const amazonNewResults: SearchResult[] = response.amazonNewResults || [];
+          if (amazonNewResults.length > 0) {
+            console.log(`[OKAZ] 4. Amazon Neuf: ${amazonNewResults.length} résultats (prix ref)`);
+          }
+
           // Debug: compter les résultats locaux avant dédup
           const localCount = response.results.filter((r: { isLocal?: boolean }) => r.isLocal).length;
           const nationalCount = response.results.filter((r: { isLocal?: boolean; site?: string }) => !r.isLocal && r.site === 'LeBonCoin').length;
@@ -1752,6 +1830,23 @@ export default function Home() {
             console.log(`[OKAZ] 4c. Cap à ${MAX_ANALYZE} résultats pour l'analyse Gemini (${uniqueResults.length} total)`);
           }
 
+          // Calculer les stats de prix réels à partir des résultats scrapés
+          const scrapedPrices = uniqueResults.map((r: { price?: number }) => r.price || 0).filter((p: number) => p > 0).sort((a: number, b: number) => a - b);
+          let priceStats: { median: number; min: number; max: number; count: number } | null = null;
+          if (scrapedPrices.length > 0) {
+            const mid = Math.floor(scrapedPrices.length / 2);
+            const median = scrapedPrices.length % 2 === 0
+              ? Math.round((scrapedPrices[mid - 1] + scrapedPrices[mid]) / 2)
+              : scrapedPrices[mid];
+            priceStats = {
+              median,
+              min: scrapedPrices[0],
+              max: scrapedPrices[scrapedPrices.length - 1],
+              count: scrapedPrices.length,
+            };
+            console.log(`[OKAZ] 4d. Prix réels: médiane=${median}€, min=${priceStats.min}€, max=${priceStats.max}€ (${priceStats.count} annonces)`);
+          }
+
           // Étape 3: Analyser les résultats avec Gemini
           console.log('[OKAZ] 5. Analyse Gemini des résultats...', resultsForAnalysis.length, 'résultats');
           setSearchPhase('analyzing');
@@ -1759,11 +1854,11 @@ export default function Home() {
           let topPick: TopPick | undefined;
 
           try {
-            // v0.5.0 - Passer le contexte visuel (couleur, taille...) pour ajuster le scoring
+            // v0.5.0 - Passer le contexte visuel + prix réels pour ajuster le scoring
             const analyzeRes = await fetch('/api/analyze', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ results: resultsForAnalysis, query: q, visualContext }),
+              body: JSON.stringify({ results: resultsForAnalysis, query: q, visualContext, priceStats }),
             });
             const analyzeData: AnalyzeResponse = await analyzeRes.json();
 
@@ -1839,6 +1934,63 @@ export default function Home() {
           const duration = Date.now() - startTime;
           const categorized = analyzeResults(correctedResults, q);
 
+          // Construire le briefing final avec les prix réels du marché
+          const finalBriefing: SearchBriefing | null = currentBriefing ? {
+            ...currentBriefing,
+            ...(priceStats ? {
+              marketPriceRange: {
+                min: priceStats.min,
+                max: priceStats.max,
+                median: priceStats.median,
+                count: priceStats.count,
+                label: `${priceStats.min}-${priceStats.max}€ (médiane ${priceStats.median}€)`,
+              },
+            } : {}),
+          } : priceStats ? {
+            marketPriceRange: {
+              min: priceStats.min,
+              max: priceStats.max,
+              median: priceStats.median,
+              count: priceStats.count,
+              label: `${priceStats.min}-${priceStats.max}€ (médiane ${priceStats.median}€)`,
+            },
+            warningPrice: 0,
+            warningText: '',
+            tips: [],
+          } : null;
+
+          // Construire la recommandation "Et en neuf ?" AVANT l'affichage
+          // Priorité : données Amazon scrapées réelles > fallback Gemini (async)
+          let initialNewRec: NewRecommendation | null = null;
+          let displayBriefing = finalBriefing;
+
+          const amazonNewWithPrice = amazonNewResults.filter((r: SearchResult) => r.price > 0);
+          if (amazonNewWithPrice.length > 0 && correctedResults.length > 0) {
+            // DONNÉES RÉELLES : utiliser le moins cher des résultats Amazon Neuf
+            const cheapestNew = amazonNewWithPrice.sort((a: SearchResult, b: SearchResult) => a.price - b.price)[0];
+            console.log(`[OKAZ] 7. Prix neuf réel Amazon: ${cheapestNew.price}€ — ${cheapestNew.title}`);
+
+            initialNewRec = {
+              productName: cheapestNew.title,
+              estimatedPrice: cheapestNew.price,
+              reason: `Prix réel constaté sur Amazon.fr — ${amazonNewWithPrice.length} offre${amazonNewWithPrice.length > 1 ? 's' : ''} neuve${amazonNewWithPrice.length > 1 ? 's' : ''} disponible${amazonNewWithPrice.length > 1 ? 's' : ''}`,
+              searchQuery: q,
+              amazonUrl: cheapestNew.url,
+              isRealPrice: true,
+            };
+
+            // Intégrer le prix neuf dans le briefing
+            if (displayBriefing) {
+              displayBriefing = {
+                ...displayBriefing,
+                newProductPrice: {
+                  price: cheapestNew.price,
+                  label: `${cheapestNew.title.substring(0, 50)} — ${cheapestNew.price}€ neuf`,
+                },
+              };
+            }
+          }
+
           console.log('[OKAZ] 6. Affichage des résultats');
           setSearchData({
             query: q,
@@ -1848,16 +2000,22 @@ export default function Home() {
             criteria,
             topPick,
             userLocation: geolocEnabledRef.current && positionRef.current ? positionRef.current : undefined,
-            newRecommendation: null
+            newRecommendation: initialNewRec,
+            briefing: displayBriefing,
           });
 
-          // Lancer la recommandation "Et en neuf ?" en parallèle (non-bloquant)
-          if (correctedResults.length > 0) {
+          // Mettre à jour le briefing courant avec le prix neuf si disponible
+          if (displayBriefing) {
+            setCurrentBriefing(displayBriefing);
+          }
+
+          // FALLBACK GEMINI : si pas de données Amazon, lancer l'API recommend-new (async)
+          if (!initialNewRec && correctedResults.length > 0) {
+            console.log('[OKAZ] 7. Pas de résultats Amazon Neuf, fallback Gemini...');
             const prices = correctedResults.map(r => r.price).filter(p => p > 0);
             const priceMin = prices.length > 0 ? Math.min(...prices) : 0;
             const priceMax = prices.length > 0 ? Math.max(...prices) : 0;
 
-            // Envoyer les top 5 résultats pour contexte (évite les hallucinations)
             const topResults = correctedResults
               .sort((a, b) => b.score - a.score)
               .slice(0, 5)
@@ -1871,7 +2029,19 @@ export default function Home() {
               .then(res => res.json())
               .then(data => {
                 if (data.success && data.recommendation?.hasRecommendation) {
-                  setSearchData(prev => prev ? { ...prev, newRecommendation: data.recommendation } : prev);
+                  const rec = data.recommendation;
+                  setSearchData(prev => {
+                    if (!prev) return prev;
+                    const baseBriefing = prev.briefing || { warningPrice: 0, warningText: '', tips: [] };
+                    const updatedBriefing: SearchBriefing = {
+                      ...baseBriefing,
+                      newProductPrice: rec.estimatedPrice ? {
+                        price: rec.estimatedPrice,
+                        label: `${rec.productName} — ${rec.estimatedPrice}€ neuf`,
+                      } : baseBriefing.newProductPrice,
+                    };
+                    return { ...prev, newRecommendation: rec, briefing: updatedBriefing };
+                  });
                 }
               })
               .catch(err => console.error('[OKAZ] Erreur recommandation neuf:', err));

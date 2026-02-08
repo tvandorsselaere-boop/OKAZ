@@ -9,6 +9,9 @@ let searchResults = new Map();
 let pendingResolvers = new Map();
 let pendingVintedResolvers = new Map();
 let pendingBackMarketResolvers = new Map();
+let pendingAmazonNewResolvers = new Map();
+let pendingAmazonUsedResolvers = new Map();
+let amazonTabTypes = new Map(); // tabId -> 'new' | 'used'
 
 // Initialiser l'UUID au démarrage
 (async () => {
@@ -28,7 +31,7 @@ chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => 
   switch (request.type) {
     case 'PING':
       // Le site verifie si l'extension est installee
-      sendResponse({ success: true, version: '0.4.0' });
+      sendResponse({ success: true, version: '0.5.0' });
       break;
 
     case 'SEARCH':
@@ -162,6 +165,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleBackMarketResults(request.results, senderTabId);
       break;
 
+    case 'AMAZON_RESULTS':
+      console.log('OKAZ SW: Résultats Amazon auto reçus:', request.results?.length, 'tab:', senderTabId);
+      handleAmazonResults(request.results, senderTabId);
+      break;
+
     case 'GET_RESULTS':
       sendResponse({ results: Array.from(searchResults.values()).flat() });
       break;
@@ -176,7 +184,9 @@ async function handleSearch(query, criteria, sendResponse) {
   searchResults.clear();
 
   // Déterminer quels sites interroger (par défaut: tous)
-  const sitesToSearch = criteria?.sites || ['leboncoin', 'vinted', 'backmarket'];
+  // Toujours inclure Amazon (prix neuf de référence), même si Gemini ne le spécifie pas
+  const baseSites = criteria?.sites || ['leboncoin', 'vinted', 'backmarket'];
+  const sitesToSearch = baseSites.includes('amazon') ? baseSites : [...baseSites, 'amazon'];
   console.log('OKAZ SW: Sites à interroger:', sitesToSearch.join(', '));
 
   try {
@@ -304,24 +314,51 @@ async function handleSearch(query, criteria, sendResponse) {
       searchPromises.push(Promise.resolve([]));
     }
 
+    // Amazon : deux recherches parallèles (neuf + seconde main warehouse-deals)
+    if (sitesToSearch.includes('amazon')) {
+      searchPromises.push(
+        searchAmazonNew(query, criteria).catch(err => {
+          console.error('OKAZ SW: Erreur Amazon Neuf:', err.message);
+          return [];
+        })
+      );
+      searchPromises.push(
+        searchAmazonUsed(query, criteria).catch(err => {
+          console.error('OKAZ SW: Erreur Amazon Seconde Main:', err.message);
+          return [];
+        })
+      );
+    } else {
+      searchPromises.push(Promise.resolve([]));
+      searchPromises.push(Promise.resolve([]));
+    }
+
     const results = await Promise.all(searchPromises);
-    const [lbcResults, vintedResults, bmResults] = results;
+    const [lbcResults, vintedResults, bmResults, amazonNewResults, amazonUsedResults] = results;
 
-    console.log(`OKAZ SW: LeBonCoin=${lbcResults.length}, Vinted=${vintedResults.length}, BackMarket=${bmResults.length}`);
+    console.log(`OKAZ SW: LeBonCoin=${lbcResults.length}, Vinted=${vintedResults.length}, BackMarket=${bmResults.length}, AmazonNeuf=${amazonNewResults.length}, AmazonSecondMain=${amazonUsedResults.length}`);
 
-    // Combiner et trier par score
-    const allResults = [...lbcResults, ...vintedResults, ...bmResults].sort((a, b) => b.score - a.score);
+    // Résultats principaux : LBC + Vinted + BM + Amazon Seconde Main + Amazon Neuf
+    const allResults = [...lbcResults, ...vintedResults, ...bmResults, ...amazonUsedResults, ...amazonNewResults].sort((a, b) => b.score - a.score);
 
-    console.log(`OKAZ SW: ${allResults.length} résultats totaux combinés`);
+    // Top 5 Amazon Neuf les moins chers → prix neuf de référence pour le bandeau
+    const amazonNewForBanner = [...amazonNewResults]
+      .filter(r => r.price > 0)
+      .sort((a, b) => a.price - b.price)
+      .slice(0, 5);
+
+    console.log(`OKAZ SW: ${allResults.length} résultats totaux, ${amazonNewForBanner.length} Amazon Neuf pour bandeau`);
 
     const completedSites = [];
     if (lbcResults.length > 0) completedSites.push('leboncoin');
     if (vintedResults.length > 0) completedSites.push('vinted');
     if (bmResults.length > 0) completedSites.push('backmarket');
+    if (amazonNewResults.length > 0 || amazonUsedResults.length > 0) completedSites.push('amazon');
 
     sendResponse({
       success: true,
       results: allResults,
+      amazonNewResults: amazonNewForBanner,
       completedSites
     });
 
@@ -786,4 +823,148 @@ function handleBackMarketResults(results, senderTabId) {
   }
 }
 
-console.log('OKAZ Service Worker v0.4.0 chargé - Sélection intelligente des sites par catégorie');
+// ============ AMAZON ============
+
+// Construire l'URL Amazon Neuf
+function buildAmazonNewUrl(query, criteria) {
+  const rawKeywords = criteria?.keywords || query;
+  const keywords = criteria?._searchVariant || rawKeywords.split(',')[0].trim();
+  console.log('OKAZ SW: Amazon Neuf keywords =', keywords);
+  const params = new URLSearchParams();
+  params.set('k', keywords);
+  return `https://www.amazon.fr/s?${params.toString()}`;
+}
+
+// Construire l'URL Amazon Seconde Main (Warehouse Deals)
+function buildAmazonUsedUrl(query, criteria) {
+  const rawKeywords = criteria?.keywords || query;
+  const keywords = criteria?._searchVariant || rawKeywords.split(',')[0].trim();
+  console.log('OKAZ SW: Amazon Seconde Main keywords =', keywords);
+  const params = new URLSearchParams();
+  params.set('k', keywords);
+  params.set('i', 'warehouse-deals');
+  return `https://www.amazon.fr/s?${params.toString()}`;
+}
+
+// Fonction générique de recherche Amazon (réutilisée pour neuf et occasion)
+function _searchAmazon(searchUrl, label, resolverMap, maxResults, tabType) {
+  console.log(`OKAZ SW: Ouverture Amazon ${label}...`, searchUrl);
+
+  return new Promise(async (resolve, reject) => {
+    let tab = null;
+    let resolved = false;
+    let tabId = null;
+
+    const cleanup = () => {
+      if (tabId) {
+        resolverMap.delete(tabId);
+        amazonTabTypes.delete(tabId);
+        try { chrome.tabs.remove(tabId); } catch (e) {}
+      }
+    };
+
+    const resolveWith = (results) => {
+      if (!resolved) {
+        resolved = true;
+        cleanup();
+        console.log(`OKAZ SW: Résolution Amazon ${label} avec ${results.length} résultats`);
+        resolve(results);
+      }
+    };
+
+    try {
+      tab = await chrome.tabs.create({
+        url: searchUrl,
+        active: false
+      });
+
+      tabId = tab.id;
+      console.log(`OKAZ SW: Onglet Amazon ${label} créé`, tabId);
+
+      resolverMap.set(tabId, resolveWith);
+      amazonTabTypes.set(tabId, tabType);
+
+      // Timeout 20s
+      const timeoutId = setTimeout(() => {
+        if (!resolved) {
+          console.log(`OKAZ SW: Timeout Amazon ${label} après 20s`);
+          resolved = true;
+          cleanup();
+          resolve([]);
+        }
+      }, 20000);
+
+      const checkAndParse = async (attempts = 0) => {
+        if (resolved) return;
+        if (attempts > 20) return;
+
+        try {
+          const tabInfo = await chrome.tabs.get(tabId);
+
+          if (tabInfo.status === 'complete') {
+            await new Promise(r => setTimeout(r, 2000));
+            if (resolved) return;
+
+            try {
+              const response = await chrome.tabs.sendMessage(tabId, { type: 'PARSE_PAGE', maxResults });
+
+              if (!resolved && response && response.success) {
+                clearTimeout(timeoutId);
+                console.log(`OKAZ SW: ${response.results.length} résultats Amazon ${label} via PARSE_PAGE`);
+                resolveWith(response.results);
+              }
+            } catch (e) {
+              console.log(`OKAZ SW: PARSE_PAGE Amazon ${label} échoué:`, e.message);
+              if (!resolved && attempts < 8) {
+                setTimeout(() => checkAndParse(attempts + 1), 1500);
+              }
+            }
+          } else {
+            setTimeout(() => checkAndParse(attempts + 1), 400);
+          }
+        } catch (e) {
+          console.error(`OKAZ SW: Erreur checkAndParse Amazon ${label}`, e);
+        }
+      };
+
+      setTimeout(() => checkAndParse(), 1500);
+
+    } catch (error) {
+      cleanup();
+      resolve([]);
+    }
+  });
+}
+
+function searchAmazonNew(query, criteria) {
+  return _searchAmazon(buildAmazonNewUrl(query, criteria), 'Neuf', pendingAmazonNewResolvers, 10, 'new');
+}
+
+function searchAmazonUsed(query, criteria) {
+  return _searchAmazon(buildAmazonUsedUrl(query, criteria), 'Seconde Main', pendingAmazonUsedResolvers, 10, 'used');
+}
+
+function handleAmazonResults(results, senderTabId) {
+  console.log('OKAZ SW: Résultats Amazon auto reçus:', results?.length, 'tab:', senderTabId);
+  searchResults.set('amazon', results || []);
+
+  const tabType = senderTabId ? amazonTabTypes.get(senderTabId) : null;
+
+  if (senderTabId && tabType === 'new' && pendingAmazonNewResolvers.has(senderTabId)) {
+    const resolver = pendingAmazonNewResolvers.get(senderTabId);
+    console.log('OKAZ SW: Résolution Amazon Neuf pour tab', senderTabId);
+    resolver(results || []);
+  } else if (senderTabId && tabType === 'used' && pendingAmazonUsedResolvers.has(senderTabId)) {
+    const resolver = pendingAmazonUsedResolvers.get(senderTabId);
+    console.log('OKAZ SW: Résolution Amazon Seconde Main pour tab', senderTabId);
+    resolver(results || []);
+  } else if (senderTabId) {
+    // Fallback: essayer les deux maps
+    const newResolver = pendingAmazonNewResolvers.get(senderTabId);
+    const usedResolver = pendingAmazonUsedResolvers.get(senderTabId);
+    if (newResolver) newResolver(results || []);
+    else if (usedResolver) usedResolver(results || []);
+  }
+}
+
+console.log('OKAZ Service Worker v0.5.0 chargé - LBC + Vinted + Back Market + Amazon');

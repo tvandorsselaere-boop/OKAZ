@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "OKAZ - Comparateur d'annonces",
-  "version": "0.4.0",
-  "description": "Comparez LeBonCoin, Vinted et Back Market en une recherche",
+  "version": "0.5.0",
+  "description": "Comparez LeBonCoin, Vinted, Back Market et Amazon en une recherche",
   "permissions": [
     "activeTab",
     "storage",
@@ -12,7 +12,8 @@
   "host_permissions": [
     "https://www.leboncoin.fr/*",
     "https://www.vinted.fr/*",
-    "https://www.backmarket.fr/*"
+    "https://www.backmarket.fr/*",
+    "https://www.amazon.fr/*"
   ],
   "externally_connectable": {
     "matches": [
@@ -44,6 +45,11 @@
     {
       "matches": ["https://www.backmarket.fr/*"],
       "js": ["src/content/backmarket.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.amazon.fr/s*"],
+      "js": ["src/content/amazon.js"],
       "run_at": "document_idle"
     }
   ]
