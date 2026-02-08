@@ -152,8 +152,10 @@ export function UpgradeModal({
 }
 
 // Composant compteur de recherches restantes
-export function SearchCounter({ remaining, total }: { remaining: number; total: number }) {
-  const percentage = total > 0 ? (remaining / total) * 100 : 0;
+export function SearchCounter({ remaining, total, onManageSubscription }: { remaining: number; total: number; onManageSubscription?: () => void }) {
+  // Calculer la barre par rapport au max réel (daily + boost éventuel)
+  const effectiveMax = Math.max(remaining, total);
+  const percentage = effectiveMax > 0 ? Math.min(100, (remaining / effectiveMax) * 100) : 0;
 
   const getColor = () => {
     if (remaining === 0) return "bg-red-500";
@@ -166,13 +168,27 @@ export function SearchCounter({ remaining, total }: { remaining: number; total: 
     return (
       <div className="flex items-center gap-2 text-xs text-amber-400">
         <Crown className="w-3.5 h-3.5" />
-        <span>Premium</span>
+        <span>Illimité</span>
+        {onManageSubscription && (
+          <button
+            onClick={onManageSubscription}
+            className="text-[10px] text-white/30 hover:text-white/60 underline transition-colors ml-1"
+          >
+            Gérer
+          </button>
+        )}
       </div>
     );
   }
 
+  // Calculer le temps avant reset (minuit)
+  const now = new Date();
+  const midnight = new Date(now);
+  midnight.setHours(24, 0, 0, 0);
+  const hoursLeft = Math.ceil((midnight.getTime() - now.getTime()) / (1000 * 60 * 60));
+
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2" title={`Renouvellement dans ${hoursLeft}h (minuit)`}>
       <div className="w-20 h-1.5 bg-white/10 rounded-full overflow-hidden">
         <div
           className={`h-full ${getColor()} transition-all duration-300`}
@@ -180,8 +196,13 @@ export function SearchCounter({ remaining, total }: { remaining: number; total: 
         />
       </div>
       <span className="text-xs text-white/50">
-        {remaining}/{total}
+        {remaining} recherche{remaining > 1 ? 's' : ''} restante{remaining > 1 ? 's' : ''}
       </span>
+      {remaining === 0 && (
+        <span className="text-[10px] text-white/30">
+          · renouvellement dans {hoursLeft}h
+        </span>
+      )}
     </div>
   );
 }

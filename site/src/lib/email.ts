@@ -14,7 +14,7 @@ function getResend(): Resend {
   return _resend;
 }
 
-const FROM_EMAIL = 'OKAZ <noreply@okaz.facile-ia.com>';
+const FROM_EMAIL = 'OKAZ <noreply@okaz-ia.fr>';
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
 /**

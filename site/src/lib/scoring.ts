@@ -469,23 +469,20 @@ function generateBadges(result: SearchResult): AnalyzedResult['analysis']['badge
  * On utilise directement ce score pondéré
  */
 export function analyzeResult(result: SearchResult, marketPrice?: number): AnalyzedResult {
-  const breakdown = calculateScore({ result, marketPrice });
+  // Récupérer le marketPrice de Gemini si disponible
+  const gemini = (result as AnalyzedResult).geminiAnalysis;
+  const effectiveMarketPrice = marketPrice || gemini?.marketPrice;
 
-  // Utiliser le score déjà pondéré par la pertinence (calculé dans page.tsx)
-  // Ce score intègre : scoreBase × (confidence / 100)
-  let finalScore = result.score || breakdown.total;
+  const breakdown = calculateScore({ result, marketPrice: effectiveMarketPrice });
 
-  // Si le score est trop bas (pas de données), mettre un minimum raisonnable
-  if (finalScore < 20) {
-    finalScore = 65; // Score neutre par défaut
-  }
-
+  // Le score final vient de page.tsx (basé sur dealScore Gemini)
+  // On le conserve tel quel — pas de recalcul local qui écraserait
+  const finalScore = result.score || breakdown.total;
   breakdown.total = finalScore;
 
-  // Utiliser le dealType de Gemini s'il est disponible
-  const gemini = (result as AnalyzedResult).geminiAnalysis;
+  // dealType et explanation de Gemini sont la source de vérité
   const dealType = gemini?.dealType || getDealType(finalScore, breakdown.scamPenalty);
-  const dealText = gemini?.explanation || getDealText(breakdown, result.price, marketPrice);
+  const dealText = gemini?.explanation || getDealText(breakdown, result.price, effectiveMarketPrice);
   const badges = generateBadges(result);
 
   return {
@@ -556,4 +553,143 @@ export function detectRedFlags(title: string, price: number, marketPrice?: numbe
   }
 
   return flags.slice(0, 3);
+}
+
+// ============================================================================
+// SORTING & SELECTION UTILITIES (v0.5.0)
+// ============================================================================
+
+export type SortOption = 'score' | 'price_asc' | 'price_desc' | 'distance';
+
+/**
+ * Trie les résultats selon l'option choisie
+ */
+export function sortResults(
+  results: AnalyzedResult[],
+  sortBy: SortOption,
+  userLocation?: { lat: number; lng: number }
+): AnalyzedResult[] {
+  const sorted = [...results];
+
+  switch (sortBy) {
+    case 'score':
+      return sorted.sort((a, b) => b.score - a.score);
+
+    case 'price_asc':
+      return sorted.sort((a, b) => a.price - b.price);
+
+    case 'price_desc':
+      return sorted.sort((a, b) => b.price - a.price);
+
+    case 'distance':
+      // Distance requires userLocation and result.location
+      // Results without location go to the end
+      if (!userLocation) return sorted.sort((a, b) => b.score - a.score);
+      return sorted.sort((a, b) => {
+        const distA = (a as AnalyzedResult & { distance?: number | null }).distance;
+        const distB = (b as AnalyzedResult & { distance?: number | null }).distance;
+        if (distA === null || distA === undefined) return 1;
+        if (distB === null || distB === undefined) return -1;
+        return distA - distB;
+      });
+
+    default:
+      return sorted;
+  }
+}
+
+/**
+ * Trouve le meilleur résultat par score
+ * Critères: confidence >= 70%, pas de red flags critiques, meilleur score
+ */
+export function findBestScoreResult(results: AnalyzedResult[]): AnalyzedResult | null {
+  if (!results.length) return null;
+
+  // Filtrer les résultats avec bonne confiance et sans red flags critiques
+  const eligible = results.filter(r => {
+    const confidence = r.geminiAnalysis?.confidence ?? 50;
+    const criticalFlags = r.geminiAnalysis?.redFlags?.filter(f =>
+      f.toLowerCase().includes('arnaque') ||
+      f.toLowerCase().includes('suspect') ||
+      f.toLowerCase().includes('paiement')
+    ) ?? [];
+    return confidence >= 70 && criticalFlags.length === 0;
+  });
+
+  if (!eligible.length) {
+    // Fallback: prendre le meilleur score parmi tous
+    return results.reduce((best, r) => r.score > best.score ? r : best, results[0]);
+  }
+
+  // Trier par score puis par confidence
+  return eligible.reduce((best, r) => {
+    const bestConf = best.geminiAnalysis?.confidence ?? 50;
+    const rConf = r.geminiAnalysis?.confidence ?? 50;
+    if (r.score > best.score) return r;
+    if (r.score === best.score && rConf > bestConf) return r;
+    return best;
+  }, eligible[0]);
+}
+
+/**
+ * Trouve le meilleur résultat local (vérifié par distance réelle)
+ * Ne retourne que des résultats à moins de 50km de l'utilisateur
+ */
+export function findBestLocalResult(
+  results: AnalyzedResult[],
+  userLocation?: { lat: number; lng: number }
+): AnalyzedResult | null {
+  if (!userLocation) return null;
+
+  const { geocodeLocation, calculateDistance } = require('./geo');
+
+  // Parmi les résultats isLocal, vérifier la distance réelle
+  const localTagged = results.filter(r => r.isLocal === true);
+  const candidates = localTagged.length > 0 ? localTagged : results.filter(r => r.handDelivery === true);
+
+  if (!candidates.length) return null;
+
+  const MAX_DISTANCE_KM = 50;
+  // Distance par défaut pour les résultats isLocal dont le geocoding échoue
+  // (on sait qu'ils sont dans un rayon de 30km grâce à la recherche LBC géolocalisée)
+  const DEFAULT_LOCAL_DISTANCE_KM = 15;
+
+  const withDistance = candidates
+    .map(r => {
+      // Essayer le geocoding pour la distance exacte
+      if (r.location) {
+        const geo = geocodeLocation(r.location);
+        if (geo) {
+          const distance = calculateDistance(userLocation, geo.coords);
+          console.log(`[OKAZ Local] "${r.title?.substring(0, 40)}" @ ${r.location} → ${geo.displayName} (${Math.round(distance)}km)`);
+          if (distance <= MAX_DISTANCE_KM) {
+            return { result: r, distance };
+          }
+          return null; // Trop loin, filtré
+        }
+      }
+      // Si geocoding échoue mais isLocal=true, le résultat vient de la recherche
+      // LBC géolocalisée (rayon 30km) → on lui attribue une distance par défaut
+      if (r.isLocal) {
+        console.log(`[OKAZ Local] "${r.title?.substring(0, 40)}" @ ${r.location || 'N/A'} → geocoding échoué, default ${DEFAULT_LOCAL_DISTANCE_KM}km`);
+        return { result: r, distance: DEFAULT_LOCAL_DISTANCE_KM };
+      }
+      return null;
+    })
+    .filter((item): item is { result: AnalyzedResult; distance: number } =>
+      item !== null
+    );
+
+  if (!withDistance.length) return null;
+
+  // Trier par distance d'abord, puis par score
+  withDistance.sort((a, b) => {
+    // Priorité aux plus proches (< 20km), puis score
+    if (a.distance < 20 && b.distance >= 20) return -1;
+    if (b.distance < 20 && a.distance >= 20) return 1;
+    return b.result.score - a.result.score;
+  });
+
+  console.log(`[OKAZ Local] Best local: "${withDistance[0].result.title?.substring(0, 40)}" (${Math.round(withDistance[0].distance)}km, score=${withDistance[0].result.score})`);
+  return withDistance[0].result;
 }

@@ -167,7 +167,7 @@
           }
         }
 
-        // Extraire le prix - Back Market affiche souvent "à partir de XXX €"
+        // Extraire le prix - Back Market affiche souvent "1 079,00 €" (espace millier)
         const priceSelectors = [
           '[data-testid="product-price"]',
           '[data-qa="productPrice"]',
@@ -180,12 +180,13 @@
           const el = product.querySelector(sel);
           if (el?.textContent) {
             const priceText = el.textContent.trim();
-            // Pattern prix: "123,45 €" ou "à partir de 123 €" ou "123€"
-            const pricePattern = priceText.match(/(\d+(?:[.,]\d{2})?)\s*€/);
+            // Pattern prix avec espace millier: "1 079,00 €" ou "1079,45 €" ou "123 €"
+            const pricePattern = priceText.match(/([\d\s]+(?:[.,]\d{2})?)\s*€/);
             if (pricePattern) {
-              const cleanPrice = pricePattern[1].replace(',', '.').replace(/\s/g, '');
+              // Retirer TOUS les espaces avant de parser (espaces milliers)
+              const cleanPrice = pricePattern[1].replace(/\s/g, '').replace(',', '.');
               const extracted = parseFloat(cleanPrice);
-              if (extracted > 0 && extracted < 10000) {
+              if (extracted > 0 && extracted < 50000) {
                 price = Math.round(extracted);
                 break;
               }
@@ -195,11 +196,11 @@
 
         // Fallback prix
         if (price === 0) {
-          const priceMatch = product.textContent.match(/(\d+(?:[.,]\d{2})?)\s*€/);
+          const priceMatch = product.textContent.match(/([\d\s]+(?:[.,]\d{2})?)\s*€/);
           if (priceMatch) {
-            const cleanPrice = priceMatch[1].replace(',', '.').replace(/\s/g, '');
+            const cleanPrice = priceMatch[1].replace(/\s/g, '').replace(',', '.');
             const extracted = parseFloat(cleanPrice);
-            if (extracted > 0 && extracted < 10000) {
+            if (extracted > 0 && extracted < 50000) {
               price = Math.round(extracted);
             }
           }
@@ -251,12 +252,12 @@
     return results;
   }
 
-  // Calculer un score de pertinence (Back Market = fiable, donc score élevé de base)
+  // Score initial (sera remplacé par le dealScore Gemini côté site)
   function calculateScore(title, price) {
-    let score = 85; // Score de base plus élevé car reconditionné garanti
+    let score = 70; // Score neutre — Gemini recalculera le vrai score
     const titleLower = title.toLowerCase();
 
-    // Bonus pour certains états
+    // Bonus léger pour certains états
     if (titleLower.includes('excellent') || titleLower.includes('premium')) score += 5;
     if (titleLower.includes('comme neuf')) score += 4;
     if (titleLower.includes('très bon')) score += 3;

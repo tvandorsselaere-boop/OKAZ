@@ -1,7 +1,24 @@
 // OKAZ Extension - Gestion Quota et Identification
 // Gère UUID, quota local, sync serveur, et statut premium
 
-const API_BASE = 'http://localhost:3000/api'; // TODO: Remplacer en prod
+// API_BASE dynamique — mis à jour par le service worker quand le site se connecte
+// En prod (Chrome Web Store) → okaz-ia.fr, en dev → origin du site (localhost:3000 ou 3001, etc.)
+let API_BASE = (() => {
+  try {
+    if (chrome.runtime.getManifest().update_url) {
+      return 'https://okaz-ia.fr/api';
+    }
+  } catch (e) {}
+  return 'http://localhost:3000/api';
+})();
+
+// Mettre à jour l'API_BASE depuis l'origin du site (appelé par le service worker)
+function setApiBaseFromOrigin(origin) {
+  if (origin && origin.startsWith('http')) {
+    API_BASE = origin + '/api';
+    console.log('[OKAZ Quota] API_BASE mis à jour:', API_BASE);
+  }
+}
 
 // Générer un UUID v4
 function generateUUID() {
@@ -236,6 +253,7 @@ if (typeof self !== 'undefined') {
     checkQuotaFromServer,
     consumeSearch,
     canSearch,
-    getQuotaStatus
+    getQuotaStatus,
+    setApiBaseFromOrigin
   };
 }

@@ -1,4 +1,4 @@
-# CLAUDE.md - OKAZ (Recherche Futee)
+# CLAUDE.md - OKAZ (okaz-ia.fr)
 
 > Configuration Claude Code pour le projet OKAZ - Comparateur intelligent de petites annonces
 
@@ -20,23 +20,24 @@ SOLUTION: L'extension Chrome fait le scraping dans le navigateur de l'utilisateu
 - Pas de blocage IP
 ```
 
-### Architecture Actuelle (v0.4.0)
+### Architecture Actuelle (v0.7.0)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     SITE WEB (Next.js)                      │
-│                     Interface utilisateur                    │
+│                     SITE WEB (Next.js 16)                   │
 │                                                             │
-│  1. Utilisateur tape: "iPhone 13 pas cher livrable"        │
-│  2. POST /api/optimize → Gemini optimise la requete        │
-│  3. Recoit: {keywords, priceMax, shippable, category}      │
-│  4. Envoie criteres a l'extension                          │
+│  1. Utilisateur tape ou uploade une photo                   │
+│  2. POST /api/optimize → Gemini optimise + detecte categorie│
+│  3. Si ambigu → questions de clarification (chips)          │
+│  4. Recoit: {keywords, priceMax, shippable, category, ...}  │
+│  5. Verifie quota (Supabase) avant envoi                    │
+│  6. Envoie criteres a l'extension                           │
 └─────────────────────────┬───────────────────────────────────┘
                           │ chrome.runtime.sendMessage()
                           │ (via externally_connectable)
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                   EXTENSION CHROME v0.4.0                   │
+│                   EXTENSION CHROME v0.5.0                   │
 │                   Le moteur de scraping                     │
 │                                                             │
 │  1. Recoit les criteres structures                          │
@@ -47,12 +48,14 @@ SOLUTION: L'extension Chrome fait le scraping dans le navigateur de l'utilisateu
                           │
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                   FILTRAGE PERTINENCE IA                    │
+│                   ANALYSE IA (Gemini 2.5 Flash)            │
 │                                                             │
 │  1. POST /api/analyze → Gemini analyse CHAQUE resultat     │
-│  2. Score confidence 0-100% (pertinence vs recherche)      │
+│  2. Score confidence 0-100% + dealScore + topPick          │
 │  3. Filtrage: confidence < 30% = resultat masque           │
 │  4. Ponderation: scoreFinal = score × (confidence / 100)   │
+│  5. TopPick: LA recommandation mise en avant (carte doree) │
+│  6. POST /api/recommend-new → bandeau "Et en neuf ?"       │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -62,6 +65,7 @@ SOLUTION: L'extension Chrome fait le scraping dans le navigateur de l'utilisateu
 ❌ Creer une API `/api/search` qui scrape directement
 ❌ Utiliser un serveur headless Chrome
 ❌ Contourner l'extension avec du scraping serveur
+❌ Biaiser le scoring en faveur des sites affilies
 
 ### CE QU'IL FAUT FAIRE
 
@@ -70,29 +74,37 @@ SOLUTION: L'extension Chrome fait le scraping dans le navigateur de l'utilisateu
 ✅ Utiliser `externally_connectable` pour la communication
 ✅ Gemini optimise les requetes AVANT envoi a l'extension
 ✅ Gerer le cas ou l'extension n'est pas installee (onboarding)
+✅ Verifier le quota utilisateur avant chaque recherche
 
 ---
 
-## Integration Gemini (NOUVEAU)
+## Integration Gemini
 
-### Role de Gemini
+### Modele: gemini-2.5-flash
 
-Gemini 2.0 Flash optimise les requetes utilisateur en langage naturel:
+Gemini gere 4 fonctions principales :
+
+| Fonction | API Route | Description |
+|----------|-----------|-------------|
+| Optimisation requete | POST /api/optimize | Langage naturel → criteres structures + categorie + questions |
+| Analyse resultats | POST /api/analyze | Confidence 0-100%, dealScore, topPick par resultat |
+| Recommandation neuf | POST /api/recommend-new | Bandeau "Et en neuf ?" avec lien Amazon affilie |
+| Vision (image) | Via /api/optimize | Extraction contexte visuel (couleur, taille, modele) |
+
+### Flux Gemini complet
 
 ```
-AVANT: "iPhone 13 pas cher livrable"
-        ↓ Gemini
-APRES: { keywords: "iPhone 13", priceMax: 450, shippable: true }
-        ↓ Extension
-URL:   ?text=iPhone+13&price_max=450&shippable=1
+ENTREE: "iPhone 13 pas cher livrable" + [photo optionnelle]
+        ↓ Gemini (optimisation)
+        Si ambigu → { needsClarification: true, questions: [...] }
+        ↓ Utilisateur repond
+SORTIE: { keywords: "iPhone 13", priceMax: 450, shippable: true, category: "tech" }
+        ↓ Extension scrape
+        ↓ Gemini (analyse)
+SORTIE: { results: [...], topPick: { index, headline, reason }, filteredCount: N }
+        ↓ Gemini (recommandation neuf, async)
+SORTIE: { productName, reason, searchUrl (Amazon affilie) }
 ```
-
-### Fichiers Gemini
-
-| Fichier | Role |
-|---------|------|
-| `site/src/lib/gemini.ts` | Service Gemini + prix du marche |
-| `site/src/app/api/optimize/route.ts` | API POST /api/optimize |
 
 ### Configuration
 
@@ -101,41 +113,77 @@ URL:   ?text=iPhone+13&price_max=450&shippable=1
 GEMINI_API_KEY=votre_cle_api
 ```
 
-Obtenir une cle: https://aistudio.google.com/app/apikey
+### Estimation des Prix
 
-### Prix du Marche Integres
+```
+⚠️ REGLE ABSOLUE: JAMAIS DE PRIX EN DUR DANS LE CODE ⚠️
 
-Le service Gemini contient 30+ references de prix pour:
-- iPhone (11-15 Pro Max)
-- MacBook (Air/Pro M1-M3)
-- Consoles (PS5, Xbox, Switch)
-- AirPods, iPad, Dyson, Samsung...
+Gemini estime les prix du marche lui-meme grace a ses connaissances.
+Les resultats reels des sites corrigent Gemini si ses prix sont obsoletes.
+Aucune table de prix statique, aucun hardcode. Zero donnees en dur.
+```
 
-Ces prix permettent a Gemini d'interpreter "pas cher" correctement.
+Gemini interprete "pas cher" en estimant le prix marche du produit.
+Pour les produits recents qu'il ne connait pas (M4, iPhone 16, PS5 Pro...),
+il extrapole depuis la generation precedente (+10-20%).
 
 ---
 
-## Filtrage Pertinence IA (v0.4.0)
+## Recherche Visuelle (v0.5.0)
 
-### Principe: 100% IA, Zero Regle en Dur
+Upload d'image via le bouton camera dans la barre de recherche :
+- Conversion base64, max 4MB
+- Gemini Vision extrait : couleur, taille, variante, etat, modele
+- Contexte visuel passe a l'analyse pour meilleur scoring
+- Fichier cle : `site/src/app/page.tsx` (imageInputRef, handleImageUpload)
+
+---
+
+## Questions de Clarification (v0.5.0)
+
+Quand la requete est ambigue, Gemini pose des questions :
+
+```
+Utilisateur: "dunk"
+Gemini: needsClarification: true
+        question: "Quel type de Dunk cherchez-vous ?"
+        options: ["Nike Dunk Low", "Nike Dunk High", "Autre"]
+→ Modal avec chips cliquables
+→ L'utilisateur choisit, la recherche continue
+```
+
+Fichiers cles : `site/src/lib/gemini.ts` (optimizeQuery), `site/src/app/page.tsx` (ClarificationModal)
+
+---
+
+## TopPick - "LA Recommandation" (v0.5.0)
+
+Gemini identifie LE meilleur resultat parmi tous les sites :
+- Carte doree spotlight en haut des resultats
+- Affiche : headline, raison, score de confiance, highlights
+- Composant : TopRecommendation dans `page.tsx`
+- Donnees : champ `topPick` dans la reponse de `/api/analyze`
+
+---
+
+## Filtrage Pertinence IA
+
+### Principe: 100% IA, Zero Donnee en Dur
 
 ```
 ⚠️ REGLE ABSOLUE: PAS DE FILTRAGE HARDCODE ⚠️
-
-Le filtrage des resultats non pertinents est ENTIEREMENT gere par Gemini.
-Aucune liste de mots-cles, aucune regex, aucune regle en dur.
-L'IA comprend le contexte et decide.
+Le filtrage est ENTIEREMENT gere par Gemini. Aucune regex, aucune regle en dur.
 
 ⚠️ REGLE ABSOLUE: ANALYSER TOUS LES RESULTATS ⚠️
-
 Gemini DOIT analyser 100% des resultats, sans limite.
-Pas de "limite pour reduire les couts" - l'IA est la valeur ajoutee.
-On track les couts et on optimise APRES, pas en degradant la qualite.
+
+⚠️ REGLE ABSOLUE: JAMAIS DE DONNEES EN DUR ⚠️
+Pas de table de prix, pas de liste de produits, pas de references statiques.
+Gemini estime tout dynamiquement. Les resultats reels des sites corrigent
+ses estimations si elles sont obsoletes. Zero hardcode.
 ```
 
 ### Score de Confidence (0-100%)
-
-Gemini evalue chaque resultat:
 
 | Score | Signification | Action |
 |-------|---------------|--------|
@@ -148,154 +196,270 @@ Gemini evalue chaque resultat:
 ### Ponderation du Score
 
 ```typescript
-// Le score final integre la pertinence
 const MIN_CONFIDENCE = 30;
 const isRelevant = confidence >= MIN_CONFIDENCE;
 const weightedScore = Math.round(originalScore * (confidence / 100));
 ```
 
-Exemple:
-- Resultat avec score 80% et confidence 90% → score final 72%
-- Resultat avec score 80% et confidence 40% → score final 32%
-- Resultat avec confidence 25% → **filtre, non affiche**
+---
 
-### Exemples de Filtrage
+## Systeme Freemium (v0.5.0)
+
+### Architecture
 
 ```
-Recherche: "PS5"
-✅ "PlayStation 5 avec 2 manettes" → confidence 85%, GARDE
-✅ "PS5 Digital + God of War" → confidence 90%, GARDE
-❌ "Volant Thrustmaster PS5" → confidence 15%, FILTRE
-❌ "Casque Sony Pulse 3D" → confidence 20%, FILTRE
-
-Recherche: "iPhone 13"
-✅ "iPhone 13 128Go noir" → confidence 95%, GARDE
-❌ "Coque iPhone 13 silicone" → confidence 10%, FILTRE
-❌ "Protection ecran iPhone 13" → confidence 15%, FILTRE
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│  Extension   │────▶│  Supabase    │◀────│  Site Web    │
+│  (quota.js)  │     │  (users,     │     │  (API routes)│
+│              │     │   searches)  │     │              │
+└──────────────┘     └──────────────┘     └──────────────┘
+                            │
+                     ┌──────┴──────┐
+                     │   Stripe    │
+                     │  (paiement) │
+                     └─────────────┘
 ```
 
-### Fichiers Cles
+### Quotas
 
-| Fichier | Role |
-|---------|------|
-| `site/src/app/api/analyze/route.ts` | API POST /api/analyze |
-| `site/src/lib/gemini.ts` | Prompt Gemini + parsing reponse |
-| `site/src/app/page.tsx` | Application filtrage + ponderation |
+- **Gratuit** : 5 recherches/jour (reset quotidien)
+- **Boost** : +20 recherches (achat unique via Stripe)
+- **Premium** : Illimite (abonnement mensuel via Stripe)
+
+### Auth : Magic Link
+
+1. Utilisateur entre son email
+2. POST /api/auth/magic-link → envoie email via Resend
+3. Clic sur le lien → POST /api/auth/verify → token JWT
+4. Extension stocke UUID + auth via chrome.storage
+
+### API Routes Freemium
+
+| Route | Role |
+|-------|------|
+| POST /api/quota/consume | Decremente le quota apres recherche |
+| GET /api/quota/status | Retourne l'etat du quota |
+| POST /api/auth/magic-link | Envoie le magic link |
+| POST /api/auth/verify | Verifie le token |
+| POST /api/checkout/boost | Cree session Stripe (boost) |
+| POST /api/checkout/premium | Cree session Stripe (premium) |
+| POST /api/checkout/portal | Stripe Billing Portal (gestion abo) |
+| POST /api/webhooks/stripe | Webhook Stripe (checkout, sub update/delete, payment_failed) |
+
+### Emails (Resend)
+- Domaine: `okaz-ia.fr` (verifie dans Resend via DNS OVH)
+- From: `OKAZ <noreply@okaz-ia.fr>`
+- Magic link + Email bienvenue Premium
 
 ---
 
-## Recherche Geolocalisee (v0.4.0)
+## Recherche Geolocalisee
 
-### Double Recherche LeBonCoin
-
-Quand la geolocation est activee, l'extension fait 2 recherches LeBonCoin en parallele:
+Double recherche LeBonCoin quand geolocation activee :
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  RECHERCHE LOCALE (30km)     │  RECHERCHE NATIONALE        │
-│  → Resultats proches         │  → Tous les resultats       │
-│  → Badge "Local"             │  → Livraison possible       │
-└─────────────────────────────────────────────────────────────┘
+RECHERCHE LOCALE (30km)     │  RECHERCHE NATIONALE
+→ Resultats proches          │  → Tous les resultats
+→ Badge "Pres de vous"       │  → Livraison possible
 ```
 
-Parametres URL LeBonCoin:
-- `lat` / `lng` : Coordonnees GPS
-- `radius` : Rayon en metres (30000 = 30km)
+### Format URL LeBonCoin geoloc
+```
+locations=Ville_CodePostal__lat_lng_5000_rayon
+Exemple: locations=Puyloubier_13114__43.52492_5.67334_5000_30000
+```
+
+### Geocoding (geo.ts)
+Ordre de resolution d'une localisation :
+1. Nom de ville exact dans FRENCH_CITIES (~100 villes)
+2. Code postal exact dans CITY_POSTAL_CODES
+3. Departement (2 premiers chiffres) → ville principale du departement
+
+Fichiers cles :
+- `site/src/lib/geo.ts` (geocoding, calcul distance, reverse geocode)
+- `extension/src/content/leboncoin.js` (extraction localisation via regex noms composes)
+- `extension/src/background/service-worker.js` (construction URL `locations=`)
 
 ---
 
-## Tests Automatises (v0.4.0)
+## Monetisation
 
-### Framework de Test Pertinence
+### Canal 1 : AFFILIATION (revenu principal)
+
+```
+⚠️ REGLE ABSOLUE: LE SCORING RESTE HONNETE ET NON BIAISE ⚠️
+On priorise l'INTEGRATION des sites affilies, pas leur classement.
+Le meilleur deal = le meilleur deal, affilie ou pas.
+```
+
+**Couche 1 — Wrapping automatique des liens :**
+- Back Market → Awin : `cread.php?awinmid={MID}&awinaffid={AFFID}&ued={URL}`
+- Rakuten/Fnac → Awin (meme format)
+- Amazon → `?tag={AMAZON_TAG}`
+- LeBonCoin / Vinted → liens inchanges (pas d'affiliation)
+
+**Couche 2 — Bandeau "Et en neuf ?" :**
+- Gemini recommande un produit neuf si pertinent
+- Lien Amazon affilie
+- Ton "ami expert", pas commercial
+
+**Couche 3 — Recommandations contextuelles (futur)**
+
+Variables d'environnement :
+```bash
+NEXT_PUBLIC_AWIN_AFFID=              # Awin Publisher ID
+NEXT_PUBLIC_AWIN_MID_BACKMARKET=     # Awin Merchant ID (30853)
+NEXT_PUBLIC_AWIN_MID_RAKUTEN=        # Awin Merchant ID (55615)
+NEXT_PUBLIC_AWIN_MID_FNAC=           # Awin Merchant ID
+NEXT_PUBLIC_AMAZON_TAG=              # Amazon Partenaires Tag (ex: okaz-21)
+```
+
+| Programme | Plateforme | Commission | Statut |
+|-----------|-----------|------------|--------|
+| Amazon Partenaires | Direct | 1-12% | A creer |
+| Back Market | Awin | 2-5% | A postuler |
+| Rakuten FR | Awin | jusqu'a 9% | A postuler |
+| Fnac | Awin | A verifier | A postuler |
+
+### Canal 2 : Google AdSense
+
+- Sidebar droite (desktop) pendant loading + resultats
+- Sans config → Placeholders elegants "Espace partenaire"
+- Avec config → Pubs reelles chargees dynamiquement
 
 ```bash
-npm run test:relevance
+NEXT_PUBLIC_ADSENSE_CLIENT=ca-pub-XXXX...
+NEXT_PUBLIC_ADSENSE_SLOT_RECTANGLE=1234...
 ```
 
-Analyse les fixtures de test pour valider la qualite du filtrage:
+### Canal 3 : FREEMIUM
 
-```
-┌─────────────────┬───────┬───────────┬─────────────┬──────────────┐
-│ Recherche       │ Total │ Pertinent │ Accessoires │ Hors-categ.  │
-├─────────────────┼───────┼───────────┼─────────────┼──────────────┤
-│ PS5             │    12 │         5 │           7 │            0 │
-│ iPhone 13       │    11 │         7 │           4 │            0 │
-│ Nike Dunk       │    10 │         7 │           0 │            3 │
-└─────────────────┴───────┴───────────┴─────────────┴──────────────┘
-```
-
-### Fichiers de Test
-
-| Fichier | Role |
-|---------|------|
-| `site/scripts/test-relevance.ts` | Script de test |
-| `site/scripts/fixtures/ps5.json` | Fixture PS5 |
-| `site/scripts/fixtures/iphone13.json` | Fixture iPhone |
-| `site/scripts/fixtures/nikedunk.json` | Fixture Nike Dunk |
-| `site/scripts/fixtures/macbook.json` | Fixture MacBook |
-| `site/scripts/fixtures/switch.json` | Fixture Switch |
+- Voir section "Systeme Freemium" ci-dessus
 
 ---
 
 ## Projet
 
-**OKAZ** est un comparateur de petites annonces (LeBonCoin, Vinted, Back Market) avec:
-- Site web Next.js 15 (App Router) + React 19 + Tailwind CSS 4 + TypeScript
-- Extension Chrome Manifest V3 (le moteur de scraping)
-- Integration IA Gemini 2.0 Flash pour optimisation des requetes
+**OKAZ** est un comparateur de petites annonces avec:
+- Site web Next.js 16 (App Router) + React 19 + Tailwind CSS 4 + TypeScript
+- Extension Chrome Manifest V3 (moteur de scraping)
+- IA Gemini 2.5 Flash (optimisation, analyse, vision, recommandations)
+- Supabase (auth, quotas, users)
+- Stripe (paiements boost/premium)
+- Resend (emails magic link)
 
 **Parent**: Facile-IA (Lab Project)
 
 ---
 
+## Domaine & Hebergement
+
+| Element | Detail |
+|---------|--------|
+| **Domaine** | okaz-ia.fr (OVH, 5,99€/an) |
+| **DNS** | Pointe vers Vercel (A record: 76.76.21.21) |
+| **Mail** | contact@okaz-ia.fr via Zimbra Starter OVH |
+| **Hebergement** | Vercel Hobby → Vercel Pro des monetisation active |
+
+---
+
 ## Fichiers Cles du Projet
 
-### Site Web (Next.js)
+### Site Web — API Routes
 
 | Fichier | Role |
 |---------|------|
-| `site/src/app/page.tsx` | Interface principale + filtrage pertinence |
-| `site/src/app/api/optimize/route.ts` | API Gemini pour optimiser requetes |
-| `site/src/app/api/analyze/route.ts` | API Gemini pour analyser pertinence |
-| `site/src/lib/gemini.ts` | Service Gemini + prompts + parsing |
-| `site/src/lib/scoring.ts` | Analyse et categorisation des resultats |
-| `site/scripts/test-relevance.ts` | Tests automatises pertinence |
-| `site/scripts/fixtures/*.json` | Donnees de test (PS5, iPhone, etc.) |
+| `site/src/app/api/optimize/route.ts` | Gemini optimisation requete + categorie + questions |
+| `site/src/app/api/analyze/route.ts` | Gemini analyse pertinence + topPick |
+| `site/src/app/api/recommend-new/route.ts` | Gemini recommandation produit neuf |
+| `site/src/app/api/quota/consume/route.ts` | Consommation quota |
+| `site/src/app/api/quota/status/route.ts` | Etat du quota |
+| `site/src/app/api/quota/reset/route.ts` | Reset quota (admin) |
+| `site/src/app/api/auth/magic-link/route.ts` | Envoi magic link email |
+| `site/src/app/api/auth/verify/route.ts` | Verification magic link |
+| `site/src/app/api/checkout/boost/route.ts` | Session Stripe boost |
+| `site/src/app/api/checkout/premium/route.ts` | Session Stripe premium |
+| `site/src/app/api/checkout/portal/route.ts` | Stripe Billing Portal (gestion abo) |
+| `site/src/app/api/webhooks/stripe/route.ts` | Webhook Stripe (checkout, subscription.updated/deleted, payment_failed) |
+
+### Site Web — Libraries
+
+| Fichier | Role |
+|---------|------|
+| `site/src/lib/gemini.ts` | Service Gemini (optimisation, analyse, vision, recommandation) |
+| `site/src/lib/scoring.ts` | Scoring multi-criteres + categorisation |
+| `site/src/lib/affiliate.ts` | Wrapping liens affilies (Awin + Amazon) |
+| `site/src/lib/geo.ts` | Geolocation, geocoding (ville + code postal + dept), calcul distance |
+| `site/src/lib/highlights.ts` | Systeme de highlights (best_deal, near_you, guaranteed, just_posted) |
+| `site/src/lib/stripe.ts` | Configuration Stripe |
+| `site/src/lib/supabase.ts` | Client Supabase |
+| `site/src/lib/email.ts` | Envoi emails via Resend |
+
+### Site Web — Composants
+
+| Fichier | Role |
+|---------|------|
+| `site/src/app/page.tsx` | Page principale (~2300 lignes) — UI, search flow, resultats, modals |
+| `site/src/app/layout.tsx` | Layout + script AdSense |
+| `site/src/components/NewProductBanner.tsx` | Bandeau "Et en neuf ?" |
+| `site/src/components/ui/glass-card.tsx` | Carte glassmorphism |
+| `site/src/components/ui/liquid-button.tsx` | Bouton anime |
+| `site/src/components/ui/upgrade-modal.tsx` | Modal upgrade + compteur recherches |
+| `site/src/components/ui/spotlight-card.tsx` | Carte avec effet spotlight |
+| `site/src/components/ads/AdSlot.tsx` | Composant generique pub |
+| `site/src/components/ads/AdSidebar.tsx` | Sidebar pubs |
 
 ### Extension Chrome
 
 | Fichier | Role |
 |---------|------|
-| `extension/manifest.json` | Config v0.3.6 + externally_connectable |
-| `extension/src/background/service-worker.js` | Orchestrateur + recherches paralleles 3 sites |
+| `extension/manifest.json` | Config v0.5.0 + externally_connectable |
+| `extension/src/background/service-worker.js` | Orchestrateur (SEARCH, PING, GET_QUOTA, GET_UUID, SAVE_AUTH, CLEAR_AUTH) |
 | `extension/src/content/leboncoin.js` | Parser DOM LeBonCoin |
 | `extension/src/content/vinted.js` | Parser DOM Vinted |
 | `extension/src/content/backmarket.js` | Parser DOM Back Market |
+| `extension/src/lib/quota.js` | Gestion quota cote extension |
+| `extension/src/popup/popup.js` | Popup extension |
+
+### Tests
+
+| Fichier | Role |
+|---------|------|
+| `site/scripts/test-relevance.ts` | Tests automatises pertinence |
+| `site/scripts/fixtures/*.json` | Fixtures (PS5, iPhone, Nike Dunk, MacBook, Switch) |
 
 ---
 
-## Skills Facile-IA (Locaux)
+## Stack Technique
 
-Les skills Facile-IA sont installes dans `~/.claude/skills/`. Voici ceux pertinents pour ce projet:
+```
+Site Web:
+- Next.js 16.1 (App Router)
+- React 19.2
+- Tailwind CSS 4
+- TypeScript 5+
+- Framer Motion 12
+- Vercel (hosting)
 
-### Skills Techniques (Prioritaires)
+Backend / Services:
+- Supabase (auth, database, quotas)
+- Stripe (paiements)
+- Resend (emails)
 
-| Skill | Chemin | Usage pour Recherche Futee |
-|-------|--------|---------------------------|
-| `frontend-design` | `~/.claude/skills/technique/frontend-design/` | **ESSENTIEL** - Next.js 16 + React 19 + Tailwind 4, glassmorphism, anti-AI slop |
-| `integrations` | `~/.claude/skills/technique/integrations/` | **ESSENTIEL** - APIs externes (Gemini), monitoring couts, rate limiting |
-| `devops` | `~/.claude/skills/technique/devops/` | Deploiement Vercel, CI/CD GitHub Actions |
-| `backend-data` | `~/.claude/skills/technique/backend-data/` | Supabase si besoin de persistence |
+Extension Chrome:
+- Manifest V3
+- JavaScript (vanilla)
+- externally_connectable
 
-### Skills Strategiques
+IA:
+- Gemini 2.5 Flash
+- @google/generative-ai SDK v0.24
+- Vision (analyse d'images)
+```
 
-| Skill | Chemin | Usage |
-|-------|--------|-------|
-| `strategic-advisor` | `~/.claude/skills/core/strategic-advisor/` | Priorisation taches, decisions Go/No-Go |
-| `chef-produit` | `~/.claude/skills/produits/chef-produit/` | Specs produit, roadmap, UX coherente |
-| `skills-manager` | `~/.claude/skills/core/skills-manager/` | Gestion des agents |
+---
 
-### Design System Facile-IA (a appliquer)
+## Design System Facile-IA
 
 ```css
 /* Couleurs */
@@ -310,38 +474,25 @@ Les skills Facile-IA sont installes dans `~/.claude/skills/`. Voici ceux pertine
 
 ---
 
-## Stack Technique du Projet
-
-```
-Site Web:
-- Next.js 16+ (App Router)
-- React 19
-- Tailwind CSS 4
-- TypeScript 5+
-- Vercel (hosting)
-
-Extension Chrome:
-- Manifest V3
-- JavaScript (vanilla)
-- externally_connectable
-
-IA:
-- Gemini 2.0 Flash API
-- @google/generative-ai SDK
-```
-
----
-
 ## Commandes Projet
 
 ```bash
 # Site - Dev
 cd site && npm run dev
 
-# Extension - Recharger dans chrome://extensions apres modifications
+# Site - Type check
+cd site && npx tsc --noEmit
 
-# Site - Build & Deploy
-cd site && npm run build && vercel --prod
+# Site - Build
+cd site && npm run build
+
+# Site - Deploy
+cd site && vercel --prod
+
+# Tests pertinence
+cd site && npm run test:relevance
+
+# Extension - Recharger dans chrome://extensions apres modifications
 ```
 
 ---
@@ -362,7 +513,7 @@ cd site && npm run build && vercel --prod
 - [x] URL LeBonCoin optimisee avec filtres
 
 ### Phase 2: Site Web ✅
-- [x] Setup Next.js 15 + Tailwind 4
+- [x] Setup Next.js + Tailwind 4
 - [x] Page recherche glassmorphism
 - [x] Bridge extension (chrome.runtime.sendMessage)
 - [x] Affichage resultats (ResultCard, ScoreBadge)
@@ -373,224 +524,150 @@ cd site && npm run build && vercel --prod
 - [x] Parser Vinted
 - [x] Parser Back Market
 - [x] Recherches paralleles (Promise.all)
-- [x] Filtrage pertinence par Gemini (relevant: true/false)
+- [x] Filtrage pertinence par Gemini
 
 ### Phase 3.5: Filtrage IA Avance ✅
 - [x] API /api/analyze pour analyse Gemini
 - [x] Score confidence 0-100% par resultat
-- [x] Ponderation score: scoreFinal = score × (confidence/100)
-- [x] Seuil minimum: confidence < 30% = filtre
-- [x] Double recherche LeBonCoin (locale 30km + nationale)
-- [x] Tests automatises pertinence (npm run test:relevance)
-- [x] Fixtures de test (PS5, iPhone, Nike Dunk, MacBook, Switch)
+- [x] Ponderation score + seuil minimum 30%
+- [x] Double recherche LeBonCoin (locale + nationale)
+- [x] Tests automatises pertinence + fixtures
 
-### Phase 4: Polish & Deploy (A FAIRE)
+### Phase 3.7: Monetisation Affiliation ✅
+- [x] Wrapping automatique liens affilies (Awin + Amazon)
+- [x] Bandeau "Et en neuf ?" alimente par Gemini
+- [x] API /api/recommend-new
+- [x] Mention legale affiliation
+- [x] AdSense + placeholders
+- [ ] S'inscrire Amazon Partenaires
+- [ ] S'inscrire Awin editeur + postuler programmes
+- [ ] S'inscrire AdSense
+
+### Phase 3.8: Fonctionnalites IA Avancees ✅
+- [x] Recherche visuelle (upload image + Gemini Vision)
+- [x] Questions de clarification (dialog Gemini → chips)
+- [x] TopPick "LA recommandation" (carte doree spotlight)
+- [x] Highlights systeme (best_deal, near_you, guaranteed, just_posted)
+- [x] Geolocation + calcul distance
+
+### Phase 3.9: Systeme Freemium ✅
+- [x] Supabase (users, searches, quotas)
+- [x] Auth magic link (Resend, domaine okaz-ia.fr)
+- [x] Quota check/consume/status APIs
+- [x] Stripe checkout (boost + premium)
+- [x] Webhook Stripe (checkout, subscription.updated, subscription.deleted, payment_failed)
+- [x] Stripe Billing Portal (gestion/annulation abonnement)
+- [x] Email bienvenue Premium (Resend)
+- [x] Extension: quota sync + UUID storage
+- [x] Modal upgrade + compteur recherches + bouton "Gérer" pour premium
+
+### Phase 4: Demo & Debug (EN COURS)
+- [x] Geolocalisation LBC: format URL `locations=Ville_CP__lat_lng_5000_rayon`
+- [x] Geocoding par code postal (fallback quand nom de ville pas reconnu)
+- [x] Extraction localisation LBC (noms composés: Aix-en-Provence, Saint-Maximin...)
+- [x] Tri par distance dans "Plus de résultats"
+- [x] Webhook Stripe: gestion annulation (cancel_at_period_end)
+- [x] Email: domaine vérifié okaz-ia.fr (Resend)
+- [ ] Finaliser extension pour Chrome Web Store
 - [ ] UI responsive mobile
-- [ ] Cache recherches
-- [ ] Deploiement Vercel
-- [ ] Chrome Web Store
+- [ ] Deploiement Vercel (okaz-ia.fr)
 
-### Phase 5: Sites par Categorie (ROADMAP)
+### Phase 5: Sites par Categorie + Musique (ROADMAP)
 
-Gemini detecte la categorie de recherche et selectionne les sites pertinents:
+Gemini detecte la categorie de recherche et selectionne les sites pertinents :
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  🖥️ TECH     → LBC, BackMarket, Amazon, Fnac, Rakuten, eBay │
-│  👗 MODE     → Vinted, LBC, Vestiaire, Videdressing         │
-│  🚗 AUTO     → LBC, La Centrale, Autoscout24, ParuVendu     │
-│  🏠 IMMO     → LBC, SeLoger, PAP, Bien'ici                  │
-│  🎮 GAMING   → LBC, BackMarket, Rakuten, eBay               │
-│  📚 CULTURE  → LBC, Rakuten, Momox, Gibert                  │
+│  TECH     → LBC, BackMarket, Amazon, Fnac, Rakuten, eBay  │
+│  MODE     → Vinted, LBC, Vestiaire, Videdressing          │
+│  MUSIQUE  → LBC, Zikinf, Audiofanzine, Reverb (occasion)  │
+│            → Thomann, Woodbrass, Gear4music, Amazon (neuf) │
+│  GAMING   → LBC, BackMarket, Rakuten, eBay                │
+│  AUTO     → LBC, La Centrale, Autoscout24, ParuVendu      │
+│  IMMO     → LBC, SeLoger, PAP, Bien'ici                   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 #### Sites a implementer par priorite
 
-**REGLE: Prioriser les sites avec affiliation (revenus) mais le SCORING reste neutre et honnete.**
+**REGLE: Prioriser les sites avec affiliation mais le SCORING reste neutre.**
 
-| Categorie | Site | Affiliation | Commission | Priorite | Statut |
-|-----------|------|-------------|------------|----------|--------|
-| TECH | LeBonCoin | Non | - | ⭐⭐⭐ | ✅ Done |
-| TECH | Back Market | **OUI** | 2-5% | ⭐⭐⭐ | ✅ Done |
-| MODE | Vinted | Non | - | ⭐⭐⭐ | ✅ Done |
-| TECH | Amazon | **OUI** | 1-10% | ⭐⭐⭐ | A faire |
-| TECH | Rakuten | **OUI** | 2-7% | ⭐⭐⭐ | A faire |
-| ALL | eBay | **OUI** | 1-4% | ⭐⭐⭐ | A faire |
-| TECH | Fnac/Darty | A verifier | ? | ⭐⭐ | A faire |
-| MODE | Vestiaire Collective | A verifier | ? | ⭐⭐ | A faire |
-| MODE | Videdressing | A verifier | ? | ⭐⭐ | A faire |
-| AUTO | La Centrale | A verifier | ? | ⭐⭐ | A faire |
-| AUTO | Autoscout24 | A verifier | ? | ⭐ | A faire |
-| AUTO | ParuVendu | A verifier | ? | ⭐ | A faire |
-| IMMO | SeLoger | A verifier | ? | ⭐⭐ | A faire |
-| IMMO | PAP | A verifier | ? | ⭐ | A faire |
-| IMMO | Bien'ici | A verifier | ? | ⭐ | A faire |
+| Categorie | Site | Affiliation | Priorite | Statut |
+|-----------|------|-------------|----------|--------|
+| TECH | LeBonCoin | Non | ⭐⭐⭐ | ✅ Done |
+| TECH | Back Market | Awin 2-5% | ⭐⭐⭐ | ✅ Done |
+| MODE | Vinted | Non | ⭐⭐⭐ | ✅ Done |
+| TECH | Amazon | Direct 1-12% | ⭐⭐⭐ | A faire |
+| TECH | Rakuten | Awin 2-9% | ⭐⭐⭐ | A faire |
+| ALL | eBay | Awin 1-4% | ⭐⭐⭐ | A faire |
+| TECH | Fnac | Awin | ⭐⭐ | A faire |
+| MUSIQUE | Zikinf | Non | ⭐⭐⭐ | A faire |
+| MUSIQUE | Audiofanzine | Non | ⭐⭐ | A faire |
+| MUSIQUE | Reverb | PartnerStack | ⭐⭐ | A faire |
+| MUSIQUE | Thomann | Clickfire | ⭐⭐ | A faire (neuf) |
+| MUSIQUE | Woodbrass | Affilae | ⭐ | A faire (neuf) |
+| MUSIQUE | Gear4music | Awin | ⭐ | A faire (neuf) |
 
 #### Implementation prevue
 
-1. **Gemini detecte la categorie** dans `/api/optimize`:
-   ```json
-   { "category": "tech", "keywords": "iPhone 13", ... }
-   ```
-
-2. **Extension filtre les sites** selon la categorie:
-   ```javascript
-   const SITES_BY_CATEGORY = {
-     tech: ['leboncoin', 'backmarket', 'amazon', 'fnac', 'rakuten'],
-     mode: ['vinted', 'leboncoin', 'vestiaire', 'videdressing'],
-     auto: ['leboncoin', 'lacentrale', 'autoscout24'],
-     immo: ['leboncoin', 'seloger', 'pap', 'bienici']
-   };
-   ```
-
+1. **Gemini detecte la categorie** dans `/api/optimize`
+2. **Extension filtre les sites** selon la categorie via `SITES_BY_CATEGORY`
 3. **Recherches paralleles** uniquement sur les sites de la categorie
+4. **Nouveaux parsers** : un content script par site (DOM parsing)
+5. **Affiliate wrapper** etendu pour les nouveaux sites
 
 ### Phase 6: App Mobile (A TESTER)
 
-**Concept** : App React Native avec WebViews cachées (0x0) pour scraper comme l'extension Chrome.
+Concept : App React Native avec WebViews cachees (0x0) pour scraper.
+Plan : Finir desktop → Prototype RN → Tester stores → Fallback PWA si rejet.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    APP MOBILE (React Native)                │
-│                                                             │
-│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐           │
-│  │ WebView 0x0 │ │ WebView 0x0 │ │ WebView 0x0 │           │
-│  │  LeBonCoin  │ │   Vinted    │ │ Back Market │           │
-│  └──────┬──────┘ └──────┬──────┘ └──────┬──────┘           │
-│         │               │               │                   │
-│         └───────────────┼───────────────┘                   │
-│                         ▼                                   │
-│              Injection JS → Parse DOM                       │
-│                         ▼                                   │
-│                   Résultats combinés                        │
-└─────────────────────────────────────────────────────────────┘
-```
+---
 
-**Pourquoi ça devrait marcher** :
-- C'est le navigateur de l'utilisateur (son IP, ses cookies)
-- Comme ouvrir 3 onglets Safari en arrière-plan
-- Même principe que l'extension Chrome
+## Roadmap IA
 
-**Risques identifiés par l'équipe** :
-- Detection WebView possible (user-agent "wv")
-- App Store pourrait rejeter (à tester)
-- WebView isolée = pas de cookies Safari partagés
+### PRE-TRAITEMENT (Avant la recherche)
 
-**Plan** :
-1. ✅ Finir desktop d'abord (Phase 4)
-2. Prototype React Native rapide
-3. Tester si ça passe les stores
-4. Si rejet → fallback PWA ou Extension Safari iOS
+| Fonctionnalite | Statut |
+|----------------|--------|
+| Comprehension intention ("iPhone pour ma fille ado") | ✅ Via Gemini |
+| Questions intelligentes (clarification) | ✅ Implemente |
+| Recherche par photo (upload image) | ✅ Implemente |
+| Memoire utilisateur | A faire |
+| Alerte Sniper (notification) | A faire |
+
+### POST-TRAITEMENT (Apres les resultats)
+
+| Fonctionnalite | Statut |
+|----------------|--------|
+| Deal Score expressif ("23% sous le marche") | ✅ Via dealScore Gemini |
+| "LA recommandation" (TopPick carte doree) | ✅ Implemente |
+| Bandeau "Et en neuf ?" | ✅ Implemente |
+| Detection arnaques | A faire |
+| Historique des prix | A faire |
+| Nego-Coach | A faire |
 
 ---
 
 ## Ressources
 
-### Documentation Technique
 - [Chrome Extensions MV3](https://developer.chrome.com/docs/extensions/mv3/)
 - [externally_connectable](https://developer.chrome.com/docs/extensions/mv3/manifest/externally_connectable/)
 - [Gemini API](https://ai.google.dev/gemini-api/docs)
 - [Next.js Docs](https://nextjs.org/docs)
+- [Supabase Docs](https://supabase.com/docs)
+- [Stripe Docs](https://docs.stripe.com/)
 
 ### Design Inspiration (NO AI Slop)
-- [Vercel Design](https://vercel.com/design)
-- [Linear Design](https://linear.app)
-- [Stripe Design](https://stripe.com)
+- Vercel, Linear, Stripe
 
 ---
 
----
-
-## Roadmap IA - Idées à implémenter
-
-### PRÉ-TRAITEMENT (Avant la recherche)
-
-| Fonctionnalité | Description | Priorité |
-|----------------|-------------|----------|
-| **Compréhension intention** | "iPhone pour ma fille ado" → budget 150-300€, modèles adaptés | ⭐⭐⭐ |
-| **Questions intelligentes** | Dialogue naturel : "Livraison ou main propre ?" | ⭐⭐⭐ |
-| **Recherche par photo** | "Trouve-moi ça moins cher" (upload image) | ⭐⭐ |
-| **Mémoire utilisateur** | "La dernière fois tu cherchais un vélo..." | ⭐⭐ |
-| **Alerte Sniper** | Notification quand une annonce matche les critères | ⭐⭐⭐ |
-
-### POST-TRAITEMENT (Après les résultats)
-
-| Fonctionnalité | Description | Priorité |
-|----------------|-------------|----------|
-| **Deal Score expressif** | "Prix 23% sous le marché - fonce !" | ⭐⭐⭐ |
-| **Détection arnaques** | Photos stock, compte récent, prix trop bas | ⭐⭐⭐ |
-| **Historique des prix** | Graphique : "Ce modèle était à 180€ il y a 2 mois" | ⭐⭐⭐ |
-| **Score vendeur contextuel** | "10 ventes de livres" vs "10 ventes d'iPhone" | ⭐⭐ |
-| **Nego-Coach** | "Ce vendeur a baissé 2x cette semaine, propose -15%" | ⭐⭐ |
-| **Comparaison neuf/reconditionné** | "Pour 30€ de plus → garantie Back Market" | ⭐⭐ |
-| **LA recommandation** | "Celle-ci est faite pour toi, voilà pourquoi" | ⭐⭐⭐ |
-
-### Fonctionnalités "WOW"
-
-| Idée | Impact | Complexité |
-|------|--------|------------|
-| **"Coup de cœur IA"** | Badge doré sur LA bonne affaire | Faible |
-| **Transparence "Pourquoi ce score ?"** | Cliquable, expliqué simplement | Faible |
-| **Alerte temps réel** | "Nouvelle annonce il y a 3 min !" | Moyenne |
-| **Recherche par photo** | Upload → trouve similaire moins cher | Élevée |
-| **Nego-Coach** | Analyse comportement vendeur | Élevée |
-
-### Modele economique - STRATEGIE VALIDEE
-
-```
-⚠️ REGLE ABSOLUE: LE SCORING RESTE HONNETE ET NON BIAISE ⚠️
-On priorise l'INTEGRATION des sites affilies, pas leur classement.
-Le meilleur deal = le meilleur deal, affilie ou pas.
-```
-
-**1. AFFILIATION (revenu principal)**
-```
-┌─────────────────────────────────────────────────────────────┐
-│  Quand l'utilisateur clique sur un lien vers un site       │
-│  affilie (Back Market, Amazon, Rakuten, eBay), on touche   │
-│  une commission sur l'achat (1-10% selon le site).         │
-│                                                             │
-│  → Pas de biais dans le classement                         │
-│  → Revenu genere naturellement par les clics               │
-└─────────────────────────────────────────────────────────────┘
-```
-
-| Site | Commission | Programme |
-|------|------------|-----------|
-| Back Market | 2-5% | Actif |
-| Amazon | 1-10% | Actif |
-| Rakuten | 2-7% | Actif |
-| eBay | 1-4% | Actif |
-| LeBonCoin | - | Pas d'affiliation |
-| Vinted | - | Pas d'affiliation |
-
-**2. PUBLICITE (revenus complementaires)**
-```
-┌─────────────────────────────────────────────────────────────┐
-│  ZONE SECONDAIRE: Media.net (CPC)                          │
-│  → Pub contextuelle basee sur mots-cles Gemini             │
-│  → 0.30-0.80€ par clic                                     │
-├─────────────────────────────────────────────────────────────┤
-│  SIDEBAR/FOOTER: AdSense (CPM backup)                      │
-│  → Revenus complementaires                                 │
-└─────────────────────────────────────────────────────────────┘
-```
-
-**3. FREEMIUM (futur)**
-- Gratuit: 10 recherches/jour, resultats basiques
-- Premium (4.99€/mois): Illimite, scoring avance, alertes, historique prix, Nego-Coach
-
-**Partenariats potentiels:**
-- Assurance colis (Cocolis, Mondial Relay) → commission 5-10%
-- Paiement securise (Obvy, Paycar) → commission 2-3%
-
-### Insights clés de l'équipe
+### Insights cles
 
 - **UX**: "Accompagner comme un ami expert, pas juger comme un algo"
-- **Business**: "Prouver l'engagement avant de monétiser"
+- **Business**: "Prouver l'engagement avant de monetiser"
 - **Terrain**: "Dis-moi juste laquelle acheter"
 
 ---
 
-*Mis a jour le 1 fevrier 2026 - v0.4.0 avec filtrage pertinence IA + tests automatises*
+*Mis a jour le 8 fevrier 2026 - v0.7.0*

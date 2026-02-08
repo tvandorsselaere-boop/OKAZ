@@ -7,6 +7,7 @@ import { headers } from 'next/headers';
 import Stripe from 'stripe';
 import { stripe, CREDITS } from '@/lib/stripe';
 import { createServiceClient } from '@/lib/supabase/server';
+import { sendWelcomePremium } from '@/lib/email';
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
@@ -51,6 +52,10 @@ export async function POST(request: NextRequest) {
     switch (event.type) {
       case 'checkout.session.completed':
         await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
+        break;
+
+      case 'customer.subscription.updated':
+        await handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
         break;
 
       case 'customer.subscription.deleted':
@@ -155,6 +160,11 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
     console.log('[OKAZ Webhook] Premium activé pour:', email, 'jusqu\'au:', premiumUntil.toISOString());
 
+    // Envoyer l'email de bienvenue Premium
+    sendWelcomePremium(email).then(sent => {
+      console.log('[OKAZ Webhook] Email bienvenue premium:', sent ? 'envoyé' : 'échec');
+    });
+
     // Enregistrer l'achat
     const { data: user } = await supabase
       .from('okaz_users')
@@ -170,6 +180,40 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       type: 'premium',
       amount_cents: 999,
     });
+  }
+}
+
+async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
+  const supabase = createServiceClient();
+  const customerId = subscription.customer as string;
+
+  console.log('[OKAZ Webhook] Subscription updated, customer:', customerId, 'cancel_at_period_end:', subscription.cancel_at_period_end);
+
+  // Si l'utilisateur a demandé l'annulation (annulation en fin de période)
+  const cancelAtEnd = subscription.cancel_at_period_end;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const periodEndTs = (subscription as any).current_period_end;
+  if (cancelAtEnd && periodEndTs) {
+    const periodEnd = new Date(periodEndTs * 1000);
+
+    const { data: purchase } = await supabase
+      .from('okaz_purchases')
+      .select('user_id')
+      .eq('stripe_customer_id', customerId)
+      .eq('type', 'premium')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (purchase?.user_id) {
+      // Mettre à jour premium_until à la fin de la période payée
+      await supabase
+        .from('okaz_users')
+        .update({ premium_until: periodEnd.toISOString() })
+        .eq('id', purchase.user_id);
+
+      console.log('[OKAZ Webhook] Premium annulé, actif jusqu\'au:', periodEnd.toISOString());
+    }
   }
 }
 

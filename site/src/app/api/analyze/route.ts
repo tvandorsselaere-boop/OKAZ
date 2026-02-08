@@ -1,14 +1,14 @@
 // OKAZ API - Analyse des résultats via Gemini
-// POST /api/analyze { results: [...], query: string }
+// POST /api/analyze { results: [...], query: string, visualContext?: {...} }
 // Retourne: { analyzed: [...], topPick?: {...} }
 
 import { NextRequest, NextResponse } from 'next/server';
-import { analyzeResultsWithGemini, RawResult } from '@/lib/gemini';
+import { analyzeResultsWithGemini, RawResult, VisualContext } from '@/lib/gemini';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { results, query } = body;
+    const { results, query, visualContext } = body;
 
     if (!results || !Array.isArray(results)) {
       return NextResponse.json(
@@ -18,6 +18,9 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('[OKAZ API] Analyse de', results.length, 'résultats pour:', query);
+    if (visualContext) {
+      console.log('[OKAZ API] Contexte visuel:', visualContext);
+    }
 
     // Convertir en format attendu
     const rawResults: RawResult[] = results.map((r: Record<string, unknown>) => ({
@@ -28,7 +31,15 @@ export async function POST(request: NextRequest) {
       image: r.image ? String(r.image) : null,
     }));
 
-    const { analyzed, topPick } = await analyzeResultsWithGemini(rawResults, query || '');
+    // v0.5.0 - Passer le contexte visuel (couleur, taille...) pour ajuster le scoring
+    const typedVisualContext: VisualContext | undefined = visualContext ? {
+      color: visualContext.color,
+      size: visualContext.size,
+      condition: visualContext.condition,
+      variant: visualContext.variant,
+    } : undefined;
+
+    const { analyzed, topPick } = await analyzeResultsWithGemini(rawResults, query || '', typedVisualContext);
 
     console.log('[OKAZ API] Analyse terminée:', analyzed.length, 'résultats');
     if (topPick) {

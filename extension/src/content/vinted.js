@@ -178,10 +178,10 @@
           const el = item.querySelector(sel);
           if (el?.textContent) {
             const priceText = el.textContent.trim();
-            // Pattern prix Vinted: "12,50 €" ou "12.50 €" ou "12 €"
-            const pricePattern = priceText.match(/(\d+(?:[.,]\d{2})?)\s*€/);
+            // Pattern prix Vinted: "12,50 €" ou "1 250,00 €" (espace millier)
+            const pricePattern = priceText.match(/([\d\s]+(?:[.,]\d{2})?)\s*€/);
             if (pricePattern) {
-              const cleanPrice = pricePattern[1].replace(',', '.');
+              const cleanPrice = pricePattern[1].replace(/\s/g, '').replace(',', '.');
               const extracted = parseFloat(cleanPrice);
               if (extracted > 0 && extracted < 10000) {
                 price = Math.round(extracted);
@@ -193,9 +193,9 @@
 
         // Fallback prix
         if (price === 0) {
-          const priceMatch = item.textContent.match(/(\d+(?:[.,]\d{2})?)\s*€/);
+          const priceMatch = item.textContent.match(/([\d\s]+(?:[.,]\d{2})?)\s*€/);
           if (priceMatch) {
-            const cleanPrice = priceMatch[1].replace(',', '.');
+            const cleanPrice = priceMatch[1].replace(/\s/g, '').replace(',', '.');
             const extracted = parseFloat(cleanPrice);
             if (extracted > 0 && extracted < 10000) {
               price = Math.round(extracted);

@@ -19,8 +19,8 @@
       "http://localhost/*",
       "http://127.0.0.1/*",
       "https://*.vercel.app/*",
-      "https://okaz.fr/*",
-      "https://*.okaz.fr/*"
+      "https://okaz-ia.fr/*",
+      "https://*.okaz-ia.fr/*"
     ]
   },
   "action": {

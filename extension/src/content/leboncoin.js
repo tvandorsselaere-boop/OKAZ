@@ -274,16 +274,36 @@
         const locationSelectors = [
           '[data-qa-id="aditem_location"]',
           '[data-test-id="ad-location"]',
-          '[class*="location"]',
-          '[class*="Location"]',
           'p[class*="city"]',
-          'span[class*="city"]'
+          'span[class*="city"]',
+          '[class*="Location"]',
+          '[class*="location"]',
         ];
         for (const sel of locationSelectors) {
           const el = ad.querySelector(sel);
           if (el?.textContent?.trim()) {
-            location = el.textContent.trim();
-            break;
+            const locText = el.textContent.trim();
+            // Vérifier que ce n'est pas le titre qui a été capturé
+            // Une location LBC est courte (ville + dept) et ne contient pas de mots-clés produit
+            if (locText.length < 50 && locText !== title && !locText.includes('€')) {
+              location = locText;
+              break;
+            }
+          }
+        }
+        // Fallback: chercher un pattern ville (XX) ou ville XXXXX dans le texte de l'annonce
+        if (!location) {
+          const adText = ad.textContent || '';
+          // Pattern: "Ville (13)" ou "Aix-en-Provence (13)" — typique LBC
+          const cityMatch = adText.match(/((?:[A-ZÀ-Ü][a-zà-ü]+[-'\s]?(?:de|du|des|en|la|le|les|sur|sous|lès|près|saint|sainte|lez|l'|d')?\s?)*[A-ZÀ-Ü][a-zà-ü]+)\s*\((\d{2,3})\)/);
+          if (cityMatch && cityMatch[1].length < 40) {
+            location = cityMatch[0];
+          } else {
+            // Pattern: "Aix-en-Provence 13100" (nom composé + code postal 5 chiffres)
+            const postalMatch = adText.match(/((?:[A-ZÀ-Ü][a-zà-ü]+[-'\s]?(?:de|du|des|en|la|le|les|sur|sous|lès|près|saint|sainte|lez|l'|d')?\s?)*[A-ZÀ-Ü][a-zà-ü]+)\s+(\d{5})/);
+            if (postalMatch && postalMatch[1].length < 40 && !postalMatch[1].match(/MacBook|iPhone|Samsung|Dell|HP|Asus|Lenovo|Apple|Go\b|Pro\b|Air\b|Max\b/i)) {
+              location = postalMatch[1] + ' ' + postalMatch[2];
+            }
           }
         }
 
@@ -314,7 +334,7 @@
                             !hasShipping; // Si pas de livraison détectée, c'est forcément main propre
 
         // Debug pour les premiers éléments
-        if (index < 3) {
+        if (index < 5) {
           console.log(`OKAZ DEBUG [${index}]: title="${title?.substring(0, 30)}", price=${price}, location="${location}", handDelivery=${handDelivery}`);
         }
 

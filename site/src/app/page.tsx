@@ -2,14 +2,17 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Sparkles, Shield, Zap, ArrowLeft, ExternalLink, AlertTriangle, Settings, Check, Wand2, TrendingDown, Lightbulb, BadgeCheck, ShoppingBag, X, MapPin, Navigation } from "lucide-react";
+import { Search, Sparkles, Shield, Zap, ArrowLeft, ExternalLink, AlertTriangle, Settings, Check, Wand2, TrendingDown, Lightbulb, BadgeCheck, ShoppingBag, X, MapPin, Navigation, Camera, Link2, MessageCircle } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { SpotlightCard } from "@/components/ui/spotlight-card";
 import { UpgradeModal, SearchCounter } from "@/components/ui/upgrade-modal";
-import { analyzeResults } from "@/lib/scoring";
-import type { AnalyzedResult, CategorizedResults, SearchResult } from "@/lib/scoring";
+import { analyzeResults, sortResults, findBestScoreResult, findBestLocalResult } from "@/lib/scoring";
+import { wrapAffiliateLink } from "@/lib/affiliate";
+import { NewProductBanner } from "@/components/NewProductBanner";
+import { AdSidebar } from "@/components/ads/AdSidebar";
+import type { AnalyzedResult, CategorizedResults, SearchResult, SortOption } from "@/lib/scoring";
 import { useGeolocation } from "@/hooks/useGeolocation";
-import { geocodeLocation, calculateDistance, formatDistance } from "@/lib/geo";
+import { geocodeLocation, calculateDistance, formatDistance, reverseGeocodeLocal } from "@/lib/geo";
 
 // Interface pour le quota
 interface QuotaStatus {
@@ -36,12 +39,15 @@ type SearchSite = 'leboncoin' | 'vinted' | 'backmarket';
 
 interface SearchCriteria {
   keywords: string;
+  keywordsBM?: string;
   priceMin?: number;
   priceMax?: number;
   shippable?: boolean;
   ownerType?: 'private' | 'pro' | 'all';
   category?: string;
   sites?: SearchSite[];
+  excludeAccessories?: boolean;
+  acceptedModels?: string[];
   originalQuery: string;
 }
 
@@ -63,11 +69,23 @@ interface SearchBriefing {
   };
 }
 
+// v0.5.0 - Contexte visuel extrait de l'image
+interface VisualContext {
+  color?: string;
+  size?: string;
+  condition?: string;
+  variant?: string;
+}
+
 interface OptimizeResponse {
   success: boolean;
   criteria: SearchCriteria;
   briefing?: SearchBriefing;
+  visualContext?: VisualContext;
   optimizedUrl: string;
+  needsClarification?: boolean;
+  clarificationQuestion?: string;
+  clarificationOptions?: string[];
 }
 
 // LA recommandation - Le TOP PICK identifié par Gemini
@@ -77,6 +95,14 @@ interface TopPick {
   headline: string;
   reason: string;
   highlights: string[];
+}
+
+// Recommandation produit neuf ("Et en neuf ?")
+interface NewRecommendation {
+  productName: string;
+  estimatedPrice?: number;
+  reason: string;
+  searchQuery: string;
 }
 
 interface AnalyzeResponse {
@@ -379,6 +405,290 @@ function ResultCard({ result, index = 0, showLocalBadge = false }: { result: Ana
   );
 }
 
+// ============================================================================
+// COMPOSANTS v0.5.0 - RÉSULTATS SIMPLIFIÉS
+// ============================================================================
+
+// Carte mise en avant pour les top choices
+function TopChoiceCard({
+  result,
+  type,
+  userLocation
+}: {
+  result: AnalyzedResult;
+  type: 'score' | 'local';
+  userLocation?: { lat: number; lng: number }
+}) {
+  const distance = (result as AnalyzedResult & { distance?: number | null }).distance;
+  const gemini = result.geminiAnalysis;
+  const dealType = gemini?.dealType || result.analysis.dealType;
+
+  // Couleur selon le type
+  const bgGradient = type === 'score'
+    ? 'from-amber-500/15 to-yellow-500/15 border-amber-500/30 hover:border-amber-500/50'
+    : 'from-emerald-500/15 to-teal-500/15 border-emerald-500/30 hover:border-emerald-500/50';
+
+  const accentColor = type === 'score' ? 'amber' : 'emerald';
+  const icon = type === 'score' ? '🏆' : '🤝';
+  const label = type === 'score' ? 'MEILLEUR SCORE' : 'MEILLEUR LOCAL';
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, delay: type === 'score' ? 0 : 0.1 }}
+    >
+      <a
+        href={result.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={`block p-4 rounded-xl bg-gradient-to-br ${bgGradient} border-2 hover:scale-[1.02] transition-all group h-full`}
+      >
+        {/* Badge */}
+        <div className={`flex items-center gap-2 mb-3 text-${accentColor}-400`}>
+          <span className="text-lg">{icon}</span>
+          <span className="text-xs font-bold tracking-wide">{label}</span>
+        </div>
+
+        {/* Image + Contenu */}
+        <div className="flex gap-3">
+          <div className="relative w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-white/5">
+            {result.image ? (
+              <img
+                src={result.image}
+                alt={result.title}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-2xl">📦</div>
+            )}
+            <div
+              className="absolute bottom-0 left-0 right-0 py-0.5 text-[9px] text-white text-center font-medium"
+              style={{ backgroundColor: result.siteColor }}
+            >
+              {result.site}
+            </div>
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <h4 className={`text-sm font-medium text-white line-clamp-2 group-hover:text-${accentColor}-300 transition-colors`}>
+              {result.title}
+            </h4>
+            <div className="flex items-center gap-2 mt-1.5">
+              <span className="text-xl font-bold text-white">
+                {result.price > 0 ? `${result.price.toLocaleString('fr-FR')} €` : 'Prix ?'}
+              </span>
+              <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-${accentColor}-500/20 text-${accentColor}-400`}>
+                {result.score}%
+              </span>
+            </div>
+
+            {/* Info contextuelle selon le type */}
+            <div className={`flex items-center gap-1.5 mt-1.5 text-[11px] text-${accentColor}-400/80`}>
+              {type === 'score' ? (
+                <>
+                  {dealType === 'excellent' && <><TrendingDown className="w-3 h-3" />Excellente affaire</>}
+                  {dealType === 'good' && <><TrendingDown className="w-3 h-3" />Bon prix</>}
+                  {dealType === 'fair' && <>Prix correct</>}
+                  {!['excellent', 'good', 'fair'].includes(dealType || '') && <>Score élevé</>}
+                </>
+              ) : (
+                <>
+                  <MapPin className="w-3 h-3" />
+                  {distance !== null && distance !== undefined
+                    ? formatDistance(distance)
+                    : result.location || 'Localisation non précisée'}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Red flags si présents */}
+        {gemini?.redFlags && gemini.redFlags.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-2">
+            {gemini.redFlags.slice(0, 2).map((flag, i) => (
+              <span key={i} className="px-1.5 py-0.5 text-[9px] bg-red-500/15 text-red-400 rounded">
+                {flag}
+              </span>
+            ))}
+          </div>
+        )}
+      </a>
+    </motion.div>
+  );
+}
+
+// Les 2 top choices côte à côte
+function TopChoices({
+  bestScore,
+  bestLocal,
+  userLocation
+}: {
+  bestScore: AnalyzedResult | null;
+  bestLocal: AnalyzedResult | null;
+  userLocation?: { lat: number; lng: number }
+}) {
+  // Si même résultat pour les deux, n'afficher qu'une seule carte
+  const isSameResult = bestScore && bestLocal && bestScore.id === bestLocal.id;
+
+  if (!bestScore && !bestLocal) return null;
+
+  return (
+    <div className="mb-6">
+      <div className={`grid ${isSameResult || (!bestScore || !bestLocal) ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'} gap-4`}>
+        {bestScore && (
+          <TopChoiceCard result={bestScore} type="score" userLocation={userLocation} />
+        )}
+        {bestLocal && !isSameResult && (
+          <TopChoiceCard result={bestLocal} type="local" userLocation={userLocation} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Barre de tri
+function SortBar({
+  currentSort,
+  onSortChange,
+  hasGeoloc
+}: {
+  currentSort: SortOption;
+  onSortChange: (sort: SortOption) => void;
+  hasGeoloc: boolean
+}) {
+  const options: { value: SortOption; label: string; icon?: React.ReactNode }[] = [
+    { value: 'score', label: 'Score' },
+    { value: 'price_asc', label: 'Prix ↑' },
+    { value: 'price_desc', label: 'Prix ↓' },
+  ];
+
+  if (hasGeoloc) {
+    options.push({ value: 'distance', label: 'Distance' });
+  }
+
+  return (
+    <div className="flex items-center gap-2 text-xs">
+      <span className="text-white/40">Tri:</span>
+      {options.map(opt => (
+        <button
+          key={opt.value}
+          onClick={() => onSortChange(opt.value)}
+          className={`px-2.5 py-1 rounded-lg transition-all ${
+            currentSort === opt.value
+              ? 'bg-[var(--primary)]/20 text-[var(--primary)] border border-[var(--primary)]/30'
+              : 'bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/70 border border-transparent'
+          }`}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// Section "Plus de résultats" repliable
+function MoreResultsSection({
+  results,
+  excludeIds,
+  userLocation
+}: {
+  results: AnalyzedResult[];
+  excludeIds: string[];
+  userLocation?: { lat: number; lng: number }
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [sortBy, setSortBy] = useState<SortOption>('score');
+
+  // Exclure les top picks
+  const otherResults = results.filter(r => !excludeIds.includes(r.id));
+
+  if (otherResults.length === 0) return null;
+
+  // Calculer les distances si géoloc active (nécessaire pour tri par distance)
+  const resultsWithDistance = userLocation
+    ? otherResults.map(result => {
+        if (!result.location) {
+          // Si isLocal, assigner une distance par défaut (15km)
+          if (result.isLocal) return { ...result, distance: 15 };
+          return { ...result, distance: null as number | null };
+        }
+        const coords = geocodeLocation(result.location);
+        if (!coords) {
+          if (result.isLocal) return { ...result, distance: 15 };
+          return { ...result, distance: null as number | null };
+        }
+        const distance = calculateDistance(userLocation, coords.coords);
+        return { ...result, distance };
+      })
+    : otherResults;
+
+  // Trier les résultats
+  const sortedResults = sortResults(resultsWithDistance, sortBy, userLocation);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ delay: 0.3 }}
+      className="mt-6"
+    >
+      {/* Header cliquable */}
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="w-full flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/8 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-lg">📋</span>
+          <span className="text-sm font-medium text-white/80">
+            Plus de résultats
+          </span>
+          <span className="text-xs text-white/40">({otherResults.length})</span>
+        </div>
+        <motion.div
+          animate={{ rotate: isExpanded ? 180 : 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <svg className="w-5 h-5 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </motion.div>
+      </button>
+
+      {/* Contenu repliable */}
+      <AnimatePresence>
+        {isExpanded && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.3 }}
+            className="overflow-hidden"
+          >
+            {/* Barre de tri */}
+            <div className="py-3">
+              <SortBar
+                currentSort={sortBy}
+                onSortChange={setSortBy}
+                hasGeoloc={!!userLocation}
+              />
+            </div>
+
+            {/* Liste des résultats */}
+            <div className="space-y-3">
+              {sortedResults.map((result, index) => (
+                <ResultCard key={result.id} result={result} index={index} showLocalBadge={!!userLocation} />
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
 // Section Main propre avec tri par distance si géoloc activée
 function HandDeliverySection({ results, userLocation }: { results: AnalyzedResult[]; userLocation?: { lat: number; lng: number } }) {
   // Calculer les distances si géoloc active
@@ -546,152 +856,158 @@ function HandDeliverySection({ results, userLocation }: { results: AnalyzedResul
   );
 }
 
-function SearchResults({ data, onBack }: { data: { query: string; categorized: CategorizedResults; totalResults: number; duration: number; criteria?: SearchCriteria; topPick?: TopPick; userLocation?: { lat: number; lng: number } }; onBack: () => void }) {
-  const { categorized, totalResults, duration, query, criteria, topPick, userLocation } = data;
+function SearchResults({ data, onBack }: { data: { query: string; categorized: CategorizedResults; totalResults: number; duration: number; criteria?: SearchCriteria; topPick?: TopPick; userLocation?: { lat: number; lng: number }; newRecommendation?: NewRecommendation | null }; onBack: () => void }) {
+  const { categorized, totalResults, duration, query, criteria, topPick, userLocation, newRecommendation } = data;
   const { results } = categorized;
 
-  // Trouver le résultat correspondant au topPick (Coup de cœur unique)
-  const topPickResult = topPick
-    ? results.find(r => r.id === topPick.id)
-    : null;
+  // v0.5.0 - Nouveau layout simplifié avec 2 top choices
+  // Trouver le meilleur score et le meilleur local (différent du meilleur score)
+  const bestScore = findBestScoreResult(results);
+  let bestLocal = findBestLocalResult(results, userLocation);
+  // Si le meilleur local est le même que le meilleur score, chercher le 2ème meilleur local
+  if (bestLocal && bestScore && bestLocal.id === bestScore.id) {
+    const otherLocals = results.filter(r => r.id !== bestScore.id);
+    bestLocal = findBestLocalResult(otherLocals, userLocation);
+  }
 
-  // Filtrer le topPick des autres résultats pour éviter la duplication
-  const otherResults = topPick
-    ? results.filter(r => r.id !== topPick.id)
-    : results;
-
-  // Séparer les résultats : Livraison vs Main propre
-  // - Livraison = a une option livraison (même si main propre aussi possible)
-  // - Main propre = UNIQUEMENT main propre (pas de livraison)
-  const shippingResults = otherResults.filter(r => r.hasShipping === true);
-  const handDeliveryResults = otherResults.filter(r => r.handDelivery === true && r.hasShipping !== true);
+  // IDs à exclure de la section "Plus de résultats"
+  const excludeIds: string[] = [];
+  if (bestScore) excludeIds.push(bestScore.id);
+  if (bestLocal && bestLocal.id !== bestScore?.id) excludeIds.push(bestLocal.id);
 
   const wasOptimized = criteria && criteria.keywords !== criteria.originalQuery;
 
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <motion.button
-          onClick={onBack}
-          whileHover={{ x: -2 }}
-          whileTap={{ scale: 0.95 }}
-          className="flex items-center gap-2 text-white/60 hover:text-white transition-colors btn-secondary px-3 py-1.5 rounded-lg"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Retour
-        </motion.button>
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--primary)] to-[var(--accent)] flex items-center justify-center shadow-lg">
-            <Search className="w-4 h-4 text-white" />
+    <div>
+      {/* Résultats - pleine largeur */}
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <motion.button
+            onClick={onBack}
+            whileHover={{ x: -2 }}
+            whileTap={{ scale: 0.95 }}
+            className="flex items-center gap-2 text-white/60 hover:text-white transition-colors btn-secondary px-3 py-1.5 rounded-lg"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Retour
+          </motion.button>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--primary)] to-[var(--accent)] flex items-center justify-center shadow-lg">
+              <Search className="w-4 h-4 text-white" />
+            </div>
+            <span className="text-xl font-bold logo-gradient">OKAZ</span>
           </div>
-          <span className="text-xl font-bold logo-gradient">OKAZ</span>
-        </div>
-      </div>
-
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="glass-card p-4 rounded-xl space-y-2"
-      >
-        <div>
-          <div className="text-sm text-white/50">Recherche :</div>
-          <div className="text-white font-medium">{query}</div>
         </div>
 
-        {wasOptimized && criteria && (
-          <div className="pt-2 border-t border-white/10">
-            <div className="flex items-center gap-2 text-xs text-[var(--primary)]">
-              <Wand2 className="w-3 h-3" />
-              Optimise par IA
-            </div>
-            <div className="flex flex-wrap gap-2 mt-1">
-              <span className="text-xs bg-white/10 px-2 py-0.5 rounded text-white/70">
-                {criteria.keywords}
-              </span>
-              {criteria.priceMax && (
-                <span className="text-xs bg-green-500/10 px-2 py-0.5 rounded text-green-400">
-                  Max {criteria.priceMax}€
-                </span>
-              )}
-              {criteria.priceMin && (
-                <span className="text-xs bg-blue-500/10 px-2 py-0.5 rounded text-blue-400">
-                  Min {criteria.priceMin}€
-                </span>
-              )}
-              {criteria.shippable && (
-                <span className="text-xs bg-purple-500/10 px-2 py-0.5 rounded text-purple-400">
-                  Livrable
-                </span>
-              )}
-              {criteria.ownerType === 'private' && (
-                <span className="text-xs bg-yellow-500/10 px-2 py-0.5 rounded text-yellow-400">
-                  Particulier
-                </span>
-              )}
-              {criteria.category && (
-                <span className="text-xs bg-indigo-500/10 px-2 py-0.5 rounded text-indigo-400">
-                  {criteria.category}
-                </span>
-              )}
-            </div>
-            {criteria.sites && criteria.sites.length < 3 && (
-              <div className="flex items-center gap-1 mt-2 text-[10px] text-white/40">
-                <span>Sites:</span>
-                {criteria.sites.map(site => (
-                  <span key={site} className="px-1.5 py-0.5 bg-white/5 rounded">
-                    {site === 'leboncoin' ? 'LBC' : site === 'vinted' ? 'Vinted' : 'BackMarket'}
-                  </span>
-                ))}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="glass-card p-4 rounded-xl space-y-2"
+        >
+          <div>
+            <div className="text-sm text-white/50">Recherche :</div>
+            <div className="text-white font-medium">{query}</div>
+          </div>
+
+          {wasOptimized && criteria && (
+            <div className="pt-2 border-t border-white/10">
+              <div className="flex items-center gap-2 text-xs text-[var(--primary)]">
+                <Wand2 className="w-3 h-3" />
+                Optimise par IA
               </div>
-            )}
+              <div className="flex flex-wrap gap-2 mt-1">
+                <span className="text-xs bg-white/10 px-2 py-0.5 rounded text-white/70">
+                  {criteria.keywords}
+                </span>
+                {criteria.priceMax && (
+                  <span className="text-xs bg-green-500/10 px-2 py-0.5 rounded text-green-400">
+                    Max {criteria.priceMax}€
+                  </span>
+                )}
+                {criteria.priceMin && (
+                  <span className="text-xs bg-blue-500/10 px-2 py-0.5 rounded text-blue-400">
+                    Min {criteria.priceMin}€
+                  </span>
+                )}
+                {criteria.shippable && (
+                  <span className="text-xs bg-purple-500/10 px-2 py-0.5 rounded text-purple-400">
+                    Livrable
+                  </span>
+                )}
+                {criteria.ownerType === 'private' && (
+                  <span className="text-xs bg-yellow-500/10 px-2 py-0.5 rounded text-yellow-400">
+                    Particulier
+                  </span>
+                )}
+                {criteria.category && (
+                  <span className="text-xs bg-indigo-500/10 px-2 py-0.5 rounded text-indigo-400">
+                    {criteria.category}
+                  </span>
+                )}
+              </div>
+              {criteria.sites && criteria.sites.length < 3 && (
+                <div className="flex items-center gap-1 mt-2 text-[10px] text-white/40">
+                  <span>Sites:</span>
+                  {criteria.sites.map(site => (
+                    <span key={site} className="px-1.5 py-0.5 bg-white/5 rounded">
+                      {site === 'leboncoin' ? 'LBC' : site === 'vinted' ? 'Vinted' : 'BackMarket'}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="text-xs text-white/40">
+            {totalResults} résultat{totalResults > 1 ? 's' : ''} en {(duration / 1000).toFixed(1)}s
+          </div>
+        </motion.div>
+
+        {totalResults === 0 && (
+          <div className="text-center py-12">
+            <div className="text-4xl mb-4">😕</div>
+            <p className="text-white/60">Aucun resultat trouve pour cette recherche</p>
           </div>
         )}
 
-        <div className="text-xs text-white/40">
-          {totalResults} résultat{totalResults > 1 ? 's' : ''} en {(duration / 1000).toFixed(1)}s
-        </div>
-      </motion.div>
+        {/* v0.5.0 - Top Choices: Meilleur Score + Meilleur Local */}
+        {totalResults > 0 && (
+          <TopChoices
+            bestScore={bestScore}
+            bestLocal={bestLocal}
+            userLocation={userLocation}
+          />
+        )}
 
-      {totalResults === 0 && (
-        <div className="text-center py-12">
-          <div className="text-4xl mb-4">😕</div>
-          <p className="text-white/60">Aucun resultat trouve pour cette recherche</p>
-        </div>
-      )}
+        {/* v0.5.0 - Section "Plus de résultats" repliable */}
+        <MoreResultsSection
+          results={results}
+          excludeIds={excludeIds}
+          userLocation={userLocation}
+        />
 
-      {/* Coup de cœur unique - Carte dorée (choisi par Gemini) */}
-      {topPickResult && topPick && (
-        <TopRecommendation result={topPickResult} topPick={topPick} />
-      )}
+        {/* Bandeau "Et en neuf ?" - Recommandation Gemini */}
+        {newRecommendation && (
+          <NewProductBanner
+            productName={newRecommendation.productName}
+            estimatedPrice={newRecommendation.estimatedPrice}
+            reason={newRecommendation.reason}
+            searchQuery={newRecommendation.searchQuery}
+          />
+        )}
 
-      {/* Section Livraison */}
-      {shippingResults.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.2 }}
-          className="space-y-3"
-        >
-          <div className="flex items-center gap-2">
-            <span className="text-lg">📦</span>
-            <h3 className="text-sm font-semibold text-white/70 uppercase tracking-wide">
-              Livraison
-              <span className="text-white/30 font-normal ml-2">({shippingResults.length})</span>
-            </h3>
-          </div>
-          <div className="space-y-3">
-            {shippingResults.map((result, index) => (
-              <ResultCard key={result.id} result={result} index={index} showLocalBadge={true} />
-            ))}
-          </div>
-        </motion.div>
-      )}
+        {/* Mention légale affiliation */}
+        {totalResults > 0 && (
+          <p className="mt-8 text-center text-[11px] text-white/30 leading-relaxed px-4">
+            Certains liens sont affiliés : si vous achetez via ces liens, OKAZ touche
+            une petite commission qui aide à couvrir les frais du service.
+            L&apos;affiliation n&apos;affecte en rien le classement et le scoring des résultats.
+          </p>
+        )}
+      </div>
 
-      {/* Section Main propre */}
-      {handDeliveryResults.length > 0 && (
-        <HandDeliverySection results={handDeliveryResults} userLocation={userLocation} />
-      )}
     </div>
   );
 }
@@ -699,28 +1015,43 @@ function SearchResults({ data, onBack }: { data: { query: string; categorized: C
 // Composant Briefing Pré-Chasse - Affiché pendant le loading
 function LoadingBriefing({ briefing, searchPhase }: { briefing: SearchBriefing | null; searchPhase: 'optimizing' | 'searching' | 'analyzing' }) {
   const [visibleCards, setVisibleCards] = useState(0);
+  const hasStartedRef = useRef(false);
 
-  // Afficher les cartes progressivement
+  // Afficher les cartes progressivement - ne jamais revenir en arrière
   useEffect(() => {
     if (!briefing || searchPhase === 'optimizing') {
-      setVisibleCards(0);
       return;
     }
+
+    // Si on a déjà commencé à afficher, ne pas reset
+    if (hasStartedRef.current) {
+      return;
+    }
+
+    hasStartedRef.current = true;
 
     // Afficher carte 1 immédiatement quand la recherche commence
     setVisibleCards(1);
 
-    // Carte 2 après 3 secondes
-    const timer1 = setTimeout(() => setVisibleCards(2), 3000);
+    // Carte 2 après 2 secondes
+    const timer1 = setTimeout(() => setVisibleCards(2), 2000);
 
-    // Carte 3 après 7 secondes
-    const timer2 = setTimeout(() => setVisibleCards(3), 7000);
+    // Carte 3 après 5 secondes
+    const timer2 = setTimeout(() => setVisibleCards(3), 5000);
 
     return () => {
       clearTimeout(timer1);
       clearTimeout(timer2);
     };
   }, [briefing, searchPhase]);
+
+  // Reset le ref quand le briefing change (nouvelle recherche)
+  useEffect(() => {
+    if (!briefing) {
+      hasStartedRef.current = false;
+      setVisibleCards(0);
+    }
+  }, [briefing]);
 
   if (!briefing || searchPhase === 'optimizing') return null;
 
@@ -765,7 +1096,7 @@ function LoadingBriefing({ briefing, searchPhase }: { briefing: SearchBriefing |
               <Lightbulb className="w-4 h-4 text-amber-400" />
             </div>
             <div className="flex-1">
-              <p className="text-sm font-medium text-amber-400">À vérifier</p>
+              <p className="text-sm font-medium text-amber-400">Conseil</p>
               <ul className="mt-1 space-y-1">
                 {briefing.tips.map((tip, i) => (
                   <li key={i} className="text-xs text-white/80 flex items-start gap-2">
@@ -779,41 +1110,6 @@ function LoadingBriefing({ briefing, searchPhase }: { briefing: SearchBriefing |
         </motion.div>
       )}
 
-      {/* Carte 3: Alternative Back Market (monétisable) */}
-      {visibleCards >= 3 && briefing.backMarketAlternative?.available && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="p-3 rounded-lg bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20"
-        >
-          <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
-              <BadgeCheck className="w-4 h-4 text-green-400" />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-green-400">Option sécurisée</p>
-              <p className="text-xs text-white/60 mt-0.5">{briefing.backMarketAlternative.label}</p>
-              <div className="flex items-center justify-between mt-2">
-                <span className="text-white font-semibold">
-                  {briefing.backMarketAlternative.estimatedPrice
-                    ? `~${briefing.backMarketAlternative.estimatedPrice}€`
-                    : 'Voir prix'}
-                  <span className="text-xs text-white/50 ml-1">· Garantie 2 ans</span>
-                </span>
-                <a
-                  href={briefing.backMarketAlternative.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs px-3 py-1.5 rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-colors flex items-center gap-1"
-                >
-                  <ShoppingBag className="w-3 h-3" />
-                  Voir
-                </a>
-              </div>
-            </div>
-          </div>
-        </motion.div>
-      )}
     </motion.div>
   );
 }
@@ -922,7 +1218,7 @@ export default function Home() {
   const [query, setQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [isOptimizing, setIsOptimizing] = useState(false);
-  const [searchData, setSearchData] = useState<{ query: string; categorized: CategorizedResults; totalResults: number; duration: number; criteria?: SearchCriteria; topPick?: TopPick; userLocation?: { lat: number; lng: number } } | null>(null);
+  const [searchData, setSearchData] = useState<{ query: string; categorized: CategorizedResults; totalResults: number; duration: number; criteria?: SearchCriteria; topPick?: TopPick; userLocation?: { lat: number; lng: number }; newRecommendation?: NewRecommendation | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [extensionId, setExtensionId] = useState<string | null>(null);
   const [showSetup, setShowSetup] = useState(false);
@@ -930,8 +1226,16 @@ export default function Home() {
   const [currentCriteria, setCurrentCriteria] = useState<SearchCriteria | null>(null);
   const [currentBriefing, setCurrentBriefing] = useState<SearchBriefing | null>(null);
   const [searchPhase, setSearchPhase] = useState<'idle' | 'optimizing' | 'searching' | 'analyzing'>('idle');
+
+  // v0.5.0 - États pour recherche enrichie
+  const [uploadedImage, setUploadedImage] = useState<{ base64: string; name: string } | null>(null);
+  const [referenceUrl, setReferenceUrl] = useState("");
+  const [showReferenceInput, setShowReferenceInput] = useState(false);
+  const [currentVisualContext, setCurrentVisualContext] = useState<VisualContext | null>(null);
+  const [clarificationData, setClarificationData] = useState<{ question: string; options?: string[]; originalQuery: string; history: Array<{ question: string; answer: string }> } | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   // Hook géolocalisation (doit être avant les effets qui l'utilisent)
-  const { position, permissionState, isLoading: geoLoading, requestPermission } = useGeolocation();
+  const { position, permissionState, isLoading: geoLoading, requestPermission } = useGeolocation({ enableHighAccuracy: true });
 
   const [geolocEnabled, setGeolocEnabled] = useState(() => {
     // Charger depuis localStorage au premier render
@@ -976,6 +1280,84 @@ export default function Home() {
   useEffect(() => {
     if (extensionConnected && extensionId) {
       fetchQuotaFromExtension();
+    }
+  }, [extensionConnected, extensionId, fetchQuotaFromExtension]);
+
+  // Gérer les retours d'auth (magic link) et de paiement (Stripe)
+  // Les query params sont ajoutés par les redirections de /api/auth/verify et Stripe
+  useEffect(() => {
+    if (!extensionConnected || !extensionId) return;
+
+    const params = new URLSearchParams(window.location.search);
+
+    // Retour magic link: ?auth=success&token=JWT&email=xxx
+    if (params.get('auth') === 'success') {
+      const token = params.get('token');
+      const email = params.get('email');
+
+      if (token && email) {
+        console.log('[OKAZ] Auth magic link réussie pour:', email);
+        // Envoyer le JWT à l'extension pour stockage
+        // @ts-ignore
+        chrome.runtime.sendMessage(extensionId, {
+          type: 'SAVE_AUTH',
+          jwt: token,
+          email,
+          premiumUntil: null, // Sera mis à jour via le quota refresh
+        }, () => {
+          // Rafraîchir le quota pour récupérer le statut premium
+          fetchQuotaFromExtension();
+        });
+      } else if (params.get('auth') === 'error') {
+        const reason = params.get('reason');
+        console.error('[OKAZ] Auth magic link échouée:', reason);
+      }
+
+      // Nettoyer l'URL
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState({}, '', cleanUrl);
+    }
+
+    // Retour Stripe boost: ?boost=success
+    if (params.get('boost') === 'success') {
+      console.log('[OKAZ] Achat boost réussi');
+      // Attendre un peu que le webhook Stripe soit traité
+      setTimeout(() => {
+        fetchQuotaFromExtension();
+      }, 2000);
+
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState({}, '', cleanUrl);
+    }
+
+    // Retour Stripe premium: ?premium=success&email=xxx
+    if (params.get('premium') === 'success') {
+      const email = params.get('email');
+      console.log('[OKAZ] Achat premium réussi pour:', email);
+      // Attendre que le webhook Stripe crée/mette à jour l'utilisateur
+      setTimeout(() => {
+        fetchQuotaFromExtension();
+      }, 2000);
+
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState({}, '', cleanUrl);
+    }
+
+    // Retour auth erreur: ?auth=error&reason=xxx
+    if (params.get('auth') === 'error') {
+      const reason = params.get('reason');
+      const messages: Record<string, string> = {
+        invalid_token: 'Lien de connexion invalide',
+        expired: 'Lien de connexion expiré (15 min)',
+        already_used: 'Ce lien a déjà été utilisé',
+        user_not_found: 'Compte introuvable',
+        missing_token: 'Lien de connexion incomplet',
+        server_error: 'Erreur serveur, réessayez',
+      };
+      setError(messages[reason || ''] || 'Erreur de connexion');
+
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState({}, '', cleanUrl);
     }
   }, [extensionConnected, extensionId, fetchQuotaFromExtension]);
 
@@ -1052,6 +1434,34 @@ export default function Home() {
       setShowUpgradeModal(false);
     } finally {
       setIsUpgrading(false);
+    }
+  };
+
+  // Gérer l'abonnement via Stripe Customer Portal
+  const handleManageSubscription = async () => {
+    try {
+      // @ts-ignore
+      const uuidResponse = await new Promise<{ success: boolean; uuid?: string }>((resolve) => {
+        // @ts-ignore
+        chrome.runtime.sendMessage(extensionId, { type: 'GET_UUID' }, resolve);
+      });
+
+      if (!uuidResponse?.uuid) return;
+
+      const response = await fetch('/api/checkout/portal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uuid: uuidResponse.uuid }),
+      });
+
+      const data = await response.json();
+      if (data.portalUrl) {
+        window.location.href = data.portalUrl;
+      } else {
+        console.error('[OKAZ] Portal error:', data.error);
+      }
+    } catch (err) {
+      console.error('[OKAZ] Erreur portal:', err);
     }
   };
 
@@ -1136,9 +1546,47 @@ export default function Home() {
     setSearchPhase('idle');
     setCurrentBriefing(null);
     setCurrentCriteria(null);
+    setCurrentVisualContext(null);
+    setSearchData(null); // Reset les résultats précédents
   };
 
-  const handleSearch = async (searchQuery?: string) => {
+  // v0.5.0 - Gestion de l'upload d'image
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Limite: 4MB
+    if (file.size > 4 * 1024 * 1024) {
+      setError('Image trop grande (max 4MB)');
+      return;
+    }
+
+    // Vérifier le type
+    if (!file.type.startsWith('image/')) {
+      setError('Fichier non supporté (image uniquement)');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = (reader.result as string).split(',')[1]; // Enlever le préfixe data:image/xxx;base64,
+      setUploadedImage({ base64, name: file.name });
+      setError(null);
+    };
+    reader.onerror = () => {
+      setError('Erreur lors de la lecture de l\'image');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveImage = () => {
+    setUploadedImage(null);
+    if (imageInputRef.current) {
+      imageInputRef.current.value = '';
+    }
+  };
+
+  const handleSearch = async (searchQuery?: string, _unused?: undefined, clarificationHistory?: Array<{ question: string; answer: string }>) => {
     const q = searchQuery || query;
 
     // Si recherche en cours, annuler
@@ -1161,6 +1609,7 @@ export default function Home() {
     setSearchData(null);
     setCurrentCriteria(null);
     setCurrentBriefing(null);
+    setClarificationData(null);
     setSearchPhase('optimizing');
 
     const startTime = Date.now();
@@ -1171,25 +1620,66 @@ export default function Home() {
       console.log('[OKAZ] 1. Optimisation Gemini en cours...');
       console.log('[OKAZ] Requête:', q);
       let criteria: SearchCriteria;
+      let visualContext: VisualContext | undefined; // v0.5.0 - Contexte visuel pour l'analyse
 
       try {
         console.log('[OKAZ] 1a. Appel API /api/optimize...');
+        // v0.5.0 - Inclure image et URL de référence si présents
+        const optimizePayload: { query: string; imageBase64?: string; referenceUrl?: string; clarifications?: Array<{ question: string; answer: string }> } = {
+          query: q.trim()
+        };
+        if (uploadedImage?.base64) {
+          optimizePayload.imageBase64 = uploadedImage.base64;
+          console.log('[OKAZ] 1a. Image incluse:', uploadedImage.name);
+        }
+        if (referenceUrl.trim()) {
+          optimizePayload.referenceUrl = referenceUrl.trim();
+          console.log('[OKAZ] 1a. URL de référence:', referenceUrl);
+        }
+        if (clarificationHistory && clarificationHistory.length > 0) {
+          optimizePayload.clarifications = clarificationHistory;
+          console.log('[OKAZ] 1a. Clarifications précédentes:', clarificationHistory.length);
+        }
+
         const optimizeRes = await fetch('/api/optimize', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: q.trim() }),
+          body: JSON.stringify(optimizePayload),
         });
         console.log('[OKAZ] 1b. Réponse reçue, parsing JSON...');
         const optimizeData: OptimizeResponse = await optimizeRes.json();
         console.log('[OKAZ] 1c. Données:', optimizeData);
 
         if (optimizeData.success && optimizeData.criteria) {
+          // Intercepter si Gemini demande une clarification (max 2 rounds)
+          const currentHistory = clarificationHistory || [];
+          if (optimizeData.needsClarification && optimizeData.clarificationQuestion && currentHistory.length < 2) {
+            console.log('[OKAZ] 1d. ⚠ Clarification demandée (round ' + (currentHistory.length + 1) + '/2):', optimizeData.clarificationQuestion);
+            console.log('[OKAZ] 1d. Options:', optimizeData.clarificationOptions);
+            setClarificationData({
+              question: optimizeData.clarificationQuestion,
+              options: optimizeData.clarificationOptions || undefined,
+              originalQuery: q,
+              history: currentHistory,
+            });
+            setIsSearching(false);
+            setIsOptimizing(false);
+            setSearchPhase('idle');
+            return;
+          }
+
           criteria = optimizeData.criteria;
           console.log('[OKAZ] 1d. ✓ Critères optimisés:', criteria);
           // Stocker le briefing s'il existe
           if (optimizeData.briefing) {
             console.log('[OKAZ] 1e. ✓ Briefing reçu:', optimizeData.briefing);
             setCurrentBriefing(optimizeData.briefing);
+          }
+          // v0.5.0 - Stocker le contexte visuel (couleur, taille...)
+          if (optimizeData.visualContext) {
+            console.log('[OKAZ] 1f. ✓ Contexte visuel:', optimizeData.visualContext);
+            setCurrentVisualContext(optimizeData.visualContext);
+            visualContext = optimizeData.visualContext; // Capture locale pour le callback
           }
         } else {
           // Fallback: utiliser la requête brute
@@ -1202,22 +1692,29 @@ export default function Home() {
       }
 
       console.log('[OKAZ] 2. Gemini terminé, critères finaux:', criteria);
+      if (visualContext) {
+        console.log('[OKAZ] 2a. Contexte visuel à passer à l\'analyse:', visualContext);
+      }
       setCurrentCriteria(criteria);
       setIsOptimizing(false);
       setSearchPhase('searching');
 
       // Étape 2: Envoyer les critères à l'extension
       // Si géoloc activée, ajouter la position pour recherche locale LeBonCoin
+      const userLoc = geolocEnabledRef.current && positionRef.current ? positionRef.current : undefined;
+      const geoInfo = userLoc ? reverseGeocodeLocal(userLoc) : undefined;
       const searchCriteria = {
         ...criteria,
-        userLocation: geolocEnabledRef.current && positionRef.current ? positionRef.current : undefined
+        userLocation: userLoc,
+        userCityName: geoInfo?.cityName,
+        userPostalCode: geoInfo?.postalCode
       };
 
       console.log('[OKAZ] 3. Envoi à l\'extension MAINTENANT...');
       console.log('[OKAZ] 3a. Keywords:', criteria.keywords);
       console.log('[OKAZ] 3b. PriceMax:', criteria.priceMax);
       console.log('[OKAZ] 3c. Shippable:', criteria.shippable);
-      console.log('[OKAZ] 3d. UserLocation:', searchCriteria.userLocation ? 'OUI' : 'NON');
+      console.log('[OKAZ] 3d. UserLocation:', searchCriteria.userLocation ? `OUI (lat=${searchCriteria.userLocation.lat}, lng=${searchCriteria.userLocation.lng})` : 'NON');
       // @ts-ignore
       chrome.runtime.sendMessage(extensionId, { type: 'SEARCH', query: criteria.keywords, criteria: searchCriteria }, async (response: ExtensionResponse) => {
         // @ts-ignore
@@ -1231,17 +1728,42 @@ export default function Home() {
         if (response && response.success && response.results) {
           console.log('[OKAZ] 4. Résultats reçus de l\'extension:', response.results.length);
 
+          // Debug: compter les résultats locaux avant dédup
+          const localCount = response.results.filter((r: { isLocal?: boolean }) => r.isLocal).length;
+          const nationalCount = response.results.filter((r: { isLocal?: boolean; site?: string }) => !r.isLocal && r.site === 'LeBonCoin').length;
+          console.log(`[OKAZ] 4a. Avant dédup: ${localCount} locaux, ${nationalCount} nationaux LBC, ${response.results.length - localCount - nationalCount} autres`);
+
+          // Dédupliquer par URL (les variantes de keywords retournent souvent les mêmes résultats)
+          const seenUrls = new Set<string>();
+          const uniqueResults = response.results.filter((r: { url?: string }) => {
+            if (!r.url || seenUrls.has(r.url)) return false;
+            seenUrls.add(r.url);
+            return true;
+          });
+          const dedupCount = response.results.length - uniqueResults.length;
+          if (dedupCount > 0) {
+            console.log(`[OKAZ] 4b. Dédupliqué: ${dedupCount} doublons supprimés → ${uniqueResults.length} résultats uniques`);
+          }
+
+          // Limiter à 30 résultats pour l'analyse Gemini (perf)
+          const MAX_ANALYZE = 30;
+          const resultsForAnalysis = uniqueResults.slice(0, MAX_ANALYZE);
+          if (uniqueResults.length > MAX_ANALYZE) {
+            console.log(`[OKAZ] 4c. Cap à ${MAX_ANALYZE} résultats pour l'analyse Gemini (${uniqueResults.length} total)`);
+          }
+
           // Étape 3: Analyser les résultats avec Gemini
-          console.log('[OKAZ] 5. Analyse Gemini des résultats...');
+          console.log('[OKAZ] 5. Analyse Gemini des résultats...', resultsForAnalysis.length, 'résultats');
           setSearchPhase('analyzing');
           let geminiAnalysis: Record<string, { relevant?: boolean; confidence?: number; matchDetails?: string; correctedPrice?: number; marketPrice?: number; dealScore?: number; dealType?: string; explanation?: string; redFlags?: string[] }> = {};
           let topPick: TopPick | undefined;
 
           try {
+            // v0.5.0 - Passer le contexte visuel (couleur, taille...) pour ajuster le scoring
             const analyzeRes = await fetch('/api/analyze', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ results: response.results, query: q }),
+              body: JSON.stringify({ results: resultsForAnalysis, query: q, visualContext }),
             });
             const analyzeData: AnalyzeResponse = await analyzeRes.json();
 
@@ -1274,31 +1796,41 @@ export default function Home() {
           const MIN_CONFIDENCE = 30; // Seuil minimum pour afficher
 
           // Debug: lister les IDs pour vérifier le matching
-          console.log('[OKAZ] IDs extension:', response.results.map(r => r.id));
+          console.log('[OKAZ] IDs extension:', uniqueResults.map((r: { id: string }) => r.id));
           console.log('[OKAZ] IDs Gemini:', Object.keys(geminiAnalysis));
 
-          const correctedResults = response.results.map(r => {
+          // Utiliser uniqueResults (dédupliqués) — seuls les résultats envoyés à Gemini ont une analyse
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const correctedResults = (uniqueResults as any[]).map((r: any) => {
             const analysis = geminiAnalysis[r.id];
-            // 50% par défaut si pas d'analyse (classé plus bas que les résultats analysés)
             const confidence = analysis?.confidence ?? 50;
 
             if (!analysis) {
               console.warn(`[OKAZ] ⚠ Pas d'analyse Gemini pour ID: ${r.id} - "${r.title}"`);
             }
 
-            // Filtrer les résultats avec pertinence trop basse
+            // Filtrer : confidence < 30% = hors-sujet, on masque
             const isRelevant = confidence >= MIN_CONFIDENCE;
 
-            // Pondérer le score par la pertinence
-            const originalScore = r.score || 75;
-            const weightedScore = Math.round(originalScore * (confidence / 100));
+            // Score basé sur le dealScore Gemini (1-10 → 10-100)
+            let finalScore: number;
+            if (analysis?.dealScore) {
+              finalScore = analysis.dealScore * 10;
+            } else {
+              finalScore = r.score || 50;
+            }
 
-            console.log(`[OKAZ] Résultat ${r.id}: confidence=${confidence}%, score=${originalScore} → ${isRelevant ? `GARDÉ (score pondéré: ${weightedScore})` : 'FILTRÉ'}`);
+            // Bonus/malus léger basé sur la confidence (±10 pts max)
+            if (confidence >= 90) finalScore = Math.min(100, finalScore + 5);
+            else if (confidence < 50) finalScore = Math.max(10, finalScore - 10);
+
+            console.log(`[OKAZ] Résultat ${r.id}: confidence=${confidence}%, dealScore=${analysis?.dealScore || '-'}, finalScore=${finalScore} → ${isRelevant ? 'GARDÉ' : 'FILTRÉ'}`);
 
             return {
               ...r,
+              url: wrapAffiliateLink(r.url),
               price: analysis?.correctedPrice || r.price,
-              score: weightedScore, // Score pondéré par la pertinence
+              score: finalScore,
               geminiAnalysis: analysis,
               relevant: isRelevant
             };
@@ -1315,8 +1847,35 @@ export default function Home() {
             duration,
             criteria,
             topPick,
-            userLocation: geolocEnabledRef.current && positionRef.current ? positionRef.current : undefined
+            userLocation: geolocEnabledRef.current && positionRef.current ? positionRef.current : undefined,
+            newRecommendation: null
           });
+
+          // Lancer la recommandation "Et en neuf ?" en parallèle (non-bloquant)
+          if (correctedResults.length > 0) {
+            const prices = correctedResults.map(r => r.price).filter(p => p > 0);
+            const priceMin = prices.length > 0 ? Math.min(...prices) : 0;
+            const priceMax = prices.length > 0 ? Math.max(...prices) : 0;
+
+            // Envoyer les top 5 résultats pour contexte (évite les hallucinations)
+            const topResults = correctedResults
+              .sort((a, b) => b.score - a.score)
+              .slice(0, 5)
+              .map(r => ({ title: r.title, price: r.price, site: r.site }));
+
+            fetch('/api/recommend-new', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ query: q, priceMin, priceMax, topResults }),
+            })
+              .then(res => res.json())
+              .then(data => {
+                if (data.success && data.recommendation?.hasRecommendation) {
+                  setSearchData(prev => prev ? { ...prev, newRecommendation: data.recommendation } : prev);
+                }
+              })
+              .catch(err => console.error('[OKAZ] Erreur recommandation neuf:', err));
+          }
         } else {
           // Vérifier si c'est une erreur de quota
           if (response?.error === 'quota_exhausted') {
@@ -1348,6 +1907,37 @@ export default function Home() {
   const handleExampleClick = (exampleQuery: string) => {
     setQuery(exampleQuery);
     handleSearch(exampleQuery);
+  };
+
+  // Clarification IA - réponse de l'utilisateur
+  const handleClarificationAnswer = (answer: string) => {
+    if (!clarificationData) return;
+    const newHistory = [...clarificationData.history, { question: clarificationData.question, answer }];
+    const originalQuery = clarificationData.originalQuery;
+    setClarificationData(null);
+    // Passer la query originale + historique des clarifications
+    handleSearch(originalQuery, undefined, newHistory);
+  };
+
+  // Extraire les options de la question Gemini en chips cliquables
+  const extractChipsFromQuestion = (question: string): string[] => {
+    // Pattern "X ou Y ?" ou "X, Y ou Z ?"
+    const ouMatch = question.match(/([^?]+)\s*\?/);
+    if (!ouMatch) return [];
+    const segment = ouMatch[1];
+    // Split sur " ou " et ","
+    const parts = segment.split(/\s+ou\s+/i);
+    const chips: string[] = [];
+    for (const part of parts) {
+      const subParts = part.split(/\s*,\s*/);
+      for (const sub of subParts) {
+        const trimmed = sub.trim().replace(/^(un |une |le |la |les |du |des |l'|d')/i, '').trim();
+        if (trimmed.length > 1 && trimmed.length < 40) {
+          chips.push(trimmed.charAt(0).toUpperCase() + trimmed.slice(1));
+        }
+      }
+    }
+    return chips.slice(0, 5);
   };
 
   // Show results screen
@@ -1393,7 +1983,7 @@ export default function Home() {
       />
 
       <div className="relative z-10 container mx-auto px-4 py-16 lg:py-24">
-        <div className="max-w-2xl mx-auto">
+        <div className={`mx-auto transition-all duration-300 ${isSearching ? 'max-w-6xl' : 'max-w-2xl'}`}>
           {/* Logo */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -1414,156 +2004,227 @@ export default function Home() {
               </h1>
             </div>
 
-            <p className="text-lg text-[var(--text-secondary)] max-w-md mx-auto">
-              Comparez <strong className="text-white">LeBonCoin</strong>,{" "}
-              <strong className="text-white">Vinted</strong> et{" "}
-              <strong className="text-white">Back Market</strong> en une recherche
+            <p className="text-lg text-[var(--text-secondary)]">
+              Trouvez la meilleure affaire en une recherche
             </p>
-            {extensionConnected && (
-              <div className="mt-4 flex items-center justify-center gap-4">
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-500/10 border border-green-500/20 text-xs text-green-400">
-                  <Check className="w-3 h-3" />
-                  Extension connectée
-                </div>
-                {quota && (
-                  <SearchCounter
-                    remaining={quota.isPremium ? -1 : quota.totalRemaining}
-                    total={quota.dailyLimit}
-                  />
-                )}
-              </div>
-            )}
           </motion.div>
 
-          {/* Search box */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-          >
-            <div className="glass-card glass-card-hover p-6 rounded-2xl">
-              {/* Form de recherche */}
+          {/* Search box - v0.5.0 Enrichi + Layout 2 colonnes pendant recherche */}
+          <div className={`flex flex-col ${isSearching ? 'lg:flex-row' : ''} gap-6`}>
+            {/* Colonne principale */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="flex-1 min-w-0"
+            >
+              <div className="glass-card glass-card-hover p-6 rounded-2xl">
+              {isSearching ? (
+                /* Récap compact pendant la recherche */
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-[var(--primary)]/20 flex items-center justify-center flex-shrink-0">
+                      <Search className="w-5 h-5 text-[var(--primary-light)]" />
+                    </div>
+                    <p className="text-white text-base truncate">{query}</p>
+                  </div>
+                  <button
+                    onClick={() => handleSearch()}
+                    className="p-3 rounded-xl bg-red-500 hover:bg-red-600 transition-all hover:scale-105 active:scale-95 flex-shrink-0"
+                  >
+                    <X className="w-5 h-5 text-white" />
+                  </button>
+                </div>
+              ) : (
+                /* Form de recherche complète */
+                <>
               <form onSubmit={(e) => { e.preventDefault(); handleSearch(); }}>
                 <div className="relative">
+                  {/* Input file caché */}
                   <input
-                    type="text"
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                    id="image-upload"
+                  />
+
+                  {/* Textarea */}
+                  <textarea
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Que cherchez-vous ?"
-                    className="input-glass w-full px-6 py-4 pr-16 text-lg rounded-xl text-white placeholder:text-white/40 focus:outline-none"
+                    placeholder="Décrivez ce que vous cherchez...
+
+Ex: MacBook Pro M2 à moins de 800€ pour coder,
+main propre Paris ou livraison si garantie"
+                    rows={3}
+                    className="input-glass w-full px-5 py-4 pl-14 pr-20 text-base rounded-xl text-white placeholder:text-white/40 focus:outline-none resize-none"
+                    onKeyDown={(e) => {
+                      // Cmd/Ctrl + Enter pour lancer la recherche
+                      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                        e.preventDefault();
+                        handleSearch();
+                      }
+                    }}
                   />
+
+                  {/* Bouton Photo - intégré en bas à gauche */}
+                  <button
+                    type="button"
+                    onClick={() => imageInputRef.current?.click()}
+                    className={`absolute left-3 bottom-3 z-10 p-2.5 rounded-lg transition-all ${
+                      uploadedImage
+                        ? 'bg-purple-500/20 text-purple-400'
+                        : 'bg-white/5 text-white/40 hover:bg-white/10 hover:text-white/60'
+                    }`}
+                    title={uploadedImage ? 'Photo ajoutée' : 'Ajouter une photo'}
+                  >
+                    <Camera className="w-5 h-5" />
+                    {uploadedImage && (
+                      <span className="absolute -top-1 -right-1 w-3 h-3 bg-purple-500 rounded-full flex items-center justify-center">
+                        <Check className="w-2 h-2 text-white" />
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Bouton Recherche - en bas à droite */}
                   <button
                     type="submit"
-                    disabled={!isSearching && !query.trim()}
-                    className={`absolute right-3 top-1/2 -translate-y-1/2 z-10 p-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95 ${
-                      isSearching
-                        ? 'bg-red-500 hover:bg-red-600'
-                        : 'search-btn'
-                    }`}
-                    onClick={(e) => { console.log('[OKAZ] Search button clicked'); }}
+                    disabled={!query.trim()}
+                    className="absolute right-3 bottom-3 z-10 p-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95 search-btn"
                   >
-                    {isSearching ? <X className="w-5 h-5 text-white" /> : <Search className="w-5 h-5 text-white" />}
+                    <Search className="w-5 h-5 text-white" />
                   </button>
                 </div>
               </form>
 
-              {/* Option géolocalisation - EN DEHORS du form */}
-              <div className="mt-4 flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={handleGeolocToggle}
-                  disabled={geoLoading || isSearching}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.02] active:scale-[0.98] ${
-                    geolocEnabled && position
-                      ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.2)]'
-                      : 'bg-white/5 border border-white/10 text-white/60 hover:bg-white/10 hover:border-white/20'
-                  }`}
-                >
-                  {geoLoading ? (
-                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <MapPin className={`w-4 h-4 ${geolocEnabled && position ? 'text-blue-400' : ''}`} />
+              {/* Options sous le textarea */}
+              <div className="mt-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {/* Preview image uploadée */}
+                  {uploadedImage && (
+                    <button
+                      type="button"
+                      onClick={handleRemoveImage}
+                      className="flex items-center gap-1.5 px-2 py-1 bg-purple-500/10 rounded-lg border border-purple-500/20 text-purple-400 hover:bg-purple-500/20 transition-all text-xs"
+                    >
+                      <span className="truncate max-w-[80px]">{uploadedImage.name}</span>
+                      <X className="w-3 h-3" />
+                    </button>
                   )}
-                  <span>
-                    {geolocEnabled && position
-                      ? 'Localisation activée'
-                      : 'Activer ma position'}
-                  </span>
-                  {geolocEnabled && position && (
-                    <Check className="w-4 h-4 text-blue-400" />
-                  )}
-                </button>
 
-                {geolocEnabled && permissionState === 'denied' && (
-                  <span className="text-xs text-yellow-400 px-2 py-1 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
-                    Permission refusée
-                  </span>
-                )}
+                  {/* Position */}
+                  <button
+                    type="button"
+                    onClick={handleGeolocToggle}
+                    disabled={geoLoading}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                      geolocEnabled && position
+                        ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+                        : 'bg-white/5 border border-white/10 text-white/40 hover:bg-white/10 hover:text-white/60'
+                    }`}
+                  >
+                    {geoLoading ? (
+                      <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <MapPin className="w-3.5 h-3.5" />
+                    )}
+                    <span className="hidden sm:inline">Position</span>
+                    {geolocEnabled && position && <Check className="w-3 h-3" />}
+                  </button>
+
+                  {geolocEnabled && permissionState === 'denied' && (
+                    <span className="text-[10px] text-yellow-400 px-1.5 py-0.5 bg-yellow-500/10 rounded border border-yellow-500/20">
+                      Refusée
+                    </span>
+                  )}
+                </div>
+
+                {/* Raccourci clavier */}
+                <span className="text-[10px] text-white/30 hidden sm:block">
+                  ⌘ + Enter
+                </span>
               </div>
+                </>
+              )}
 
-              {/* Loading state */}
+              {/* Loading state - Layout 2 colonnes avec pub */}
               <AnimatePresence>
                 {isSearching && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
-                    className="mt-6"
+                    className="mt-6 space-y-4"
                   >
-                    <div className="space-y-4">
-                      {/* Étape 1: Optimisation Gemini */}
-                      <div className={`flex items-center gap-3 p-3 rounded-lg ${isOptimizing ? 'bg-[var(--primary)]/10 border border-[var(--primary)]/20' : 'bg-green-500/10 border border-green-500/20'}`}>
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isOptimizing ? 'bg-[var(--primary)]/20 animate-pulse' : 'bg-green-500/20'}`}>
-                          {isOptimizing ? <Wand2 className="w-4 h-4 text-[var(--primary)]" /> : <Check className="w-4 h-4 text-green-400" />}
-                        </div>
-                        <div className="flex-1">
-                          <p className={`text-sm font-medium ${isOptimizing ? 'text-[var(--primary)]' : 'text-green-400'}`}>
-                            {isOptimizing ? 'Optimisation de la requête...' : 'Requête optimisée'}
-                          </p>
-                          {currentCriteria && !isOptimizing && (
-                            <p className="text-xs text-white/50 mt-0.5">
-                              "{currentCriteria.keywords}"
-                              {currentCriteria.priceMax && ` • Max ${currentCriteria.priceMax}€`}
-                              {currentCriteria.shippable && ' • Livrable'}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Étape 2: Recherche */}
-                      {!isOptimizing && (
-                        <motion.div
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="flex items-center gap-3 p-3 rounded-lg bg-white/5 border border-white/10"
-                        >
-                          <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center animate-pulse">
-                            <Search className="w-4 h-4 text-white/60" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-white/80">
-                              {searchPhase === 'analyzing' ? 'Analyse IA des résultats...' : 'Recherche en cours...'}
-                            </p>
-                            <div className="flex gap-2 mt-1">
-                              {["LeBonCoin", "Vinted", "Back Market"].map((site, i) => (
-                                <motion.span
-                                  key={site}
-                                  initial={{ opacity: 0.3 }}
-                                  animate={{ opacity: [0.3, 1, 0.3] }}
-                                  transition={{ delay: i * 0.3, duration: 1, repeat: Infinity }}
-                                  className="text-[10px] text-white/40 px-2 py-0.5 bg-white/5 rounded"
-                                >
-                                  {site}
-                                </motion.span>
-                              ))}
+                        {/* Timeline de progression - Horizontale */}
+                        <div className="flex items-center justify-between gap-2 p-3 rounded-xl bg-white/5 border border-white/10">
+                          {/* Étape 1: Optimisation */}
+                          <div className="flex items-center gap-2 flex-1">
+                            <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
+                              isOptimizing ? 'bg-[var(--primary)]/20' : 'bg-green-500/20'
+                            }`}>
+                              {isOptimizing ? (
+                                <div className="w-2.5 h-2.5 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <Check className="w-2.5 h-2.5 text-green-400" />
+                              )}
                             </div>
+                            <span className={`text-xs ${isOptimizing ? 'text-white' : 'text-green-400'}`}>
+                              IA
+                            </span>
                           </div>
-                        </motion.div>
-                      )}
 
-                      {/* Briefing Pré-Chasse */}
-                      <LoadingBriefing briefing={currentBriefing} searchPhase={searchPhase === 'optimizing' ? 'optimizing' : searchPhase === 'searching' ? 'searching' : 'analyzing'} />
-                    </div>
+                          {/* Ligne de connexion 1 */}
+                          <div className={`h-0.5 w-8 ${!isOptimizing ? 'bg-green-500/30' : 'bg-white/10'}`} />
+
+                          {/* Étape 2: Recherche */}
+                          <div className="flex items-center gap-2 flex-1">
+                            <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
+                              isOptimizing ? 'bg-white/10' :
+                              searchPhase === 'searching' ? 'bg-blue-500/20' : 'bg-green-500/20'
+                            }`}>
+                              {isOptimizing ? (
+                                <Search className="w-2.5 h-2.5 text-white/30" />
+                              ) : searchPhase === 'searching' ? (
+                                <div className="w-2.5 h-2.5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <Check className="w-2.5 h-2.5 text-green-400" />
+                              )}
+                            </div>
+                            <span className={`text-xs ${
+                              isOptimizing ? 'text-white/30' :
+                              searchPhase === 'searching' ? 'text-white' : 'text-green-400'
+                            }`}>
+                              Recherche
+                            </span>
+                          </div>
+
+                          {/* Ligne de connexion 2 */}
+                          <div className={`h-0.5 w-8 ${searchPhase === 'analyzing' ? 'bg-purple-500/30' : 'bg-white/10'}`} />
+
+                          {/* Étape 3: Analyse */}
+                          <div className="flex items-center gap-2 flex-1">
+                            <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
+                              searchPhase === 'analyzing' ? 'bg-purple-500/20' : 'bg-white/10'
+                            }`}>
+                              {searchPhase === 'analyzing' ? (
+                                <div className="w-2.5 h-2.5 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <Sparkles className="w-2.5 h-2.5 text-white/30" />
+                              )}
+                            </div>
+                            <span className={`text-xs ${
+                              searchPhase === 'analyzing' ? 'text-white' : 'text-white/30'
+                            }`}>
+                              Analyse
+                            </span>
+                          </div>
+                        </div>
+
+                    {/* Briefing Pré-Chasse */}
+                    <LoadingBriefing briefing={currentBriefing} searchPhase={searchPhase === 'optimizing' ? 'optimizing' : searchPhase === 'searching' ? 'searching' : 'analyzing'} />
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -1579,81 +2240,201 @@ export default function Home() {
                 </motion.div>
               )}
 
-              {/* Examples */}
-              {!isSearching && !error && (
-                <div className="mt-6 space-y-3">
-                  <p className="text-xs text-white/40 uppercase tracking-wide">
-                    Exemples de recherche
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {[
-                      "iPhone 13",
-                      "MacBook Pro",
-                      "PS5",
-                      "Nintendo Switch",
-                      "AirPods Pro"
-                    ].map((example) => (
-                      <motion.button
-                        key={example}
-                        onClick={() => handleExampleClick(example)}
-                        whileHover={{ scale: 1.02, y: -1 }}
-                        whileTap={{ scale: 0.98 }}
-                        className="tag-hover px-3 py-1.5 text-sm bg-white/5 border border-white/10 rounded-lg text-white/60"
+              {/* Clarification IA */}
+              <AnimatePresence>
+                {clarificationData && !isSearching && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="mt-6 p-5 rounded-2xl bg-[var(--primary)]/10 border border-[var(--primary)]/20 backdrop-blur-sm"
+                  >
+                    {/* Header */}
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[var(--primary)] to-[var(--accent)] flex items-center justify-center flex-shrink-0">
+                        <MessageCircle className="w-4 h-4 text-white" />
+                      </div>
+                      <span className="text-sm font-semibold text-white">OKAZ a une question</span>
+                    </div>
+
+                    {/* Question */}
+                    <p className="text-sm text-white/80 mb-4 leading-relaxed">
+                      {clarificationData.question}
+                    </p>
+
+                    {/* Options cliquables */}
+                    {(() => {
+                      // Utiliser les options structurées de Gemini, ou fallback sur l'extracteur
+                      const options = clarificationData.options && clarificationData.options.length > 0
+                        ? clarificationData.options
+                        : extractChipsFromQuestion(clarificationData.question);
+                      return options.length > 0 ? (
+                        <div className="flex flex-wrap gap-2 mb-4">
+                          {options.map((option) => (
+                            <button
+                              key={option}
+                              onClick={() => handleClarificationAnswer(option)}
+                              className="px-4 py-2 text-sm bg-white/10 border border-white/15 rounded-xl text-white/90 hover:bg-[var(--primary)]/20 hover:border-[var(--primary)]/40 hover:text-white transition-all"
+                            >
+                              {option}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null;
+                    })()}
+
+                    {/* Input libre */}
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        const input = (e.target as HTMLFormElement).elements.namedItem('clarification') as HTMLInputElement;
+                        if (input.value.trim()) {
+                          handleClarificationAnswer(input.value.trim());
+                        }
+                      }}
+                      className="flex gap-2"
+                    >
+                      <input
+                        name="clarification"
+                        type="text"
+                        placeholder="Ou précise ici..."
+                        className="flex-1 px-3 py-2 text-sm bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/30 focus:outline-none focus:border-[var(--primary)]/40"
+                      />
+                      <button
+                        type="submit"
+                        className="px-4 py-2 text-sm font-medium bg-[var(--primary)]/20 border border-[var(--primary)]/30 rounded-lg text-[var(--primary-light)] hover:bg-[var(--primary)]/30 transition-all"
                       >
-                        {example}
-                      </motion.button>
+                        OK
+                      </button>
+                    </form>
+
+                    {/* Skip */}
+                    <button
+                      onClick={() => {
+                        const history = clarificationData.history;
+                        const originalQ = clarificationData.originalQuery;
+                        setClarificationData(null);
+                        // Passer l'historique pour ne pas reposer les mêmes questions
+                        handleSearch(originalQ, undefined, history);
+                      }}
+                      className="mt-3 text-xs text-white/30 hover:text-white/50 transition-colors"
+                    >
+                      Chercher quand même sans préciser
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Mini-tuto - remplace les exemples */}
+              {!isSearching && !error && !clarificationData && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.15 }}
+                  className="mt-6 p-4 rounded-xl bg-white/5 border border-white/10"
+                >
+                  <div className="flex items-center gap-2 mb-2.5">
+                    <Lightbulb className="w-4 h-4 text-[var(--accent)]" />
+                    <span className="text-xs font-medium text-white/60">Plus tu donnes de contexte, meilleurs sont les résultats</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {['Budget', 'Usage', 'Taille', 'Livraison', 'État'].map((tag) => (
+                      <span
+                        key={tag}
+                        className="px-2 py-0.5 text-[10px] font-medium bg-white/8 border border-white/10 rounded-full text-white/40"
+                      >
+                        {tag}
+                      </span>
                     ))}
                   </div>
-                </div>
+                  <p className="text-xs text-white/30 italic">
+                    Ex : &quot;MacBook Pro M2 à moins de 800€ pour coder, bon état, livrable&quot;
+                  </p>
+                </motion.div>
               )}
             </div>
-          </motion.div>
+            </motion.div>
 
-          {/* Settings button */}
+            {/* Colonne droite: Pubs contextuelles (visible pendant recherche) */}
+            {isSearching && (
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.2 }}
+                className="hidden lg:block w-[480px] flex-shrink-0"
+              >
+                <AdSidebar
+                  keywords={currentCriteria?.keywords?.split(" ") || []}
+                  phase="loading"
+                />
+              </motion.div>
+            )}
+          </div>
+
+          {/* Status bar - Extension connectée (en bas) ou Configuration */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.3 }}
-            className="mt-4 text-center"
+            className="mt-4 flex items-center justify-center gap-3"
           >
-            <motion.button
-              onClick={() => setShowSetup(true)}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="text-xs text-white/40 hover:text-white/60 transition-all inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-white/5"
-            >
-              <Settings className="w-3 h-3" />
-              Configurer l'extension
-            </motion.button>
+            {extensionConnected ? (
+              <>
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-500/10 border border-green-500/20 text-xs text-green-400">
+                  <Check className="w-3 h-3" />
+                  Extension connectée
+                </div>
+                {quota && (
+                  <SearchCounter
+                    remaining={quota.isPremium ? -1 : quota.totalRemaining}
+                    total={quota.dailyLimit}
+                    onManageSubscription={quota.isPremium ? handleManageSubscription : undefined}
+                  />
+                )}
+              </>
+            ) : (
+              <motion.button
+                onClick={() => setShowSetup(true)}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="text-xs text-white/40 hover:text-white/60 transition-all inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-white/5"
+              >
+                <Settings className="w-3 h-3" />
+                Configurer l'extension
+              </motion.button>
+            )}
           </motion.div>
 
-          {/* Features */}
+          {/* Sites comparés */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="mt-12 flex flex-wrap justify-center gap-4"
+            className="mt-8 flex flex-wrap justify-center items-center gap-6"
           >
             {[
-              { icon: Zap, text: "3 sites en parallèle", color: "var(--primary)", bg: "rgba(99, 102, 241, 0.1)", border: "rgba(99, 102, 241, 0.2)" },
-              { icon: Shield, text: "Détection arnaques", color: "#22c55e", bg: "rgba(34, 197, 94, 0.1)", border: "rgba(34, 197, 94, 0.2)" },
-              { icon: Sparkles, text: "Score de pertinence", color: "#eab308", bg: "rgba(234, 179, 8, 0.1)", border: "rgba(234, 179, 8, 0.2)" },
-            ].map((feature, i) => (
-              <motion.div
-                key={feature.text}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 + i * 0.1 }}
-                whileHover={{ scale: 1.02, y: -2 }}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm text-white/70 transition-all cursor-default"
-                style={{
-                  background: feature.bg,
-                  border: `1px solid ${feature.border}`,
-                }}
+              { name: "leboncoin", color: "#FF6E14", active: true },
+              { name: "Vinted", color: "#09B1BA", active: true },
+              { name: "Back Market", color: "#4D3DF7", active: true },
+              { name: "Amazon", color: "#FF9900", active: false },
+              { name: "Rakuten", color: "#BF0000", active: false },
+              { name: "eBay", color: "#E53238", active: false },
+              { name: "Fnac", color: "#E1A400", active: false },
+            ].map((site, i) => (
+              <motion.span
+                key={site.name}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.3 + i * 0.05 }}
+                className={`text-sm font-semibold transition-opacity ${
+                  site.active
+                    ? 'opacity-60 hover:opacity-100'
+                    : 'opacity-20'
+                }`}
+                style={{ color: site.active ? site.color : 'rgba(255,255,255,0.4)' }}
               >
-                <feature.icon className="w-4 h-4" style={{ color: feature.color }} />
-                {feature.text}
-              </motion.div>
+                {site.name}
+              </motion.span>
             ))}
           </motion.div>
 

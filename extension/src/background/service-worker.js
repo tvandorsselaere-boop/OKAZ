@@ -20,6 +20,11 @@ let pendingBackMarketResolvers = new Map();
 chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => {
   console.log('OKAZ SW: Message EXTERNE reçu de', sender.origin, request.type);
 
+  // Mettre à jour l'API_BASE avec l'origin du site (gère localhost:3000, 3001, etc.)
+  if (sender.origin) {
+    self.OkazQuota.setApiBaseFromOrigin(sender.origin);
+  }
+
   switch (request.type) {
     case 'PING':
       // Le site verifie si l'extension est installee
@@ -135,24 +140,26 @@ async function handleSearchWithQuota(query, criteria, sendResponse) {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log('OKAZ SW: Message reçu', request.type);
 
+  const senderTabId = sender.tab?.id;
+
   switch (request.type) {
     case 'SEARCH':
       handleSearch(request.query, sendResponse);
       return true; // Réponse asynchrone
 
     case 'LEBONCOIN_RESULTS':
-      console.log('OKAZ SW: Résultats LeBonCoin auto reçus:', request.results?.length);
-      handleLeBonCoinResults(request.results, request.url);
+      console.log('OKAZ SW: Résultats LeBonCoin auto reçus:', request.results?.length, 'tab:', senderTabId);
+      handleLeBonCoinResults(request.results, senderTabId);
       break;
 
     case 'VINTED_RESULTS':
-      console.log('OKAZ SW: Résultats Vinted auto reçus:', request.results?.length);
-      handleVintedResults(request.results, request.url);
+      console.log('OKAZ SW: Résultats Vinted auto reçus:', request.results?.length, 'tab:', senderTabId);
+      handleVintedResults(request.results, senderTabId);
       break;
 
     case 'BACKMARKET_RESULTS':
-      console.log('OKAZ SW: Résultats Back Market auto reçus:', request.results?.length);
-      handleBackMarketResults(request.results, request.url);
+      console.log('OKAZ SW: Résultats Back Market auto reçus:', request.results?.length, 'tab:', senderTabId);
+      handleBackMarketResults(request.results, senderTabId);
       break;
 
     case 'GET_RESULTS':
@@ -177,24 +184,45 @@ async function handleSearch(query, criteria, sendResponse) {
     const searchPromises = [];
     const hasUserLocation = criteria?.userLocation?.lat && criteria?.userLocation?.lng;
 
-    // LeBonCoin : si géoloc activée, faire DEUX recherches (locale + nationale)
+    // LeBonCoin : si multi-keywords (virgule), faire une recherche par variante
     if (sitesToSearch.includes('leboncoin')) {
+      // Détecter les keywords multi-produits (séparés par virgule)
+      const rawKeywords = criteria?.keywords || query;
+      const allVariants = rawKeywords.includes(',')
+        ? rawKeywords.split(',').map(v => v.trim()).filter(v => v.length > 0)
+        : [rawKeywords];
+      // Max 2 variantes pour éviter d'ouvrir trop d'onglets
+      const variants = allVariants.slice(0, 2);
+
+      console.log(`OKAZ SW: LeBonCoin - ${variants.length} variante(s) (${allVariants.length} détectées):`, variants);
+
       if (hasUserLocation) {
-        // Recherche LOCALE (50km autour de l'utilisateur) - pour main propre
-        console.log('OKAZ SW: LeBonCoin avec géoloc - 2 recherches (locale + nationale)');
+        // Recherche LOCALE + NATIONALE pour chaque variante
+        console.log('OKAZ SW: LeBonCoin avec géoloc - recherches locale + nationale par variante');
         searchPromises.push(
-          Promise.all([
-            searchLeBonCoin(query, criteria, true).catch(err => {
-              console.error('OKAZ SW: Erreur LeBonCoin LOCAL:', err.message);
-              return [];
-            }),
-            searchLeBonCoin(query, criteria, false).catch(err => {
-              console.error('OKAZ SW: Erreur LeBonCoin NATIONAL:', err.message);
-              return [];
-            })
-          ]).then(([localResults, nationalResults]) => {
-            // Marquer les résultats locaux
-            localResults.forEach(r => r.isLocal = true);
+          Promise.all(
+            variants.flatMap(variant => [
+              searchLeBonCoin(query, { ...criteria, _searchVariant: variant }, true).catch(err => {
+                console.error('OKAZ SW: Erreur LeBonCoin LOCAL:', err.message);
+                return [];
+              }),
+              searchLeBonCoin(query, { ...criteria, _searchVariant: variant }, false).catch(err => {
+                console.error('OKAZ SW: Erreur LeBonCoin NATIONAL:', err.message);
+                return [];
+              })
+            ])
+          ).then(allResults => {
+            // Séparer résultats locaux (index pairs) et nationaux (index impairs)
+            const localResults = [];
+            const nationalResults = [];
+            allResults.forEach((results, i) => {
+              if (i % 2 === 0) {
+                results.forEach(r => r.isLocal = true);
+                localResults.push(...results);
+              } else {
+                nationalResults.push(...results);
+              }
+            });
             // Combiner en évitant les doublons (par URL)
             const seenUrls = new Set(localResults.map(r => r.url));
             const uniqueNational = nationalResults.filter(r => !seenUrls.has(r.url));
@@ -203,11 +231,27 @@ async function handleSearch(query, criteria, sendResponse) {
           })
         );
       } else {
-        // Pas de géoloc : recherche nationale uniquement
+        // Pas de géoloc : recherche nationale par variante
         searchPromises.push(
-          searchLeBonCoin(query, criteria, false).catch(err => {
-            console.error('OKAZ SW: Erreur LeBonCoin:', err.message);
-            return [];
+          Promise.all(
+            variants.map(variant =>
+              searchLeBonCoin(query, { ...criteria, _searchVariant: variant }, false).catch(err => {
+                console.error('OKAZ SW: Erreur LeBonCoin:', err.message);
+                return [];
+              })
+            )
+          ).then(allResults => {
+            // Combiner et dédupliquer par URL
+            const seenUrls = new Set();
+            const combined = [];
+            allResults.flat().forEach(r => {
+              if (!seenUrls.has(r.url)) {
+                seenUrls.add(r.url);
+                combined.push(r);
+              }
+            });
+            console.log(`OKAZ SW: LBC ${variants.length} variantes → ${combined.length} résultats uniques`);
+            return combined;
           })
         );
       }
@@ -216,10 +260,33 @@ async function handleSearch(query, criteria, sendResponse) {
     }
 
     if (sitesToSearch.includes('vinted')) {
+      // Multi-keywords : recherche par variante sur Vinted aussi
+      const rawKw = criteria?.keywords || query;
+      const vintedVariants = rawKw.includes(',')
+        ? rawKw.split(',').map(v => v.trim()).filter(v => v.length > 0)
+        : [rawKw];
+
       searchPromises.push(
-        searchVinted(query, criteria).catch(err => {
-          console.error('OKAZ SW: Erreur Vinted:', err.message);
-          return [];
+        Promise.all(
+          vintedVariants.map(variant =>
+            searchVinted(query, { ...criteria, _searchVariant: variant }).catch(err => {
+              console.error('OKAZ SW: Erreur Vinted:', err.message);
+              return [];
+            })
+          )
+        ).then(allResults => {
+          const seenUrls = new Set();
+          const combined = [];
+          allResults.flat().forEach(r => {
+            if (!seenUrls.has(r.url)) {
+              seenUrls.add(r.url);
+              combined.push(r);
+            }
+          });
+          if (vintedVariants.length > 1) {
+            console.log(`OKAZ SW: Vinted ${vintedVariants.length} variantes → ${combined.length} résultats uniques`);
+          }
+          return combined;
         })
       );
     } else {
@@ -273,7 +340,10 @@ function buildLeBonCoinUrl(query, criteria, localSearch = false) {
   const params = new URLSearchParams();
 
   // Utiliser les keywords optimisés si disponibles, sinon la query brute
-  const keywords = criteria?.keywords || query;
+  // Si multi-keywords (virgule), prendre le variant spécifié ou le premier
+  const rawKeywords = criteria?.keywords || query;
+  const keywords = criteria?._searchVariant || rawKeywords.split(',')[0].trim();
+  console.log('OKAZ SW: LBC keywords =', keywords, '(raw:', rawKeywords, ')');
   params.set('text', keywords);
 
   // Ajouter les filtres optionnels
@@ -290,14 +360,17 @@ function buildLeBonCoinUrl(query, criteria, localSearch = false) {
     params.set('owner_type', criteria.ownerType);
   }
 
-  // Recherche LOCALE : ajouter lat/lng/rayon
-  // Format LeBonCoin : lat, lng (coordonnées), radius en mètres
+  // Recherche LOCALE : utiliser le paramètre `locations` de LeBonCoin
+  // Format LBC : locations=Ville_CodePostal__lat_lng_5000_rayon
   if (localSearch && criteria?.userLocation) {
     const { lat, lng } = criteria.userLocation;
-    params.set('lat', lat.toFixed(6));
-    params.set('lng', lng.toFixed(6));
-    params.set('radius', '30000'); // 30km en mètres (plus précis)
-    console.log(`OKAZ SW: Recherche LOCALE LBC - lat=${lat}, lng=${lng}, rayon=30km`);
+    const cityName = criteria?.userCityName || 'Localisation';
+    const postalCode = criteria?.userPostalCode || '';
+    const radius = 30000; // 30km en mètres
+    const cityPart = postalCode ? `${cityName}_${postalCode}` : cityName;
+    const locationsParam = `${cityPart}__${lat.toFixed(5)}_${lng.toFixed(5)}_5000_${radius}`;
+    params.set('locations', locationsParam);
+    console.log(`OKAZ SW: Recherche LOCALE LBC - locations=${locationsParam}`);
   }
 
   return `https://www.leboncoin.fr/recherche?${params.toString()}`;
@@ -341,7 +414,7 @@ async function searchLeBonCoin(query, criteria, localSearch = false) {
       // Stocker le resolver pour les résultats auto du content script
       pendingResolvers.set(tabId, resolveWith);
 
-      // Timeout de sécurité (30s pour laisser le temps au parsing)
+      // Timeout de sécurité (30s - LBC peut être lent à charger)
       const timeoutId = setTimeout(() => {
         if (!resolved) {
           console.log('OKAZ SW: Timeout après 30s');
@@ -365,7 +438,7 @@ async function searchLeBonCoin(query, criteria, localSearch = false) {
 
           if (tabInfo.status === 'complete') {
             // Attendre que le JS de la page charge les annonces
-            await new Promise(r => setTimeout(r, 4000));
+            await new Promise(r => setTimeout(r, 2000));
 
             if (resolved) return;
 
@@ -397,8 +470,8 @@ async function searchLeBonCoin(query, criteria, localSearch = false) {
         }
       };
 
-      // Commencer à vérifier après 2s
-      setTimeout(() => checkAndParse(), 2000);
+      // Commencer à vérifier après 1s
+      setTimeout(() => checkAndParse(), 1000);
 
     } catch (error) {
       cleanup();
@@ -407,20 +480,27 @@ async function searchLeBonCoin(query, criteria, localSearch = false) {
   });
 }
 
-function handleLeBonCoinResults(results, url) {
-  console.log('OKAZ SW: Traitement résultats LBC auto:', results?.length);
+function handleLeBonCoinResults(results, senderTabId) {
+  console.log('OKAZ SW: Traitement résultats LBC auto:', results?.length, 'from tab:', senderTabId);
   searchResults.set('leboncoin', results || []);
 
-  // Trouver le tab correspondant et résoudre
-  chrome.tabs.query({ url: '*://www.leboncoin.fr/recherche*' }, (tabs) => {
-    tabs.forEach(tab => {
-      const resolver = pendingResolvers.get(tab.id);
-      if (resolver) {
-        console.log('OKAZ SW: Résolution LBC pour tab', tab.id);
-        resolver(results || []);
-      }
+  // Résoudre UNIQUEMENT l'onglet qui a envoyé les résultats
+  if (senderTabId && pendingResolvers.has(senderTabId)) {
+    const resolver = pendingResolvers.get(senderTabId);
+    console.log('OKAZ SW: Résolution LBC pour tab', senderTabId);
+    resolver(results || []);
+  } else {
+    // Fallback: si pas de senderTabId, chercher le bon onglet
+    chrome.tabs.query({ url: '*://www.leboncoin.fr/recherche*' }, (tabs) => {
+      tabs.forEach(tab => {
+        const resolver = pendingResolvers.get(tab.id);
+        if (resolver) {
+          console.log('OKAZ SW: Résolution LBC fallback pour tab', tab.id);
+          resolver(results || []);
+        }
+      });
     });
-  });
+  }
 }
 
 // ============ VINTED ============
@@ -429,8 +509,10 @@ function handleLeBonCoinResults(results, url) {
 function buildVintedUrl(query, criteria) {
   const params = new URLSearchParams();
 
-  // Utiliser les keywords optimisés si disponibles
-  const keywords = criteria?.keywords || query;
+  // Utiliser les keywords optimisés, splitter si virgule (multi-produits)
+  const rawKeywords = criteria?.keywords || query;
+  const keywords = criteria?._searchVariant || rawKeywords.split(',')[0].trim();
+  console.log('OKAZ SW: Vinted keywords =', keywords);
   params.set('search_text', keywords);
 
   // Ajouter les filtres optionnels
@@ -546,20 +628,26 @@ async function searchVinted(query, criteria) {
   });
 }
 
-function handleVintedResults(results, url) {
-  console.log('OKAZ SW: Traitement résultats Vinted auto:', results?.length);
+function handleVintedResults(results, senderTabId) {
+  console.log('OKAZ SW: Traitement résultats Vinted auto:', results?.length, 'from tab:', senderTabId);
   searchResults.set('vinted', results || []);
 
-  // Trouver le tab correspondant et résoudre
-  chrome.tabs.query({ url: '*://www.vinted.fr/*' }, (tabs) => {
-    tabs.forEach(tab => {
-      const resolver = pendingVintedResolvers.get(tab.id);
-      if (resolver) {
-        console.log('OKAZ SW: Résolution Vinted pour tab', tab.id);
-        resolver(results || []);
-      }
+  // Résoudre UNIQUEMENT l'onglet qui a envoyé les résultats
+  if (senderTabId && pendingVintedResolvers.has(senderTabId)) {
+    const resolver = pendingVintedResolvers.get(senderTabId);
+    console.log('OKAZ SW: Résolution Vinted pour tab', senderTabId);
+    resolver(results || []);
+  } else {
+    chrome.tabs.query({ url: '*://www.vinted.fr/*' }, (tabs) => {
+      tabs.forEach(tab => {
+        const resolver = pendingVintedResolvers.get(tab.id);
+        if (resolver) {
+          console.log('OKAZ SW: Résolution Vinted fallback pour tab', tab.id);
+          resolver(results || []);
+        }
+      });
     });
-  });
+  }
 }
 
 // ============ BACK MARKET ============
@@ -568,8 +656,10 @@ function handleVintedResults(results, url) {
 function buildBackMarketUrl(query, criteria) {
   const params = new URLSearchParams();
 
-  // Utiliser les keywords optimisés si disponibles
-  const keywords = criteria?.keywords || query;
+  // Utiliser keywordsBM si disponible (optimisé pour Back Market), sinon premier keyword
+  const rawKeywords = criteria?.keywords || query;
+  const keywords = criteria?.keywordsBM || criteria?._searchVariant || rawKeywords.split(',')[0].trim();
+  console.log('OKAZ SW: Back Market keywords =', keywords);
   params.set('q', keywords);
 
   return `https://www.backmarket.fr/fr-fr/search?${params.toString()}`;
@@ -674,20 +764,26 @@ async function searchBackMarket(query, criteria) {
   });
 }
 
-function handleBackMarketResults(results, url) {
-  console.log('OKAZ SW: Traitement résultats Back Market auto:', results?.length);
+function handleBackMarketResults(results, senderTabId) {
+  console.log('OKAZ SW: Traitement résultats Back Market auto:', results?.length, 'from tab:', senderTabId);
   searchResults.set('backmarket', results || []);
 
-  // Trouver le tab correspondant et résoudre
-  chrome.tabs.query({ url: '*://www.backmarket.fr/*' }, (tabs) => {
-    tabs.forEach(tab => {
-      const resolver = pendingBackMarketResolvers.get(tab.id);
-      if (resolver) {
-        console.log('OKAZ SW: Résolution Back Market pour tab', tab.id);
-        resolver(results || []);
-      }
+  // Résoudre UNIQUEMENT l'onglet qui a envoyé les résultats
+  if (senderTabId && pendingBackMarketResolvers.has(senderTabId)) {
+    const resolver = pendingBackMarketResolvers.get(senderTabId);
+    console.log('OKAZ SW: Résolution Back Market pour tab', senderTabId);
+    resolver(results || []);
+  } else {
+    chrome.tabs.query({ url: '*://www.backmarket.fr/*' }, (tabs) => {
+      tabs.forEach(tab => {
+        const resolver = pendingBackMarketResolvers.get(tab.id);
+        if (resolver) {
+          console.log('OKAZ SW: Résolution Back Market fallback pour tab', tab.id);
+          resolver(results || []);
+        }
+      });
     });
-  });
+  }
 }
 
 console.log('OKAZ Service Worker v0.4.0 chargé - Sélection intelligente des sites par catégorie');
