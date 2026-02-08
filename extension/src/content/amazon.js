@@ -202,7 +202,7 @@
             title: title.substring(0, 100),
             price: price,
             site: 'Amazon',
-            siteColor: '#FF9900',
+            siteColor: '#DAA520',
             image: image,
             url: url,
             location: '',

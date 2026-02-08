@@ -20,7 +20,7 @@ SOLUTION: L'extension Chrome fait le scraping dans le navigateur de l'utilisateu
 - Pas de blocage IP
 ```
 
-### Architecture Actuelle (v0.7.0)
+### Architecture Actuelle (v0.8.0)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -42,8 +42,10 @@ SOLUTION: L'extension Chrome fait le scraping dans le navigateur de l'utilisateu
 │                                                             │
 │  1. Recoit les criteres structures                          │
 │  2. Construit URLs optimisees pour chaque site             │
-│  3. Ouvre LeBonCoin + Vinted + Back Market en parallele    │
+│  3. Ouvre LBC + Vinted + BackMarket + Amazon en parallele  │
+│     (Amazon: neuf + seconde main warehouse-deals)           │
 │  4. Parse les resultats, combine et renvoie au site        │
+│  5. amazonNewResults separes pour prix neuf de reference    │
 └─────────────────────────────────────────────────────────────┘
                           │
                           ▼
@@ -55,7 +57,7 @@ SOLUTION: L'extension Chrome fait le scraping dans le navigateur de l'utilisateu
 │  3. Filtrage: confidence < 30% = resultat masque           │
 │  4. Ponderation: scoreFinal = score × (confidence / 100)   │
 │  5. TopPick: LA recommandation mise en avant (carte doree) │
-│  6. POST /api/recommend-new → bandeau "Et en neuf ?"       │
+│  6. Prix neuf = Amazon scrape (fallback: /api/recommend-new)│
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -88,7 +90,7 @@ Gemini gere 4 fonctions principales :
 |----------|-----------|-------------|
 | Optimisation requete | POST /api/optimize | Langage naturel → criteres structures + categorie + questions |
 | Analyse resultats | POST /api/analyze | Confidence 0-100%, dealScore, topPick par resultat |
-| Recommandation neuf | POST /api/recommend-new | Bandeau "Et en neuf ?" avec lien Amazon affilie |
+| Recommandation neuf | POST /api/recommend-new | Prix neuf officiel + bandeau "Et en neuf ?" (Amazon affilie) |
 | Vision (image) | Via /api/optimize | Extraction contexte visuel (couleur, taille, modele) |
 
 ### Flux Gemini complet
@@ -102,8 +104,10 @@ SORTIE: { keywords: "iPhone 13", priceMax: 450, shippable: true, category: "tech
         ↓ Extension scrape
         ↓ Gemini (analyse)
 SORTIE: { results: [...], topPick: { index, headline, reason }, filteredCount: N }
+        ↓ Prix marché = médiane des prix scrapés (pas Gemini)
         ↓ Gemini (recommandation neuf, async)
-SORTIE: { productName, reason, searchUrl (Amazon affilie) }
+SORTIE: { productName, estimatedPrice, reason, searchUrl (Amazon affilie) }
+        → Badge "Neuf" + bandeau "Et en neuf ?" + lien affilié
 ```
 
 ### Configuration
@@ -113,19 +117,24 @@ SORTIE: { productName, reason, searchUrl (Amazon affilie) }
 GEMINI_API_KEY=votre_cle_api
 ```
 
-### Estimation des Prix
+### Estimation des Prix (v0.8.0)
 
 ```
-⚠️ REGLE ABSOLUE: JAMAIS DE PRIX EN DUR DANS LE CODE ⚠️
+⚠️ REGLE ABSOLUE: PRIX ANCRES SUR LES DONNEES REELLES ⚠️
 
-Gemini estime les prix du marche lui-meme grace a ses connaissances.
-Les resultats reels des sites corrigent Gemini si ses prix sont obsoletes.
-Aucune table de prix statique, aucun hardcode. Zero donnees en dur.
+- Prix occasion = médiane des prix scrapés (calculé client-side, pas Gemini)
+- Prix neuf = retourné par /api/recommend-new (Gemini avec contexte résultats réels)
+- Gemini NE DOIT PAS estimer les prix occasion ni neuf dans /api/optimize
+- Temperature 0.2 sur tous les appels Gemini (reduce hallucinations)
+- Zero données en dur, zero table de prix statique
 ```
 
-Gemini interprete "pas cher" en estimant le prix marche du produit.
-Pour les produits recents qu'il ne connait pas (M4, iPhone 16, PS5 Pro...),
-il extrapole depuis la generation precedente (+10-20%).
+Flux des prix :
+1. Extension scrape → prix bruts des annonces
+2. Client calcule la médiane/min/max des prix scrapés (priceStats)
+3. priceStats passé à /api/analyze → Gemini utilise la médiane comme marketPrice
+4. /api/recommend-new → prix neuf officiel (toujours retourné sauf vintage/auto/immo)
+5. Badges persistants sur la page résultats : "Neuf" (vert) + "Occasion médiane" (bleu)
 
 ---
 
@@ -418,6 +427,7 @@ NEXT_PUBLIC_ADSENSE_SLOT_RECTANGLE=1234...
 | `extension/src/content/leboncoin.js` | Parser DOM LeBonCoin |
 | `extension/src/content/vinted.js` | Parser DOM Vinted |
 | `extension/src/content/backmarket.js` | Parser DOM Back Market |
+| `extension/src/content/amazon.js` | Parser DOM Amazon (neuf + seconde main) |
 | `extension/src/lib/quota.js` | Gestion quota cote extension |
 | `extension/src/popup/popup.js` | Popup extension |
 
@@ -568,6 +578,10 @@ cd site && npm run test:relevance
 - [x] Tri par distance dans "Plus de résultats"
 - [x] Webhook Stripe: gestion annulation (cancel_at_period_end)
 - [x] Email: domaine vérifié okaz-ia.fr (Resend)
+- [x] Intégration Amazon (neuf + seconde main warehouse-deals)
+- [x] Sélection intelligente produit neuf (filtrage pertinence titre)
+- [x] Prix neuf réel Amazon (remplace estimation Gemini)
+- [x] Couleur Amazon jaune foncé (#DAA520) distincte de LBC
 - [ ] Finaliser extension pour Chrome Web Store
 - [ ] UI responsive mobile
 - [ ] Deploiement Vercel (okaz-ia.fr)
@@ -597,7 +611,7 @@ Gemini detecte la categorie de recherche et selectionne les sites pertinents :
 | TECH | LeBonCoin | Non | ⭐⭐⭐ | ✅ Done |
 | TECH | Back Market | Awin 2-5% | ⭐⭐⭐ | ✅ Done |
 | MODE | Vinted | Non | ⭐⭐⭐ | ✅ Done |
-| TECH | Amazon | Direct 1-12% | ⭐⭐⭐ | A faire |
+| TECH | Amazon | Direct 1-12% | ⭐⭐⭐ | ✅ Done |
 | TECH | Rakuten | Awin 2-9% | ⭐⭐⭐ | A faire |
 | ALL | eBay | Awin 1-4% | ⭐⭐⭐ | A faire |
 | TECH | Fnac | Awin | ⭐⭐ | A faire |
@@ -670,4 +684,4 @@ Plan : Finir desktop → Prototype RN → Tester stores → Fallback PWA si reje
 
 ---
 
-*Mis a jour le 8 fevrier 2026 - v0.7.0*
+*Mis a jour le 8 fevrier 2026 - v0.8.0*

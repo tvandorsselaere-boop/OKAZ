@@ -3,12 +3,12 @@
 // Retourne: { analyzed: [...], topPick?: {...} }
 
 import { NextRequest, NextResponse } from 'next/server';
-import { analyzeResultsWithGemini, RawResult, VisualContext } from '@/lib/gemini';
+import { analyzeResultsWithGemini, RawResult, VisualContext, RealPriceStats } from '@/lib/gemini';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { results, query, visualContext } = body;
+    const { results, query, visualContext, priceStats } = body;
 
     if (!results || !Array.isArray(results)) {
       return NextResponse.json(
@@ -39,7 +39,15 @@ export async function POST(request: NextRequest) {
       variant: visualContext.variant,
     } : undefined;
 
-    const { analyzed, topPick } = await analyzeResultsWithGemini(rawResults, query || '', typedVisualContext);
+    // Typer priceStats si fourni
+    const typedPriceStats: RealPriceStats | undefined = priceStats ? {
+      median: Number(priceStats.median) || 0,
+      min: Number(priceStats.min) || 0,
+      max: Number(priceStats.max) || 0,
+      count: Number(priceStats.count) || 0,
+    } : undefined;
+
+    const { analyzed, topPick } = await analyzeResultsWithGemini(rawResults, query || '', typedVisualContext, typedPriceStats);
 
     console.log('[OKAZ API] Analyse terminée:', analyzed.length, 'résultats');
     if (topPick) {

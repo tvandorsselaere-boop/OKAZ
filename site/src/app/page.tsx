@@ -1966,9 +1966,33 @@ export default function Home() {
 
           const amazonNewWithPrice = amazonNewResults.filter((r: SearchResult) => r.price > 0);
           if (amazonNewWithPrice.length > 0 && correctedResults.length > 0) {
-            // DONNÉES RÉELLES : utiliser le moins cher des résultats Amazon Neuf
-            const cheapestNew = amazonNewWithPrice.sort((a: SearchResult, b: SearchResult) => a.price - b.price)[0];
-            console.log(`[OKAZ] 7. Prix neuf réel Amazon: ${cheapestNew.price}€ — ${cheapestNew.title}`);
+            // DONNÉES RÉELLES : filtrer par pertinence titre puis prendre le moins cher
+            // Extraire les mots-clés significatifs de la requête (>= 2 chars, ignorer mots courants)
+            const stopWords = new Set(['le', 'la', 'les', 'un', 'une', 'des', 'de', 'du', 'en', 'et', 'ou', 'pour', 'pas', 'sur', 'par', 'avec', 'dans', 'bon', 'etat', 'neuf', 'occasion', 'cher', 'prix', 'livrable']);
+            const queryTerms = q.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+              .split(/[\s,;:!?.\-_/]+/)
+              .filter(w => w.length >= 2 && !stopWords.has(w));
+
+            // Scorer chaque résultat Amazon par correspondance avec la requête
+            const scored = amazonNewWithPrice.map((r: SearchResult) => {
+              const titleNorm = r.title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+              const matchCount = queryTerms.filter(term => titleNorm.includes(term)).length;
+              const matchRatio = queryTerms.length > 0 ? matchCount / queryTerms.length : 0;
+              return { result: r, matchRatio, matchCount };
+            });
+
+            // Filtrer : garder ceux qui matchent au moins 60% des termes (ou tous si aucun ne matche)
+            const relevant = scored.filter(s => s.matchRatio >= 0.6);
+            const candidates = relevant.length > 0 ? relevant : scored;
+
+            // Parmi les candidats pertinents, prendre le moins cher
+            candidates.sort((a, b) => {
+              // D'abord par pertinence décroissante, puis par prix croissant
+              if (a.matchRatio !== b.matchRatio) return b.matchRatio - a.matchRatio;
+              return a.result.price - b.result.price;
+            });
+            const cheapestNew = candidates[0].result;
+            console.log(`[OKAZ] 7. Prix neuf réel Amazon: ${cheapestNew.price}€ (match ${Math.round(candidates[0].matchRatio * 100)}%) — ${cheapestNew.title}`);
 
             initialNewRec = {
               productName: cheapestNew.title,
@@ -2586,7 +2610,7 @@ main propre Paris ou livraison si garantie"
               { name: "leboncoin", color: "#FF6E14", active: true },
               { name: "Vinted", color: "#09B1BA", active: true },
               { name: "Back Market", color: "#4D3DF7", active: true },
-              { name: "Amazon", color: "#FF9900", active: false },
+              { name: "Amazon", color: "#DAA520", active: true },
               { name: "Rakuten", color: "#BF0000", active: false },
               { name: "eBay", color: "#E53238", active: false },
               { name: "Fnac", color: "#E1A400", active: false },

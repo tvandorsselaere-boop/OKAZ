@@ -46,7 +46,7 @@ export function NewProductBanner({ productName, estimatedPrice, reason, searchQu
           href={amazonLink}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#FF9900]/15 border border-[#FF9900]/30 text-[#FF9900] text-xs font-medium hover:bg-[#FF9900]/25 transition-colors"
+          className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#DAA520]/15 border border-[#DAA520]/30 text-[#DAA520] text-xs font-medium hover:bg-[#DAA520]/25 transition-colors"
         >
           Voir sur Amazon
           <ExternalLink className="w-3 h-3" />
