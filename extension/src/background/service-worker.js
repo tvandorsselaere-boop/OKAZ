@@ -832,6 +832,7 @@ function buildAmazonNewUrl(query, criteria) {
   console.log('OKAZ SW: Amazon Neuf keywords =', keywords);
   const params = new URLSearchParams();
   params.set('k', keywords);
+  params.set('condition', 'new');
   return `https://www.amazon.fr/s?${params.toString()}`;
 }
 

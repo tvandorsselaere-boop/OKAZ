@@ -47,7 +47,7 @@ export function UpgradeModal({
             transition={{ type: "spring", duration: 0.5 }}
             onClick={(e) => e.stopPropagation()}
           >
-            <GlassCard variant="bordered" className="w-full max-w-md p-6 relative">
+            <GlassCard variant="bordered" className="w-full max-w-md p-8 relative">
               {/* Bouton fermer */}
               <button
                 onClick={onClose}
@@ -75,7 +75,7 @@ export function UpgradeModal({
                 <button
                   onClick={onBuyBoost}
                   disabled={isLoading}
-                  className="w-full p-4 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all text-left group disabled:opacity-50"
+                  className="w-full p-4 rounded-2xl bg-white/5 gradient-border hover:bg-white/10 transition-all text-left group disabled:opacity-50"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
@@ -97,7 +97,7 @@ export function UpgradeModal({
                 <button
                   onClick={onBuyPremium}
                   disabled={isLoading}
-                  className="w-full p-4 rounded-xl bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/30 hover:border-amber-500/50 transition-all text-left group disabled:opacity-50 relative overflow-hidden"
+                  className="w-full p-4 rounded-2xl bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/30 hover:border-amber-500/50 transition-all text-left group disabled:opacity-50 relative overflow-hidden"
                 >
                   {/* Badge recommandé */}
                   <div className="absolute top-0 right-0 bg-gradient-to-l from-amber-500 to-orange-500 text-black text-[10px] font-bold px-3 py-1 rounded-bl-lg">
@@ -189,7 +189,7 @@ export function SearchCounter({ remaining, total, onManageSubscription }: { rema
 
   return (
     <div className="flex items-center gap-2" title={`Renouvellement dans ${hoursLeft}h (minuit)`}>
-      <div className="w-20 h-1.5 bg-white/10 rounded-full overflow-hidden">
+      <div className="w-20 h-1 bg-white/10 rounded-full overflow-hidden">
         <div
           className={`h-full ${getColor()} transition-all duration-300`}
           style={{ width: `${percentage}%` }}

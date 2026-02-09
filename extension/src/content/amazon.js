@@ -196,6 +196,10 @@
           console.log(`OKAZ AMAZON DEBUG [${index}]: asin="${asin}", title="${title?.substring(0, 40)}", price=${price}`);
         }
 
+        // Détecter la condition (neuf vs reconditionné)
+        const titleLower = (title || '').toLowerCase();
+        const isReconditioned = /reconditionn[eé]|renewed|occasion|refurbished/i.test(title || '');
+
         if (title && url && price > 0) {
           results.push({
             id: `amz-${asin}-${Date.now()}`,
@@ -210,7 +214,8 @@
             hasShipping: true,
             score: 70, // Score neutre — Gemini recalculera
             redFlags: [],
-            asin: asin
+            asin: asin,
+            condition: isReconditioned ? 'reconditioned' : 'new'
           });
         }
       } catch (e) {

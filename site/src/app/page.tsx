@@ -1322,7 +1322,13 @@ export default function Home() {
     localStorage.setItem('okaz_geoloc_enabled', geolocEnabled.toString());
   }, [geolocEnabled]);
 
-  // Note: On n'auto-active plus la géoloc pour permettre à l'utilisateur de la désactiver
+  // Auto-request position si géoloc activée mais position pas encore dispo (cache expiré)
+  useEffect(() => {
+    if (geolocEnabled && !position && permissionState === 'granted' && !geoLoading) {
+      console.log('[OKAZ] Geoloc activée mais position null (cache expiré?), re-request...');
+      requestPermission();
+    }
+  }, [geolocEnabled, position, permissionState, geoLoading, requestPermission]);
 
   // État du quota
   const [quota, setQuota] = useState<QuotaStatus | null>(null);
@@ -2015,7 +2021,45 @@ export default function Home() {
             }
           }
 
-          console.log('[OKAZ] 6. Affichage des résultats');
+          // FALLBACK GEMINI : si pas de données Amazon, attendre la recommandation AVANT affichage
+          if (!initialNewRec && correctedResults.length > 0) {
+            console.log('[OKAZ] 6. Pas de résultats Amazon Neuf, fallback Gemini (await)...');
+            const prices = correctedResults.map(r => r.price).filter(p => p > 0);
+            const priceMin = prices.length > 0 ? Math.min(...prices) : 0;
+            const priceMax = prices.length > 0 ? Math.max(...prices) : 0;
+
+            const topResults = correctedResults
+              .sort((a, b) => b.score - a.score)
+              .slice(0, 5)
+              .map(r => ({ title: r.title, price: r.price, site: r.site }));
+
+            try {
+              const recRes = await fetch('/api/recommend-new', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query: q, priceMin, priceMax, topResults }),
+              });
+              const recData = await recRes.json();
+              if (recData.success && recData.recommendation?.hasRecommendation) {
+                const rec = recData.recommendation;
+                initialNewRec = rec;
+                if (displayBriefing && rec.estimatedPrice) {
+                  displayBriefing = {
+                    ...displayBriefing,
+                    newProductPrice: {
+                      price: rec.estimatedPrice,
+                      label: `${rec.productName} — ${rec.estimatedPrice}€ neuf`,
+                    },
+                  };
+                }
+                console.log('[OKAZ] 6a. Recommandation Gemini reçue:', rec.productName);
+              }
+            } catch (err) {
+              console.error('[OKAZ] Erreur recommandation neuf:', err);
+            }
+          }
+
+          console.log('[OKAZ] 7. Affichage des résultats');
           setSearchData({
             query: q,
             categorized,
@@ -2031,44 +2075,6 @@ export default function Home() {
           // Mettre à jour le briefing courant avec le prix neuf si disponible
           if (displayBriefing) {
             setCurrentBriefing(displayBriefing);
-          }
-
-          // FALLBACK GEMINI : si pas de données Amazon, lancer l'API recommend-new (async)
-          if (!initialNewRec && correctedResults.length > 0) {
-            console.log('[OKAZ] 7. Pas de résultats Amazon Neuf, fallback Gemini...');
-            const prices = correctedResults.map(r => r.price).filter(p => p > 0);
-            const priceMin = prices.length > 0 ? Math.min(...prices) : 0;
-            const priceMax = prices.length > 0 ? Math.max(...prices) : 0;
-
-            const topResults = correctedResults
-              .sort((a, b) => b.score - a.score)
-              .slice(0, 5)
-              .map(r => ({ title: r.title, price: r.price, site: r.site }));
-
-            fetch('/api/recommend-new', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ query: q, priceMin, priceMax, topResults }),
-            })
-              .then(res => res.json())
-              .then(data => {
-                if (data.success && data.recommendation?.hasRecommendation) {
-                  const rec = data.recommendation;
-                  setSearchData(prev => {
-                    if (!prev) return prev;
-                    const baseBriefing = prev.briefing || { warningPrice: 0, warningText: '', tips: [] };
-                    const updatedBriefing: SearchBriefing = {
-                      ...baseBriefing,
-                      newProductPrice: rec.estimatedPrice ? {
-                        price: rec.estimatedPrice,
-                        label: `${rec.productName} — ${rec.estimatedPrice}€ neuf`,
-                      } : baseBriefing.newProductPrice,
-                    };
-                    return { ...prev, newRecommendation: rec, briefing: updatedBriefing };
-                  });
-                }
-              })
-              .catch(err => console.error('[OKAZ] Erreur recommandation neuf:', err));
           }
         } else {
           // Vérifier si c'est une erreur de quota
