@@ -2111,8 +2111,16 @@ export default function Home() {
             };
           }).filter(r => r.relevant);
 
+          // Garder uniquement les 30 meilleurs résultats (triés par score final)
+          const MAX_DISPLAY = 30;
+          const sortedResults = correctedResults.sort((a, b) => b.score - a.score);
+          const topResults30 = sortedResults.slice(0, MAX_DISPLAY);
+          if (correctedResults.length > MAX_DISPLAY) {
+            console.log(`[OKAZ] 5d. Top ${MAX_DISPLAY} résultats gardés sur ${correctedResults.length} pertinents`);
+          }
+
           const duration = Date.now() - startTime;
-          const categorized = analyzeResults(correctedResults, q);
+          const categorized = analyzeResults(topResults30, q);
 
           // Construire le briefing final avec les prix réels du marché
           const finalBriefing: SearchBriefing | null = currentBriefing ? {
@@ -2244,7 +2252,7 @@ export default function Home() {
           setSearchData({
             query: q,
             categorized,
-            totalResults: correctedResults.length,
+            totalResults: topResults30.length,
             duration,
             criteria,
             topPick,
