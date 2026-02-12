@@ -136,56 +136,52 @@ body {
 .glow-orb {
   position: fixed;
   border-radius: 50%;
-  filter: blur(80px);
+  filter: blur(100px);
   pointer-events: none;
   z-index: 0;
-  opacity: 0.4;
+  opacity: 1;
   animation: glow-drift 12s ease-in-out infinite;
 }
 
 .glow-orb-1 {
-  width: 500px;
-  height: 500px;
-  background: radial-gradient(circle, rgba(0, 122, 255, 0.25) 0%, transparent 70%);
-  top: -10%;
-  left: -5%;
+  width: 700px;
+  height: 700px;
+  background: radial-gradient(circle, rgba(0, 122, 255, 0.5) 0%, rgba(0, 122, 255, 0.15) 40%, transparent 70%);
+  top: -15%;
+  left: -10%;
   animation-duration: 14s;
 }
 
 .glow-orb-2 {
-  width: 400px;
-  height: 400px;
-  background: radial-gradient(circle, rgba(88, 86, 214, 0.2) 0%, transparent 70%);
-  top: 40%;
-  right: -8%;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(88, 86, 214, 0.4) 0%, rgba(88, 86, 214, 0.1) 40%, transparent 70%);
+  top: 35%;
+  right: -12%;
   animation-duration: 18s;
   animation-delay: -4s;
 }
 
 .glow-orb-3 {
-  width: 350px;
-  height: 350px;
-  background: radial-gradient(circle, rgba(52, 199, 89, 0.15) 0%, transparent 70%);
-  bottom: -5%;
-  left: 30%;
+  width: 550px;
+  height: 550px;
+  background: radial-gradient(circle, rgba(52, 199, 89, 0.35) 0%, rgba(52, 199, 89, 0.1) 40%, transparent 70%);
+  bottom: -10%;
+  left: 25%;
   animation-duration: 16s;
   animation-delay: -8s;
 }
 
-.dark .glow-orb {
-  opacity: 0.6;
-}
-
 .dark .glow-orb-1 {
-  background: radial-gradient(circle, rgba(10, 132, 255, 0.35) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(10, 132, 255, 0.6) 0%, rgba(10, 132, 255, 0.2) 40%, transparent 70%);
 }
 
 .dark .glow-orb-2 {
-  background: radial-gradient(circle, rgba(94, 92, 230, 0.3) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(94, 92, 230, 0.5) 0%, rgba(94, 92, 230, 0.15) 40%, transparent 70%);
 }
 
 .dark .glow-orb-3 {
-  background: radial-gradient(circle, rgba(48, 209, 88, 0.2) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(48, 209, 88, 0.4) 0%, rgba(48, 209, 88, 0.12) 40%, transparent 70%);
 }
 
 /* ========================================
