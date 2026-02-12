@@ -150,35 +150,35 @@ body {
   animation: glow-drift 12s ease-in-out infinite;
 }
 
-/* Blue orb — top left */
+/* Blue orb — top left (light: pastel, dark: vibrant) */
 .glow-orb-1 {
   width: 800px;
   height: 800px;
-  background: radial-gradient(circle, rgba(0, 122, 255, 0.45) 0%, rgba(0, 122, 255, 0.2) 30%, rgba(0, 122, 255, 0.05) 55%, transparent 70%);
-  filter: blur(60px);
+  background: radial-gradient(circle, rgba(120, 170, 255, 0.25) 0%, rgba(120, 170, 255, 0.1) 35%, transparent 65%);
+  filter: blur(80px);
   top: -20%;
   left: -15%;
   animation-duration: 14s;
 }
 
-/* Violet orb — right */
+/* Violet orb — right (light: soft lavender, dark: vibrant) */
 .glow-orb-2 {
   width: 700px;
   height: 700px;
-  background: radial-gradient(circle, rgba(88, 86, 214, 0.4) 0%, rgba(120, 80, 220, 0.18) 30%, rgba(88, 86, 214, 0.05) 55%, transparent 70%);
-  filter: blur(60px);
+  background: radial-gradient(circle, rgba(160, 130, 230, 0.22) 0%, rgba(160, 130, 230, 0.08) 35%, transparent 65%);
+  filter: blur(80px);
   top: 30%;
   right: -15%;
   animation-duration: 18s;
   animation-delay: -4s;
 }
 
-/* Indigo orb — bottom center (was green) */
+/* Indigo orb — bottom center (light: subtle, dark: vibrant) */
 .glow-orb-3 {
   width: 650px;
   height: 650px;
-  background: radial-gradient(circle, rgba(50, 50, 200, 0.35) 0%, rgba(80, 60, 220, 0.15) 30%, rgba(50, 50, 200, 0.04) 55%, transparent 70%);
-  filter: blur(60px);
+  background: radial-gradient(circle, rgba(100, 120, 220, 0.18) 0%, rgba(100, 120, 220, 0.06) 35%, transparent 65%);
+  filter: blur(80px);
   bottom: -15%;
   left: 20%;
   animation-duration: 16s;
