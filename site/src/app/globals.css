@@ -7,8 +7,8 @@
 :root {
   /* Backgrounds */
   --bg-primary: #F2F2F7;
-  --bg-secondary: #E5E5EA;
-  --bg-tertiary: #D1D1D6;
+  --bg-secondary: rgba(229, 229, 234, 0.6);
+  --bg-tertiary: rgba(209, 209, 214, 0.7);
 
   /* Text */
   --text-primary: #1D1D1F;
@@ -22,8 +22,8 @@
   /* Separators */
   --separator: rgba(0, 0, 0, 0.08);
 
-  /* Cards */
-  --card-bg: #FFFFFF;
+  /* Cards — semi-transparent for glassmorphism */
+  --card-bg: rgba(255, 255, 255, 0.55);
   --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
   --card-shadow-hover: 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.06);
 
@@ -36,8 +36,8 @@
 .dark {
   /* Backgrounds */
   --bg-primary: #000000;
-  --bg-secondary: #1C1C1E;
-  --bg-tertiary: #2C2C2E;
+  --bg-secondary: rgba(28, 28, 30, 0.5);
+  --bg-tertiary: rgba(44, 44, 46, 0.6);
 
   /* Text */
   --text-primary: #F5F5F7;
@@ -51,8 +51,8 @@
   /* Separators */
   --separator: rgba(255, 255, 255, 0.1);
 
-  /* Cards */
-  --card-bg: #1C1C1E;
+  /* Cards — semi-transparent for glassmorphism */
+  --card-bg: rgba(28, 28, 30, 0.5);
   --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
   --card-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.3);
 }
@@ -73,9 +73,11 @@ body {
    UTILITY CLASSES
    ======================================== */
 
-/* Card base */
+/* Card base — glassmorphism */
 .card {
   background: var(--card-bg);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   border-radius: 1rem;
   box-shadow: var(--card-shadow);
   border: 1px solid var(--separator);
@@ -113,6 +115,13 @@ body {
 }
 
 /* Input style */
+/* Global glassmorphism for bg-secondary areas */
+.input-clean,
+[class*="bg-[var(--bg-secondary)]"] {
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
 .input-clean {
   background: var(--bg-secondary);
   border: 1px solid var(--separator);
@@ -206,7 +215,7 @@ body {
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: title-shimmer 4s ease-in-out infinite;
+  animation: title-shimmer 8s ease-in-out infinite;
 }
 
 .dark .okaz-title {
@@ -222,7 +231,7 @@ body {
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: title-shimmer 4s ease-in-out infinite;
+  animation: title-shimmer 8s ease-in-out infinite;
 }
 
 @keyframes title-shimmer {
