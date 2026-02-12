@@ -6,9 +6,9 @@
 
 :root {
   /* Backgrounds */
-  --bg-primary: #FFFFFF;
-  --bg-secondary: #F5F5F7;
-  --bg-tertiary: #E8E8ED;
+  --bg-primary: #F5F5F7;
+  --bg-secondary: #EDEDF0;
+  --bg-tertiary: #E5E5EA;
 
   /* Text */
   --text-primary: #1D1D1F;

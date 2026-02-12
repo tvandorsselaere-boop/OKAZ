@@ -135,6 +135,20 @@ interface AnalyzeResponse {
   topPick?: TopPick;
 }
 
+function ThemeToggleButton({ darkMode, onToggle }: { darkMode: boolean; onToggle: () => void }) {
+  return (
+    <div className="fixed top-4 right-4 z-50">
+      <button
+        onClick={onToggle}
+        className="p-2.5 rounded-full bg-[var(--card-bg)] border border-[var(--separator)] shadow-[var(--card-shadow)] hover:shadow-[var(--card-shadow-hover)] transition-all"
+        title={darkMode ? 'Mode clair' : 'Mode sombre'}
+      >
+        {darkMode ? <Sun className="w-4 h-4 text-[var(--text-secondary)]" /> : <Moon className="w-4 h-4 text-[var(--text-secondary)]" />}
+      </button>
+    </div>
+  );
+}
+
 function ScoreBadge({ score }: { score: number }) {
   const getColor = () => {
     if (score >= 80) return "bg-[var(--score-high)]";
@@ -2292,6 +2306,7 @@ export default function Home() {
   if (searchData) {
     return (
       <main className="min-h-screen bg-[var(--bg-primary)]">
+        <ThemeToggleButton darkMode={darkMode} onToggle={toggleTheme} />
         <div className="container mx-auto px-4 py-8 max-w-2xl">
           <SearchResults data={searchData} onBack={handleBack} />
         </div>
@@ -2303,6 +2318,7 @@ export default function Home() {
   if (showSetup) {
     return (
       <main className="min-h-screen bg-[var(--bg-primary)]">
+        <ThemeToggleButton darkMode={darkMode} onToggle={toggleTheme} />
         <div className="container mx-auto px-4 py-16 max-w-md">
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
             <h1 className="text-4xl font-bold tracking-tight text-[var(--text-primary)] text-center mb-8">OKAZ</h1>
@@ -2318,16 +2334,7 @@ export default function Home() {
   // Show home/search screen
   return (
     <main className="min-h-screen bg-[var(--bg-primary)]">
-      {/* Theme toggle */}
-      <div className="fixed top-4 right-4 z-50">
-        <button
-          onClick={toggleTheme}
-          className="p-2.5 rounded-full bg-[var(--bg-secondary)] border border-[var(--separator)] shadow-sm hover:shadow-md transition-all"
-          title={darkMode ? 'Mode clair' : 'Mode sombre'}
-        >
-          {darkMode ? <Sun className="w-4 h-4 text-[var(--text-secondary)]" /> : <Moon className="w-4 h-4 text-[var(--text-secondary)]" />}
-        </button>
-      </div>
+      <ThemeToggleButton darkMode={darkMode} onToggle={toggleTheme} />
 
       <div className="container mx-auto px-4 py-16 lg:py-24">
         <div className={`mx-auto transition-all duration-300 ${isSearching ? 'max-w-6xl' : 'max-w-2xl'}`}>
