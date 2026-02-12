@@ -1,16 +1,33 @@
 "use client";
 
-import { SmartAdSlot } from "./AdSlot";
+import { SmartAdSlot, AffiliateBanner } from "./AdSlot";
 
 interface AdSidebarProps {
   keywords?: string[];
   phase?: "loading" | "results";
 }
 
+// Vérifie si au moins une régie pub est configurée
+const hasAdNetwork =
+  !!(process.env.NEXT_PUBLIC_MEDIANET_CID && process.env.NEXT_PUBLIC_MEDIANET_CRID) ||
+  !!(process.env.NEXT_PUBLIC_ADSENSE_CLIENT);
+
 export function AdSidebar({ keywords = [], phase = "loading" }: AdSidebarProps) {
+  const keywordsStr = keywords.length > 0 ? keywords.join(" ") : "";
+
+  // Si pas de régie configurée → afficher 1 Amazon + 1 eBay (pas de duplication)
+  if (!hasAdNetwork && keywordsStr) {
+    return (
+      <div className="flex flex-col gap-4 w-full">
+        <AffiliateBanner site="amazon" keywords={keywordsStr} />
+        <AffiliateBanner site="ebay" keywords={keywordsStr} />
+      </div>
+    );
+  }
+
+  // Sinon, les vraies pubs avec fallback
   return (
     <div className="flex flex-col gap-4 w-full">
-      {/* Pub 1 - Rectangle Medium (300x250) - Media.net CPC */}
       <SmartAdSlot
         network="medianet"
         size="rectangle"
@@ -19,8 +36,6 @@ export function AdSidebar({ keywords = [], phase = "loading" }: AdSidebarProps) 
         sublabel={phase === "loading" ? "Publicité contextuelle" : undefined}
         className="rounded-2xl overflow-hidden"
       />
-
-      {/* Pub 2 - Rectangle Medium (300x250) - AdSense CPM backup */}
       <SmartAdSlot
         network="adsense"
         size="rectangle"
