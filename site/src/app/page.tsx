@@ -2006,12 +2006,9 @@ export default function Home() {
             console.log(`[OKAZ] 4b. Dédupliqué: ${dedupCount} doublons supprimés → ${uniqueResults.length} résultats uniques`);
           }
 
-          // Limiter à 50 résultats pour l'analyse Gemini (perf)
-          const MAX_ANALYZE = 50;
-          const resultsForAnalysis = uniqueResults.slice(0, MAX_ANALYZE);
-          if (uniqueResults.length > MAX_ANALYZE) {
-            console.log(`[OKAZ] 4c. Cap à ${MAX_ANALYZE} résultats pour l'analyse Gemini (${uniqueResults.length} total)`);
-          }
+          // Analyser TOUS les résultats (test perf — pas de cap)
+          const resultsForAnalysis = uniqueResults;
+          console.log(`[OKAZ] 4c. Analyse de TOUS les ${uniqueResults.length} résultats (pas de cap)`);
 
           // Calculer les stats de prix réels à partir des résultats scrapés
           const scrapedPrices = uniqueResults.map((r: { price?: number }) => r.price || 0).filter((p: number) => p > 0).sort((a: number, b: number) => a - b);
