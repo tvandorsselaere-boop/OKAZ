@@ -2120,8 +2120,9 @@ export default function Home() {
           const amazonNewWithPrice = amazonNewResults.filter((r: SearchResult) => r.price > 0);
           if (amazonNewWithPrice.length > 0 && correctedResults.length > 0) {
             // DONNÉES RÉELLES : filtrer par pertinence titre puis prendre le moins cher
-            // Utiliser criteria.keywords (post-clarification) au lieu de q (requête originale)
-            const matchQuery = criteria.keywords || q;
+            // keywordsBM (générique, sans specs RAM/SSD) matche mieux les titres Amazon
+            // qui n'incluent pas les specs détaillées. Fallback: keywords, puis q
+            const matchQuery = criteria.keywordsBM || criteria.keywords || q;
             const stopWords = new Set(['le', 'la', 'les', 'un', 'une', 'des', 'de', 'du', 'en', 'et', 'ou', 'pour', 'pas', 'sur', 'par', 'avec', 'dans', 'bon', 'etat', 'neuf', 'occasion', 'cher', 'prix', 'livrable']);
             const queryTerms = matchQuery.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
               .split(/[\s,;:!?.\-_/]+/)
