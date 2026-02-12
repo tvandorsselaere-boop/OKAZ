@@ -1208,80 +1208,109 @@ async function searchEbay(query, criteria) {
 
       pendingEbayResolvers.set(tabId, resolveWith);
 
-      // Timeout 30s
+      // Timeout 40s (eBay a une page de vérification qui prend du temps)
       const timeoutId = setTimeout(() => {
         if (!resolved) {
-          console.log('OKAZ SW: Timeout eBay après 30s');
+          console.log('OKAZ SW: Timeout eBay après 40s');
           resolved = true;
           cleanup();
           resolve([]);
         }
-      }, 30000);
+      }, 40000);
+
+      // eBay affiche souvent une page de vérification/challenge avant les résultats.
+      // On doit attendre que l'URL contienne /sch/ (= page de résultats réelle).
+      let parseAttempts = 0;
 
       const checkAndParse = async (attempts = 0) => {
         if (resolved) return;
-        if (attempts > 25) return;
+        if (attempts > 40) return; // Plus de tentatives (vérification + chargement)
 
         try {
           const tabInfo = await chrome.tabs.get(tabId);
-          console.log(`OKAZ SW: eBay tab status = ${tabInfo.status}, url = ${tabInfo.url?.substring(0, 60)} (tentative ${attempts})`);
+          const tabUrl = tabInfo.url || '';
+          const isSearchPage = tabUrl.includes('/sch/');
 
-          if (tabInfo.status === 'complete') {
-            // Attendre que le JS de la page finisse de charger
+          if (attempts % 5 === 0) {
+            console.log(`OKAZ SW: eBay tab [${attempts}] status=${tabInfo.status} isSearch=${isSearchPage} url=${tabUrl.substring(0, 80)}`);
+          }
+
+          // Si on n'est pas encore sur la page de résultats, attendre
+          if (!isSearchPage) {
+            // Toujours sur la page de vérification/consent, réessayer
+            setTimeout(() => checkAndParse(attempts + 1), 500);
+            return;
+          }
+
+          // On est sur la page de résultats, attendre qu'elle soit "complete"
+          if (tabInfo.status !== 'complete') {
+            setTimeout(() => checkAndParse(attempts + 1), 500);
+            return;
+          }
+
+          // Page de résultats chargée ! Attendre le rendu JS
+          if (parseAttempts === 0) {
+            console.log('OKAZ SW: eBay page de résultats chargée, attente 3s pour le rendu JS...');
             await new Promise(r => setTimeout(r, 3000));
-            if (resolved) return;
+          } else {
+            await new Promise(r => setTimeout(r, 2000));
+          }
+          if (resolved) return;
+          parseAttempts++;
 
-            // Stratégie 1: PARSE_PAGE via content script
-            try {
-              console.log('OKAZ SW: Envoi PARSE_PAGE à eBay...');
-              const response = await chrome.tabs.sendMessage(tabId, { type: 'PARSE_PAGE' });
-              if (!resolved && response && response.success && response.results.length > 0) {
-                clearTimeout(timeoutId);
-                console.log(`OKAZ SW: ${response.results.length} résultats eBay via PARSE_PAGE`);
-                resolveWith(response.results);
-                return;
-              }
-              console.log('OKAZ SW: PARSE_PAGE eBay → 0 résultats, fallback executeScript...');
-            } catch (e) {
-              console.log('OKAZ SW: PARSE_PAGE eBay échoué:', e.message, '→ fallback executeScript...');
+          // Stratégie 1: PARSE_PAGE via content script
+          try {
+            console.log('OKAZ SW: Envoi PARSE_PAGE à eBay...');
+            const response = await chrome.tabs.sendMessage(tabId, { type: 'PARSE_PAGE' });
+            if (!resolved && response && response.success && response.results.length > 0) {
+              clearTimeout(timeoutId);
+              console.log(`OKAZ SW: ${response.results.length} résultats eBay via PARSE_PAGE`);
+              resolveWith(response.results);
+              return;
             }
+            console.log('OKAZ SW: PARSE_PAGE eBay → 0 résultats, fallback executeScript...');
+          } catch (e) {
+            console.log('OKAZ SW: PARSE_PAGE eBay échoué:', e.message, '→ fallback executeScript...');
+          }
 
-            // Stratégie 2: Injection directe via chrome.scripting.executeScript
-            if (!resolved) {
-              try {
-                console.log('OKAZ SW: Injection directe eBay via executeScript...');
-                const injectionResults = await chrome.scripting.executeScript({
-                  target: { tabId },
-                  func: parseEbayPage,
-                  world: 'MAIN'
-                });
+          // Stratégie 2: Injection directe via chrome.scripting.executeScript
+          if (!resolved) {
+            try {
+              console.log('OKAZ SW: Injection directe eBay via executeScript...');
+              const injectionResults = await chrome.scripting.executeScript({
+                target: { tabId },
+                func: parseEbayPage
+              });
 
-                if (!resolved && injectionResults && injectionResults[0]?.result) {
-                  const results = injectionResults[0].result;
+              if (!resolved && injectionResults && injectionResults[0]?.result) {
+                const results = injectionResults[0].result;
+                if (results.length > 0) {
                   clearTimeout(timeoutId);
                   console.log(`OKAZ SW: ${results.length} résultats eBay via executeScript`);
                   resolveWith(results);
                   return;
                 }
-              } catch (e) {
-                console.log('OKAZ SW: executeScript eBay échoué:', e.message);
+                console.log('OKAZ SW: executeScript eBay → 0 résultats');
               }
+            } catch (e) {
+              console.log('OKAZ SW: executeScript eBay échoué:', e.message);
             }
+          }
 
-            // Retry si rien n'a marché
-            if (!resolved && attempts < 5) {
-              console.log('OKAZ SW: Retry eBay dans 3s...');
-              setTimeout(() => checkAndParse(attempts + 1), 3000);
-            }
-          } else {
-            setTimeout(() => checkAndParse(attempts + 1), 500);
+          // Retry si rien n'a marché (max 4 tentatives de parsing)
+          if (!resolved && parseAttempts < 4) {
+            console.log(`OKAZ SW: Retry eBay parsing (${parseAttempts}/4) dans 2s...`);
+            setTimeout(() => checkAndParse(attempts + 1), 2000);
+          } else if (!resolved) {
+            console.log('OKAZ SW: eBay épuisé toutes les tentatives, 0 résultats');
           }
         } catch (e) {
           console.error('OKAZ SW: Erreur checkAndParse eBay', e);
+          if (!resolved) setTimeout(() => checkAndParse(attempts + 1), 1000);
         }
       };
 
-      setTimeout(() => checkAndParse(), 2000);
+      setTimeout(() => checkAndParse(), 1500);
 
     } catch (error) {
       cleanup();
