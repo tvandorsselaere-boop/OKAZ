@@ -1285,8 +1285,10 @@ function MobileLanding() {
   };
 
   return (
-    <main className="min-h-screen bg-[var(--bg-primary)]">
-      <div className="container mx-auto px-6 py-12 max-w-md">
+    <main className="min-h-screen bg-[var(--bg-primary)] glow-container">
+      <div className="glow-orb glow-orb-1" />
+      <div className="glow-orb glow-orb-2" />
+      <div className="relative z-10 container mx-auto px-6 py-12 max-w-md">
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -1294,7 +1296,7 @@ function MobileLanding() {
         >
           {/* Logo */}
           <div className="flex items-center justify-center gap-3 mb-4">
-            <h1 className="text-4xl font-bold tracking-tight text-[var(--text-primary)]">OKAZ</h1>
+            <h1 className="text-4xl font-bold tracking-tight okaz-title">OKAZ</h1>
           </div>
           <p className="text-sm text-[var(--text-secondary)] mb-10">
             Comparateur intelligent de petites annonces
@@ -2332,9 +2334,12 @@ export default function Home() {
   // Show results screen
   if (searchData) {
     return (
-      <main className="min-h-screen bg-[var(--bg-primary)]">
+      <main className="min-h-screen bg-[var(--bg-primary)] glow-container">
+        <div className="glow-orb glow-orb-1" />
+        <div className="glow-orb glow-orb-2" />
+        <div className="glow-orb glow-orb-3" />
         <ThemeToggleButton darkMode={darkMode} onToggle={toggleTheme} />
-        <div className="container mx-auto px-4 py-8 max-w-2xl">
+        <div className="relative z-10 container mx-auto px-4 py-8 max-w-2xl">
           <SearchResults data={searchData} onBack={handleBack} />
         </div>
       </main>
@@ -2344,11 +2349,13 @@ export default function Home() {
   // Show setup screen
   if (showSetup) {
     return (
-      <main className="min-h-screen bg-[var(--bg-primary)]">
+      <main className="min-h-screen bg-[var(--bg-primary)] glow-container">
+        <div className="glow-orb glow-orb-1" />
+        <div className="glow-orb glow-orb-2" />
         <ThemeToggleButton darkMode={darkMode} onToggle={toggleTheme} />
-        <div className="container mx-auto px-4 py-16 max-w-md">
+        <div className="relative z-10 container mx-auto px-4 py-16 max-w-md">
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-            <h1 className="text-4xl font-bold tracking-tight text-[var(--text-primary)] text-center mb-8">OKAZ</h1>
+            <h1 className="text-4xl font-bold tracking-tight text-center mb-8 okaz-title">OKAZ</h1>
             <GlassCard variant="bordered" className="p-6">
               <ExtensionSetup onSave={handleSaveExtensionId} />
             </GlassCard>
@@ -2360,10 +2367,13 @@ export default function Home() {
 
   // Show home/search screen
   return (
-    <main className="min-h-screen bg-[var(--bg-primary)]">
+    <main className="min-h-screen bg-[var(--bg-primary)] glow-container">
+      <div className="glow-orb glow-orb-1" />
+      <div className="glow-orb glow-orb-2" />
+      <div className="glow-orb glow-orb-3" />
       <ThemeToggleButton darkMode={darkMode} onToggle={toggleTheme} />
 
-      <div className="container mx-auto px-4 py-16 lg:py-24">
+      <div className="relative z-10 container mx-auto px-4 py-16 lg:py-24">
         <div className={`mx-auto transition-all duration-300 ${isSearching ? 'max-w-6xl' : 'max-w-2xl'}`}>
           {/* Logo */}
           <motion.div
@@ -2371,7 +2381,7 @@ export default function Home() {
             animate={{ opacity: 1, y: 0 }}
             className="text-center mb-12"
           >
-            <h1 className="text-5xl sm:text-6xl font-bold tracking-tight text-[var(--text-primary)] mb-4">
+            <h1 className="text-5xl sm:text-6xl font-bold tracking-tight mb-4 okaz-title">
               OKAZ
             </h1>
 
@@ -2389,7 +2399,7 @@ export default function Home() {
               transition={{ delay: 0.1 }}
               className="flex-1 min-w-0"
             >
-              <div className="bg-[var(--card-bg)] border border-[var(--separator)] shadow-[var(--card-shadow)] hover:shadow-[var(--card-shadow-hover)] transition-shadow p-6 rounded-2xl">
+              <div className="bg-[var(--card-bg)]/80 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-[var(--card-shadow)] hover:shadow-[var(--card-shadow-hover)] transition-shadow p-6 rounded-2xl">
               {isSearching ? (
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3 flex-1 min-w-0">

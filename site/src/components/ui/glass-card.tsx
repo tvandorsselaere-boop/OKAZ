@@ -9,7 +9,7 @@ interface GlassCardProps extends HTMLAttributes<HTMLDivElement> {
 const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(
   ({ className = "", variant = "default", children, ...props }, ref) => {
     const baseClasses =
-      "bg-[var(--card-bg)] border border-[var(--separator)] rounded-2xl shadow-[var(--card-shadow)]";
+      "bg-[var(--card-bg)]/80 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-2xl shadow-[var(--card-shadow)]";
 
     const variantClasses = {
       default: "",
