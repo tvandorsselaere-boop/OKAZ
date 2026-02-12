@@ -1423,6 +1423,8 @@ export default function Home() {
   const [clarificationData, setClarificationData] = useState<{ question: string; options?: string[]; originalQuery: string; history: Array<{ question: string; answer: string }> } | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const searchCancelledRef = useRef(false);
+  const searchGenRef = useRef(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Theme toggle (doit être avant tout return conditionnel)
   const [darkMode, setDarkMode] = useState(false);
@@ -1740,6 +1742,11 @@ export default function Home() {
   const handleCancelSearch = () => {
     console.log('[OKAZ] Recherche annulée par l\'utilisateur');
     searchCancelledRef.current = true;
+    searchGenRef.current += 1; // Invalider toute callback en cours
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
     setIsSearching(false);
     setIsOptimizing(false);
     setSearchPhase('idle');
@@ -1803,6 +1810,13 @@ export default function Home() {
     }
 
     searchCancelledRef.current = false;
+    searchGenRef.current += 1;
+    const currentGen = searchGenRef.current;
+    // Abort previous fetch if any
+    if (abortControllerRef.current) abortControllerRef.current.abort();
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+
     setIsSearching(true);
     setIsOptimizing(true);
     setError(null);
@@ -1846,7 +1860,15 @@ export default function Home() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(optimizePayload),
+          signal,
         });
+
+        // Vérifier annulation après fetch
+        if (currentGen !== searchGenRef.current) {
+          console.log('[OKAZ] Recherche obsolète après optimize — arrêt');
+          return;
+        }
+
         console.log('[OKAZ] 1b. Réponse reçue, parsing JSON...');
         const optimizeData: OptimizeResponse = await optimizeRes.json();
         console.log('[OKAZ] 1c. Données:', optimizeData);
@@ -1947,8 +1969,8 @@ export default function Home() {
 
         if (response && response.success && response.results) {
           // Vérifier annulation après scraping
-          if (searchCancelledRef.current) {
-            console.log('[OKAZ] Recherche annulée — arrêt après scraping');
+          if (searchCancelledRef.current || currentGen !== searchGenRef.current) {
+            console.log('[OKAZ] Recherche annulée/obsolète — arrêt après scraping');
             return;
           }
           const t2 = Date.now();
@@ -2000,8 +2022,8 @@ export default function Home() {
           }
 
           // Vérifier annulation avant analyse Gemini
-          if (searchCancelledRef.current) {
-            console.log('[OKAZ] Recherche annulée — arrêt avant analyse');
+          if (searchCancelledRef.current || currentGen !== searchGenRef.current) {
+            console.log('[OKAZ] Recherche annulée/obsolète — arrêt avant analyse');
             return;
           }
 
@@ -2260,8 +2282,8 @@ export default function Home() {
           console.log(`[OKAZ] ⏱ RECOMMEND: ${((t5 - t4) / 1000).toFixed(1)}s`);
           console.log(`[OKAZ] ⏱⏱ TOTAL: ${((t5 - t0) / 1000).toFixed(1)}s (optimize=${((t1-t0)/1000).toFixed(1)}s + scraping=${((t2-t1)/1000).toFixed(1)}s + analyze=${((t4-t3)/1000).toFixed(1)}s + recommend=${((t5-t4)/1000).toFixed(1)}s)`);
           // Vérifier annulation avant affichage
-          if (searchCancelledRef.current) {
-            console.log('[OKAZ] Recherche annulée — arrêt avant affichage');
+          if (searchCancelledRef.current || currentGen !== searchGenRef.current) {
+            console.log('[OKAZ] Recherche annulée/obsolète — arrêt avant affichage');
             return;
           }
 
@@ -2296,7 +2318,12 @@ export default function Home() {
         // Rafraîchir le quota après la recherche
         fetchQuotaFromExtension();
       });
-    } catch (err) {
+    } catch (err: unknown) {
+      // Ne pas afficher d'erreur si c'est un abort volontaire
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        console.log('[OKAZ] Fetch annulé (AbortError)');
+        return;
+      }
       setError('Erreur de connexion a l\'extension');
       setIsSearching(false);
       setIsOptimizing(false);
