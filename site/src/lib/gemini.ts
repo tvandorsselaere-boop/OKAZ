@@ -324,6 +324,7 @@ function buildBackMarketUrl(query: string): string {
 // Modèle Gemini à utiliser
 // Voir: https://ai.google.dev/gemini-api/docs/models
 const GEMINI_MODEL = 'gemini-2.5-flash';
+const GEMINI_MODEL_FAST = 'gemini-2.0-flash';  // Pour analyse JSON (pas de thinking, plus rapide)
 
 // Réponse de l'optimisation incluant le briefing
 export interface OptimizeResult {
@@ -569,13 +570,13 @@ export async function analyzeResultsWithGemini(
   try {
     const genAI = getGeminiClient();
     const model = genAI.getGenerativeModel({
-      model: GEMINI_MODEL,
+      model: GEMINI_MODEL_FAST,
       generationConfig: { temperature: 0.2, maxOutputTokens: 16384 },
     });
 
     // v0.5.0 - Passer le contexte visuel au prompt + prix réels
     const prompt = buildAnalysisPrompt(results, searchQuery, visualContext, priceStats);
-    console.log('[Gemini] Envoi analyse...');
+    console.log('[Gemini] Envoi analyse (gemini-2.0-flash)...');
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
@@ -618,136 +619,27 @@ RÈGLE CRITIQUE POUR LA COULEUR:
 `;
   }
 
-  return `Tu es un expert du marché de l'occasion. Analyse ces annonces pour la recherche "${query}".${visualContextSection}
+  return `Analyse ces annonces pour "${query}".${visualContextSection}
+${priceStats ? `Prix marché: médiane ${priceStats.median}€ (${priceStats.count} annonces, ${priceStats.min}-${priceStats.max}€). Utilise cette médiane comme marketPrice.` : ''}
 
 ANNONCES:
-${JSON.stringify(resultsJson, null, 2)}
+${JSON.stringify(resultsJson)}
 
-=== PARTIE 1: ÉVALUATION DE LA PERTINENCE ===
+Pour CHAQUE annonce, évalue:
+- confidence (0-100): pertinence par rapport à la recherche. 90+: bon produit, 60-89: probable, 40-59: douteux, <40: hors-sujet
+- relevant: false seulement si accessoire/coque/câble ou produit totalement différent
+- matchDetails: court résumé (ex: "✓ MacBook M3 comme demandé" ou "✗ Housse, pas un ordinateur")
+- marketPrice: ${priceStats ? priceStats.median : 'estime le prix marché occasion'}
+- dealScore (1-10): moins cher que le marché = score plus haut. Prix < médiane = 7-10, prix ≈ médiane = 4-6, prix > médiane = 1-3
+- dealType: excellent/good/fair/overpriced/suspicious
+- redFlags: ["Prix suspect"] si prix <60% du marché, sinon []
 
-Pour CHAQUE annonce, évalue si c'est le BON PRODUIT pour l'utilisateur.
+Identifie aussi le topPick: meilleure annonce (confidence>=70, bon dealScore, pas de red flags).
 
-1. SCORE DE CONFIANCE (0-100) — "Est-ce le produit recherché ?"
+RÈGLES: Fais confiance aux annonces (les produits récents existent même si tu ne les connais pas). Ne pénalise pas les variations de formulation dans les titres.
 
-   RÈGLE CRITIQUE - KNOWLEDGE CUTOFF:
-   Ton knowledge a une date de coupure. De nouveaux produits sortent régulièrement (nouveaux processeurs, nouvelles générations).
-   Si un produit apparaît sur Back Market, LeBonCoin ou Vinted, IL EXISTE. Ne le flag JAMAIS comme "non commercialisé" ou "suspect" juste parce que tu ne le connais pas.
-   Exemples de produits récents que tu pourrais ne pas connaître : Apple M4, M4 Pro, M4 Max, iPhone 16, PS5 Pro, RTX 5090, etc.
-   En cas de doute sur l'existence d'un produit, FAIS CONFIANCE à l'annonce.
-
-   RÈGLE CLÉ: Les titres d'annonces ne sont JAMAIS formatés comme la recherche.
-   Un titre "Mac mini (2024) M4 4.5 GHz - SSD 256 Go - 16Go" EST un Mac mini M4 16Go.
-   Ne pénalise PAS les variations de formulation, specs supplémentaires, ou ordre des mots.
-
-   - 90-100: C'est le bon produit (même famille + même génération/modèle + specs compatibles)
-   - 75-89: Très probable (bon produit, une spec mineure diffère ou non précisée)
-   - 60-74: Probable mais incertain (même famille, génération/specs pas clairs)
-   - 40-59: Douteux (même catégorie mais modèle significativement différent)
-   - 0-39: Hors-sujet (accessoire, autre produit, autre marque)
-
-   RECHERCHE MULTI-PRODUITS: Si l'utilisateur cherche "X ou Y", les DEUX sont à 90%+ si match.
-   Ex: "macbook ou mac mini M4" → un MacBook M4 = 92%, un Mac mini M4 = 92%
-
-2. RELEVANT = false UNIQUEMENT SI:
-   - C'est un ACCESSOIRE au lieu du produit (coque, câble, housse, protection écran)
-   - C'est une catégorie TOTALEMENT différente
-   - C'est clairement une autre marque que celle demandée
-
-   IMPORTANT: En cas de doute, garde relevant: true. On préfère montrer un résultat discutable que masquer une bonne affaire.
-
-3. MATCHDETAILS: Explique ce qui matche ou pas (court):
-   - "✓ Mac mini M4 16Go comme demandé"
-   - "✓ MacBook Pro M4, specs compatibles"
-   - "⚠ MacBook M3 (pas M4 demandé)"
-   - "✗ Coque pour MacBook, pas un ordinateur"
-
-EXEMPLES DE SCORING:
-- "iPhone 13 128Go" + "iPhone 13 128Go noir" → confidence: 95 (match parfait, couleur = bonus info)
-- "iPhone 13 128Go" + "iPhone 13 Pro 256Go" → confidence: 80 (même famille, specs supérieures)
-- "macbook ou mac mini M4 16gb" + "Mac mini M4 4.5GHz 16Go" → confidence: 95 (match exact malgré titre différent)
-- "macbook ou mac mini M4 16gb" + "MacBook Pro 14 M4 16Go" → confidence: 93 (l'autre option demandée)
-- "macbook ou mac mini M4 16gb" + "MacBook Air M2 8Go" → confidence: 45 (mauvaise génération + RAM insuffisante)
-- "Nike Dunk 42" + "Nike Dunk Low 42" → confidence: 92 (match, "Low" est la variante standard)
-- "Nike Dunk 42" + "Motorola Edge 40" → confidence: 5, relevant: false
-- "iPhone 13" + "Coque iPhone 13" → confidence: 5, relevant: false
-- "PS5" + "Manette PS5" → confidence: 8, relevant: false (accessoire)
-- "PS5" + "PS5 Digital + manette" → confidence: 90 (c'est une PS5 avec bonus)
-
-EXEMPLES AVEC COULEUR (si contexte visuel fourni):
-- Recherche "Adidas Gazelle" + couleur ROSE → "Gazelle rose" = confidence 95%, "Gazelle bleue" = confidence 55%
-- Recherche "Nike Air Force" + couleur BLANCHE → "AF1 blanches" = confidence 95%, "AF1 noires" = confidence 50%
-- La couleur est un critère MAJEUR pour les vêtements/chaussures
-
-=== PARTIE 2: ANALYSE DU DEAL ===
-${priceStats ? `
-=== DONNÉES RÉELLES DU MARCHÉ (calculées des annonces scrapées) ===
-Médiane : ${priceStats.median}€, Min : ${priceStats.min}€, Max : ${priceStats.max}€ (${priceStats.count} annonces)
-RÈGLE : Utilise la médiane (${priceStats.median}€) comme marketPrice pour TOUS les résultats pertinents.
-Ne te base PAS sur ton estimation interne — utilise UNIQUEMENT cette médiane réelle.
-` : ''}
-Pour chaque annonce PERTINENTE (relevant: true):
-1. marketPrice: ${priceStats ? `Utilise la médiane réelle : ${priceStats.median}€ pour toutes les annonces du même produit.` : 'Prix du marché occasion en bon état — estime UN prix cohérent pour le même produit.\n   IMPORTANT: Utilise le MÊME marketPrice pour toutes les annonces du même produit.'}
-
-2. dealScore (1-10): Compare le prix de l'annonce au marketPrice.
-   Tu n'as PAS besoin de calculer — utilise cette grille de lecture :
-   - Le MOINS CHER parmi les annonces du même produit doit avoir le dealScore le PLUS HAUT
-   - Le PLUS CHER doit avoir le dealScore le PLUS BAS
-   - dealScore 10 : prix exceptionnel, bien en-dessous du marché (>20% moins cher)
-   - dealScore 8-9 : très bonne affaire (10-20% moins cher)
-   - dealScore 6-7 : bon prix, légèrement sous le marché
-   - dealScore 5 : prix = marché, ni bon ni mauvais
-   - dealScore 3-4 : un peu cher par rapport au marché
-   - dealScore 1-2 : beaucoup trop cher
-
-   RÈGLE ABSOLUE: Si l'annonce A coûte 605€ et l'annonce B coûte 745€ pour le MÊME produit,
-   A DOIT avoir un dealScore SUPÉRIEUR à B. C'est obligatoire.
-   Deux prix différents = deux dealScores différents. TOUJOURS.
-
-3. dealType: excellent (dealScore 8-10), good (6-7), fair (4-5), overpriced (1-3), suspicious (prix bizarre)
-
-RED FLAGS à détecter:
-- Prix <60% du marché → "Prix suspect"
-- "Urgent", "départ" → "Vente urgente"
-- "PayPal amis", "virement" → "Paiement suspect"
-- "Neuf sous blister" à prix cassé → "Arnaque probable"
-- Tout en MAJUSCULES → "Titre suspect"
-
-⚠️ NE SONT PAS DES RED FLAGS:
-- Un modèle/processeur que tu ne connais pas (ton knowledge a une date de coupure, de nouveaux produits sortent régulièrement)
-- Des specs inhabituelles sur un produit récent (ex: fréquence CPU différente de ce que tu connais)
-- Un produit vendu sur Back Market ou un site marchand réputé — ces sites vérifient leurs produits
-
-=== PARTIE 3: TOP PICK ===
-
-Identifie LA meilleure annonce parmi celles avec:
-- confidence >= 70
-- Pas de red flags critiques
-- Bon dealScore
-
-RÉPONDS EN JSON UNIQUEMENT:
-{
-  "analyzed": [
-    {
-      "id": "string",
-      "relevant": boolean,
-      "confidence": number (0-100),
-      "matchDetails": "string (ce qui matche ou pas)",
-      "correctedPrice": number,
-      "marketPrice": number,
-      "dealScore": number (1-10),
-      "dealType": "excellent" | "good" | "fair" | "overpriced" | "suspicious",
-      "explanation": "string (max 100 chars, résumé factuel du deal)",
-      "redFlags": ["string"]
-    }
-  ],
-  "topPick": {
-    "id": "string | null",
-    "confidence": "high" | "medium" | "low",
-    "headline": "string",
-    "reason": "string (1-2 phrases)",
-    "highlights": ["string", "string"]
-  }
-}`;
+JSON UNIQUEMENT:
+{"analyzed":[{"id":"string","relevant":true,"confidence":90,"matchDetails":"string","correctedPrice":0,"marketPrice":0,"dealScore":5,"dealType":"fair","explanation":"string","redFlags":[]}],"topPick":{"id":"string","confidence":"high","headline":"string","reason":"string","highlights":["string"]}}`;
 }
 
 // Parser la réponse d'analyse
@@ -849,7 +741,7 @@ export async function recommendNewProduct(
   try {
     const genAI = getGeminiClient();
     const model = genAI.getGenerativeModel({
-      model: GEMINI_MODEL,
+      model: GEMINI_MODEL_FAST,
       generationConfig: { temperature: 0.2 },
     });
 
