@@ -2120,11 +2120,13 @@ export default function Home() {
           const amazonNewWithPrice = amazonNewResults.filter((r: SearchResult) => r.price > 0);
           if (amazonNewWithPrice.length > 0 && correctedResults.length > 0) {
             // DONNÉES RÉELLES : filtrer par pertinence titre puis prendre le moins cher
-            // Extraire les mots-clés significatifs de la requête (>= 2 chars, ignorer mots courants)
+            // Utiliser criteria.keywords (post-clarification) au lieu de q (requête originale)
+            const matchQuery = criteria.keywords || q;
             const stopWords = new Set(['le', 'la', 'les', 'un', 'une', 'des', 'de', 'du', 'en', 'et', 'ou', 'pour', 'pas', 'sur', 'par', 'avec', 'dans', 'bon', 'etat', 'neuf', 'occasion', 'cher', 'prix', 'livrable']);
-            const queryTerms = q.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            const queryTerms = matchQuery.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
               .split(/[\s,;:!?.\-_/]+/)
               .filter(w => w.length >= 2 && !stopWords.has(w));
+            console.log(`[OKAZ] 7. Matching Amazon avec: "${matchQuery}" → termes: [${queryTerms.join(', ')}]`);
 
             // Scorer chaque résultat Amazon par correspondance avec la requête
             const scored = amazonNewWithPrice.map((r: SearchResult) => {
@@ -2180,7 +2182,7 @@ export default function Home() {
                 productName: cheapestNew.title,
                 estimatedPrice: cheapestNew.price,
                 reason: `Prix réel constaté sur Amazon.fr — ${amazonNewWithPrice.length} offre${amazonNewWithPrice.length > 1 ? 's' : ''} neuve${amazonNewWithPrice.length > 1 ? 's' : ''} disponible${amazonNewWithPrice.length > 1 ? 's' : ''}`,
-                searchQuery: q,
+                searchQuery: matchQuery,
                 amazonUrl: cheapestNew.url,
                 isRealPrice: true,
               };
@@ -2215,7 +2217,7 @@ export default function Home() {
               const recRes = await fetch('/api/recommend-new', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query: q, priceMin, priceMax, topResults }),
+                body: JSON.stringify({ query: criteria.keywords || q, priceMin, priceMax, topResults }),
               });
               const recData = await recRes.json();
               if (recData.success && recData.recommendation?.hasRecommendation) {
