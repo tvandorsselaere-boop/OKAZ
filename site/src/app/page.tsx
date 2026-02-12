@@ -2785,9 +2785,7 @@ main propre Paris ou livraison si garantie"
               { name: "Vinted", color: "#09B1BA", active: true },
               { name: "Back Market", color: "#4D3DF7", active: true },
               { name: "Amazon", color: "#DAA520", active: true },
-              { name: "Rakuten", color: "#BF0000", active: false },
-              { name: "eBay", color: "#E53238", active: false },
-              { name: "Fnac", color: "#E1A400", active: false },
+              { name: "eBay", color: "#E53238", active: true },
             ].map((site, i) => (
               <motion.span
                 key={site.name}

@@ -11,6 +11,7 @@ let pendingVintedResolvers = new Map();
 let pendingBackMarketResolvers = new Map();
 let pendingAmazonNewResolvers = new Map();
 let pendingAmazonUsedResolvers = new Map();
+let pendingEbayResolvers = new Map();
 let amazonTabTypes = new Map(); // tabId -> 'new' | 'used'
 
 // Tracking centralisé des onglets ouverts par OKAZ pour cleanup fiable
@@ -204,6 +205,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleAmazonResults(request.results, senderTabId);
       break;
 
+    case 'EBAY_RESULTS':
+      console.log('OKAZ SW: Résultats eBay auto reçus:', request.results?.length, 'tab:', senderTabId);
+      handleEbayResults(request.results, senderTabId);
+      break;
+
     case 'GET_RESULTS':
       sendResponse({ results: Array.from(searchResults.values()).flat() });
       break;
@@ -219,7 +225,7 @@ async function handleSearch(query, criteria, sendResponse) {
 
   // Déterminer quels sites interroger (par défaut: tous)
   // Toujours inclure Amazon (prix neuf de référence), même si Gemini ne le spécifie pas
-  const baseSites = criteria?.sites || ['leboncoin', 'vinted', 'backmarket'];
+  const baseSites = criteria?.sites || ['leboncoin', 'vinted', 'backmarket', 'ebay'];
   const sitesToSearch = baseSites.includes('amazon') ? baseSites : [...baseSites, 'amazon'];
   console.log('OKAZ SW: Sites à interroger:', sitesToSearch.join(', '));
 
@@ -367,13 +373,25 @@ async function handleSearch(query, criteria, sendResponse) {
       searchPromises.push(Promise.resolve([]));
     }
 
+    // eBay
+    if (sitesToSearch.includes('ebay')) {
+      searchPromises.push(
+        searchEbay(query, criteria).catch(err => {
+          console.error('OKAZ SW: Erreur eBay:', err.message);
+          return [];
+        })
+      );
+    } else {
+      searchPromises.push(Promise.resolve([]));
+    }
+
     const results = await Promise.all(searchPromises);
-    const [lbcResults, vintedResults, bmResults, amazonNewResults, amazonUsedResults] = results;
+    const [lbcResults, vintedResults, bmResults, amazonNewResults, amazonUsedResults, ebayResults] = results;
 
-    console.log(`OKAZ SW: LeBonCoin=${lbcResults.length}, Vinted=${vintedResults.length}, BackMarket=${bmResults.length}, AmazonNeuf=${amazonNewResults.length}, AmazonSecondMain=${amazonUsedResults.length}`);
+    console.log(`OKAZ SW: LeBonCoin=${lbcResults.length}, Vinted=${vintedResults.length}, BackMarket=${bmResults.length}, AmazonNeuf=${amazonNewResults.length}, AmazonSecondMain=${amazonUsedResults.length}, eBay=${ebayResults.length}`);
 
-    // Résultats principaux : LBC + Vinted + BM + Amazon Seconde Main + Amazon Neuf
-    const allResults = [...lbcResults, ...vintedResults, ...bmResults, ...amazonUsedResults, ...amazonNewResults].sort((a, b) => b.score - a.score);
+    // Résultats principaux : LBC + Vinted + BM + Amazon Seconde Main + Amazon Neuf + eBay
+    const allResults = [...lbcResults, ...vintedResults, ...bmResults, ...amazonUsedResults, ...amazonNewResults, ...ebayResults].sort((a, b) => b.score - a.score);
 
     // Top 5 Amazon Neuf les moins chers → prix neuf de référence pour le bandeau
     const amazonNewForBanner = [...amazonNewResults]
@@ -388,6 +406,7 @@ async function handleSearch(query, criteria, sendResponse) {
     if (vintedResults.length > 0) completedSites.push('vinted');
     if (bmResults.length > 0) completedSites.push('backmarket');
     if (amazonNewResults.length > 0 || amazonUsedResults.length > 0) completedSites.push('amazon');
+    if (ebayResults.length > 0) completedSites.push('ebay');
 
     sendResponse({
       success: true,
@@ -1010,4 +1029,137 @@ function handleAmazonResults(results, senderTabId) {
   }
 }
 
-console.log('OKAZ Service Worker v0.5.0 chargé - LBC + Vinted + Back Market + Amazon');
+// ============ EBAY ============
+
+// Construire l'URL eBay.fr à partir des critères
+function buildEbayUrl(query, criteria) {
+  const rawKeywords = criteria?.keywords || query;
+  const keywords = criteria?._searchVariant || rawKeywords.split(',')[0].trim();
+  console.log('OKAZ SW: eBay keywords =', keywords);
+  const params = new URLSearchParams();
+  params.set('_nkw', keywords);
+  params.set('rt', 'nc');
+  // Filtrer par prix si spécifié
+  if (criteria?.priceMin) {
+    params.set('_udlo', criteria.priceMin.toString());
+  }
+  if (criteria?.priceMax) {
+    params.set('_udhi', criteria.priceMax.toString());
+  }
+  return `https://www.ebay.fr/sch/i.html?${params.toString()}`;
+}
+
+async function searchEbay(query, criteria) {
+  const searchUrl = buildEbayUrl(query, criteria);
+  console.log('OKAZ SW: Ouverture eBay...', searchUrl);
+
+  return new Promise(async (resolve, reject) => {
+    let tab = null;
+    let resolved = false;
+    let tabId = null;
+
+    const cleanup = () => {
+      if (tabId) {
+        pendingEbayResolvers.delete(tabId);
+        untrackTab(tabId);
+        try { chrome.tabs.remove(tabId); } catch (e) {}
+      }
+    };
+
+    const resolveWith = (results) => {
+      if (!resolved) {
+        resolved = true;
+        cleanup();
+        console.log(`OKAZ SW: Résolution eBay avec ${results.length} résultats`);
+        resolve(results);
+      }
+    };
+
+    try {
+      tab = await chrome.tabs.create({
+        url: searchUrl,
+        active: false
+      });
+
+      tabId = tab.id;
+      trackTab(tabId);
+      console.log('OKAZ SW: Onglet eBay créé', tabId);
+
+      pendingEbayResolvers.set(tabId, resolveWith);
+
+      // Timeout 25s
+      const timeoutId = setTimeout(() => {
+        if (!resolved) {
+          console.log('OKAZ SW: Timeout eBay après 25s');
+          resolved = true;
+          cleanup();
+          resolve([]);
+        }
+      }, 25000);
+
+      const checkAndParse = async (attempts = 0) => {
+        if (resolved) return;
+        if (attempts > 20) return;
+
+        try {
+          const tabInfo = await chrome.tabs.get(tabId);
+          console.log(`OKAZ SW: eBay tab status = ${tabInfo.status} (tentative ${attempts})`);
+
+          if (tabInfo.status === 'complete') {
+            await new Promise(r => setTimeout(r, 2500));
+            if (resolved) return;
+
+            try {
+              console.log('OKAZ SW: Envoi PARSE_PAGE à eBay...');
+              const response = await chrome.tabs.sendMessage(tabId, { type: 'PARSE_PAGE' });
+
+              if (!resolved && response && response.success) {
+                clearTimeout(timeoutId);
+                console.log(`OKAZ SW: ${response.results.length} résultats eBay via PARSE_PAGE`);
+                resolveWith(response.results);
+              }
+            } catch (e) {
+              console.log('OKAZ SW: PARSE_PAGE eBay échoué:', e.message);
+              if (!resolved && attempts < 8) {
+                setTimeout(() => checkAndParse(attempts + 1), 1500);
+              }
+            }
+          } else {
+            setTimeout(() => checkAndParse(attempts + 1), 400);
+          }
+        } catch (e) {
+          console.error('OKAZ SW: Erreur checkAndParse eBay', e);
+        }
+      };
+
+      setTimeout(() => checkAndParse(), 1500);
+
+    } catch (error) {
+      cleanup();
+      resolve([]);
+    }
+  });
+}
+
+function handleEbayResults(results, senderTabId) {
+  console.log('OKAZ SW: Traitement résultats eBay auto:', results?.length, 'from tab:', senderTabId);
+  searchResults.set('ebay', results || []);
+
+  if (senderTabId && pendingEbayResolvers.has(senderTabId)) {
+    const resolver = pendingEbayResolvers.get(senderTabId);
+    console.log('OKAZ SW: Résolution eBay pour tab', senderTabId);
+    resolver(results || []);
+  } else {
+    chrome.tabs.query({ url: '*://www.ebay.fr/*' }, (tabs) => {
+      tabs.forEach(tab => {
+        const resolver = pendingEbayResolvers.get(tab.id);
+        if (resolver) {
+          console.log('OKAZ SW: Résolution eBay fallback pour tab', tab.id);
+          resolver(results || []);
+        }
+      });
+    });
+  }
+}
+
+console.log('OKAZ Service Worker v0.5.0 chargé - LBC + Vinted + Back Market + Amazon + eBay');

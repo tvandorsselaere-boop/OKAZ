@@ -147,34 +147,112 @@ export function AdSlot({ network, size, keywords = [], className = "", fallback 
   );
 }
 
+// Bannière affiliée contextuelle (remplace le placeholder quand des keywords sont dispo)
+export function AffiliateBanner({
+  site,
+  keywords,
+  className = ""
+}: {
+  site: "amazon" | "ebay";
+  keywords: string;
+  className?: string;
+}) {
+  const tag = process.env.NEXT_PUBLIC_AMAZON_TAG || "";
+  const awinAffId = process.env.NEXT_PUBLIC_AWIN_AFFID || "";
+  const awinMidEbay = process.env.NEXT_PUBLIC_AWIN_MID_EBAY || "";
+  const encodedKw = encodeURIComponent(keywords);
+
+  const config = site === "amazon"
+    ? {
+        label: "Voir aussi sur Amazon",
+        sublabel: "Comparer les prix neufs",
+        color: "#FF9900",
+        bgColor: "rgba(255, 153, 0, 0.08)",
+        borderColor: "rgba(255, 153, 0, 0.2)",
+        href: `https://www.amazon.fr/s?k=${encodedKw}${tag ? `&tag=${tag}` : ""}`,
+      }
+    : {
+        label: "Voir aussi sur eBay",
+        sublabel: "Enchères et occasions",
+        color: "#E53238",
+        bgColor: "rgba(229, 50, 56, 0.08)",
+        borderColor: "rgba(229, 50, 56, 0.2)",
+        href: awinAffId && awinMidEbay
+          ? `https://www.awin1.com/cread.php?awinmid=${awinMidEbay}&awinaffid=${awinAffId}&ued=${encodeURIComponent(`https://www.ebay.fr/sch/i.html?_nkw=${encodedKw}`)}`
+          : `https://www.ebay.fr/sch/i.html?_nkw=${encodedKw}`,
+      };
+
+  return (
+    <a
+      href={config.href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`block rounded-2xl p-5 transition-all duration-200 hover:scale-[1.02] ${className}`}
+      style={{
+        background: config.bgColor,
+        border: `1px solid ${config.borderColor}`,
+      }}
+    >
+      <div className="flex items-center gap-3 mb-2">
+        <div
+          className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-xs"
+          style={{ background: config.color }}
+        >
+          {site === "amazon" ? "A" : "eB"}
+        </div>
+        <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+          {config.label}
+        </span>
+      </div>
+      <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+        {config.sublabel}
+      </p>
+      <p className="text-xs mt-2 font-medium" style={{ color: config.color }}>
+        &quot;{keywords}&quot;
+      </p>
+    </a>
+  );
+}
+
 // Placeholder pour le développement (sans régies configurées)
 export function AdPlaceholder({
   size,
   label = "Espace partenaire",
   sublabel,
+  keywords,
   className = ""
 }: {
   size: AdSize;
   label?: string;
   sublabel?: string;
+  keywords?: string;
   className?: string;
 }) {
   const dimensions = AD_SIZES[size];
 
+  // Si des keywords sont dispo, afficher des bannières affiliées au lieu du placeholder générique
+  if (keywords) {
+    return (
+      <div className={`flex flex-col gap-3 ${className}`} style={{ maxWidth: "100%" }}>
+        <AffiliateBanner site="amazon" keywords={keywords} />
+        <AffiliateBanner site="ebay" keywords={keywords} />
+      </div>
+    );
+  }
+
   return (
     <div
-      className={`flex items-center justify-center rounded-2xl bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 ${className}`}
+      className={`flex items-center justify-center rounded-2xl ${className}`}
       style={{
         minHeight: dimensions.height,
         maxWidth: "100%",
+        background: "var(--bg-secondary)",
+        border: "1px solid var(--separator)",
       }}
     >
       <div className="text-center p-4">
-        <div className="w-12 h-12 mx-auto mb-3 rounded-xl bg-white/5 flex items-center justify-center">
-          <span className="text-2xl">📢</span>
-        </div>
-        <p className="text-xs text-white/30 uppercase tracking-wide">{label}</p>
-        {sublabel && <p className="text-[10px] text-white/20 mt-1">{sublabel}</p>}
+        <p className="text-xs uppercase tracking-wide" style={{ color: "var(--text-tertiary)" }}>{label}</p>
+        {sublabel && <p className="text-[10px] mt-1" style={{ color: "var(--text-tertiary)" }}>{sublabel}</p>}
       </div>
     </div>
   );
@@ -193,8 +271,10 @@ export function SmartAdSlot({
     ? !!(process.env.NEXT_PUBLIC_MEDIANET_CID && process.env.NEXT_PUBLIC_MEDIANET_CRID)
     : !!(process.env.NEXT_PUBLIC_ADSENSE_CLIENT);
 
+  const keywordsStr = keywords.length > 0 ? keywords.join(" ") : undefined;
+
   if (!isConfigured) {
-    return <AdPlaceholder size={size} label={label} sublabel={sublabel} className={className} />;
+    return <AdPlaceholder size={size} label={label} sublabel={sublabel} keywords={keywordsStr} className={className} />;
   }
 
   return (
@@ -203,7 +283,7 @@ export function SmartAdSlot({
       size={size}
       keywords={keywords}
       className={className}
-      fallback={<AdPlaceholder size={size} label={label} sublabel={sublabel} className={className} />}
+      fallback={<AdPlaceholder size={size} label={label} sublabel={sublabel} keywords={keywordsStr} className={className} />}
     />
   );
 }

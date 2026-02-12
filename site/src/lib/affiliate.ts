@@ -16,14 +16,9 @@ export function wrapAffiliateLink(url: string): string {
       return wrapAwin(url, process.env.NEXT_PUBLIC_AWIN_MID_BACKMARKET);
     }
 
-    // Rakuten → Awin
-    if (hostname.includes('rakuten.')) {
-      return wrapAwin(url, process.env.NEXT_PUBLIC_AWIN_MID_RAKUTEN);
-    }
-
-    // Fnac → Awin
-    if (hostname.includes('fnac.')) {
-      return wrapAwin(url, process.env.NEXT_PUBLIC_AWIN_MID_FNAC);
+    // eBay → Awin
+    if (hostname.includes('ebay.')) {
+      return wrapAwin(url, process.env.NEXT_PUBLIC_AWIN_MID_EBAY);
     }
 
     // Amazon → Tag direct

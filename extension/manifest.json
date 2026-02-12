@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "OKAZ - Comparateur d'annonces",
   "version": "0.5.0",
-  "description": "Comparez LeBonCoin, Vinted, Back Market et Amazon en une recherche",
+  "description": "Comparez LeBonCoin, Vinted, Back Market, Amazon et eBay en une recherche",
   "author": "Facile-IA",
   "homepage_url": "https://okaz-ia.fr",
   "icons": {
@@ -20,7 +20,8 @@
     "https://www.leboncoin.fr/*",
     "https://www.vinted.fr/*",
     "https://www.backmarket.fr/*",
-    "https://www.amazon.fr/*"
+    "https://www.amazon.fr/*",
+    "https://www.ebay.fr/*"
   ],
   "externally_connectable": {
     "matches": [
@@ -55,6 +56,11 @@
     {
       "matches": ["https://www.amazon.fr/s*"],
       "js": ["src/content/amazon.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.ebay.fr/*"],
+      "js": ["src/content/ebay.js"],
       "run_at": "document_idle"
     }
   ]
