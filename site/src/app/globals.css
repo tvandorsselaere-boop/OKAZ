@@ -136,52 +136,57 @@ body {
 .glow-orb {
   position: fixed;
   border-radius: 50%;
-  filter: blur(100px);
   pointer-events: none;
   z-index: 0;
-  opacity: 1;
   animation: glow-drift 12s ease-in-out infinite;
 }
 
+/* Blue orb — top left */
 .glow-orb-1 {
-  width: 700px;
-  height: 700px;
-  background: radial-gradient(circle, rgba(0, 122, 255, 0.5) 0%, rgba(0, 122, 255, 0.15) 40%, transparent 70%);
-  top: -15%;
-  left: -10%;
+  width: 800px;
+  height: 800px;
+  background: radial-gradient(circle, rgba(0, 122, 255, 0.45) 0%, rgba(0, 122, 255, 0.2) 30%, rgba(0, 122, 255, 0.05) 55%, transparent 70%);
+  filter: blur(60px);
+  top: -20%;
+  left: -15%;
   animation-duration: 14s;
 }
 
+/* Violet orb — right */
 .glow-orb-2 {
-  width: 600px;
-  height: 600px;
-  background: radial-gradient(circle, rgba(88, 86, 214, 0.4) 0%, rgba(88, 86, 214, 0.1) 40%, transparent 70%);
-  top: 35%;
-  right: -12%;
+  width: 700px;
+  height: 700px;
+  background: radial-gradient(circle, rgba(88, 86, 214, 0.4) 0%, rgba(120, 80, 220, 0.18) 30%, rgba(88, 86, 214, 0.05) 55%, transparent 70%);
+  filter: blur(60px);
+  top: 30%;
+  right: -15%;
   animation-duration: 18s;
   animation-delay: -4s;
 }
 
+/* Indigo orb — bottom center (was green) */
 .glow-orb-3 {
-  width: 550px;
-  height: 550px;
-  background: radial-gradient(circle, rgba(52, 199, 89, 0.35) 0%, rgba(52, 199, 89, 0.1) 40%, transparent 70%);
-  bottom: -10%;
-  left: 25%;
+  width: 650px;
+  height: 650px;
+  background: radial-gradient(circle, rgba(50, 50, 200, 0.35) 0%, rgba(80, 60, 220, 0.15) 30%, rgba(50, 50, 200, 0.04) 55%, transparent 70%);
+  filter: blur(60px);
+  bottom: -15%;
+  left: 20%;
   animation-duration: 16s;
   animation-delay: -8s;
 }
 
+/* Dark mode — much brighter */
 .dark .glow-orb-1 {
-  background: radial-gradient(circle, rgba(10, 132, 255, 0.6) 0%, rgba(10, 132, 255, 0.2) 40%, transparent 70%);
+  background: radial-gradient(circle, rgba(10, 132, 255, 0.7) 0%, rgba(10, 132, 255, 0.35) 30%, rgba(10, 132, 255, 0.1) 55%, transparent 70%);
 }
 
 .dark .glow-orb-2 {
-  background: radial-gradient(circle, rgba(94, 92, 230, 0.5) 0%, rgba(94, 92, 230, 0.15) 40%, transparent 70%);
+  background: radial-gradient(circle, rgba(120, 80, 255, 0.6) 0%, rgba(100, 70, 240, 0.3) 30%, rgba(88, 86, 214, 0.08) 55%, transparent 70%);
 }
 
 .dark .glow-orb-3 {
-  background: radial-gradient(circle, rgba(48, 209, 88, 0.4) 0%, rgba(48, 209, 88, 0.12) 40%, transparent 70%);
+  background: radial-gradient(circle, rgba(60, 50, 230, 0.5) 0%, rgba(80, 60, 255, 0.25) 30%, rgba(50, 50, 200, 0.06) 55%, transparent 70%);
 }
 
 /* ========================================
