@@ -570,18 +570,18 @@ export async function analyzeResultsWithGemini(
     const genAI = getGeminiClient();
     const model = genAI.getGenerativeModel({
       model: GEMINI_MODEL,
-      generationConfig: { temperature: 0.2, thinkingConfig: { thinkingBudget: 0 } } as any,
+      generationConfig: { temperature: 0.2, maxOutputTokens: 16384 },
     });
 
     // v0.5.0 - Passer le contexte visuel au prompt + prix réels
     const prompt = buildAnalysisPrompt(results, searchQuery, visualContext, priceStats);
-    console.log('[Gemini] Envoi analyse (thinking désactivé)...');
+    console.log('[Gemini] Envoi analyse...');
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text();
 
-    console.log('[Gemini] Réponse analyse brute:', text.substring(0, 500));
+    console.log('[Gemini] Réponse analyse brute:', text.substring(0, 2000));
 
     return parseAnalysisResponse(text, results);
 

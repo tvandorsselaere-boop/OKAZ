@@ -1938,7 +1938,24 @@ export default function Home() {
       setSearchPhase('searching');
 
       // Étape 2: Envoyer les critères à l'extension
-      // Si géoloc activée, ajouter la position pour recherche locale LeBonCoin
+      // Si géoloc activée mais position null (cache expiré, refresh en cours), attendre max 3s
+      if (geolocEnabledRef.current && !positionRef.current) {
+        console.log('[OKAZ] 2b. Géoloc activée mais position null, attente refresh (max 3s)...');
+        await new Promise<void>((resolve) => {
+          const start = Date.now();
+          const interval = setInterval(() => {
+            if (positionRef.current || Date.now() - start > 3000) {
+              clearInterval(interval);
+              if (positionRef.current) {
+                console.log('[OKAZ] 2b. Position récupérée après', Date.now() - start, 'ms');
+              } else {
+                console.log('[OKAZ] 2b. Timeout 3s, recherche sans géoloc');
+              }
+              resolve();
+            }
+          }, 100);
+        });
+      }
       const userLoc = geolocEnabledRef.current && positionRef.current ? positionRef.current : undefined;
       const geoInfo = userLoc ? reverseGeocodeLocal(userLoc) : undefined;
       const searchCriteria = {
@@ -1989,8 +2006,8 @@ export default function Home() {
             console.log(`[OKAZ] 4b. Dédupliqué: ${dedupCount} doublons supprimés → ${uniqueResults.length} résultats uniques`);
           }
 
-          // Limiter à 30 résultats pour l'analyse Gemini (perf)
-          const MAX_ANALYZE = 30;
+          // Limiter à 50 résultats pour l'analyse Gemini (perf)
+          const MAX_ANALYZE = 50;
           const resultsForAnalysis = uniqueResults.slice(0, MAX_ANALYZE);
           if (uniqueResults.length > MAX_ANALYZE) {
             console.log(`[OKAZ] 4c. Cap à ${MAX_ANALYZE} résultats pour l'analyse Gemini (${uniqueResults.length} total)`);
@@ -2147,38 +2164,45 @@ export default function Home() {
               return { result: r, matchRatio, matchCount };
             });
 
-            // Filtrer : garder ceux qui matchent au moins 60% des termes (ou tous si aucun ne matche)
-            const relevant = scored.filter(s => s.matchRatio >= 0.6);
-            const candidates = relevant.length > 0 ? relevant : scored;
-
-            // Parmi les candidats pertinents, prendre le moins cher
-            candidates.sort((a, b) => {
-              // D'abord par pertinence décroissante, puis par prix croissant
-              if (a.matchRatio !== b.matchRatio) return b.matchRatio - a.matchRatio;
-              return a.result.price - b.result.price;
-            });
-            const cheapestNew = candidates[0].result;
-            console.log(`[OKAZ] 7. Prix neuf réel Amazon: ${cheapestNew.price}€ (match ${Math.round(candidates[0].matchRatio * 100)}%) — ${cheapestNew.title}`);
-
-            initialNewRec = {
-              productName: cheapestNew.title,
-              estimatedPrice: cheapestNew.price,
-              reason: `Prix réel constaté sur Amazon.fr — ${amazonNewWithPrice.length} offre${amazonNewWithPrice.length > 1 ? 's' : ''} neuve${amazonNewWithPrice.length > 1 ? 's' : ''} disponible${amazonNewWithPrice.length > 1 ? 's' : ''}`,
-              searchQuery: q,
-              amazonUrl: cheapestNew.url,
-              isRealPrice: true,
-            };
-
-            // Intégrer le prix neuf dans le briefing
-            if (displayBriefing) {
-              displayBriefing = {
-                ...displayBriefing,
-                newProductPrice: {
-                  price: cheapestNew.price,
-                  label: `${cheapestNew.title.substring(0, 50)} — ${cheapestNew.price}€ neuf`,
-                },
-              };
+            // Filtrer : garder ceux qui matchent au moins 75% des termes
+            const relevant = scored.filter(s => s.matchRatio >= 0.75);
+            // Si aucun résultat suffisamment pertinent, ne pas forcer un mauvais match → fallback Gemini
+            if (relevant.length === 0) {
+              console.log(`[OKAZ] 7. Aucun résultat Amazon ne matche >= 75% (meilleur: ${Math.round((scored[0]?.matchRatio || 0) * 100)}%), fallback Gemini`);
             }
+            const candidates = relevant;
+
+            if (candidates.length > 0) {
+              // Parmi les candidats pertinents, prendre le moins cher
+              candidates.sort((a, b) => {
+                // D'abord par pertinence décroissante, puis par prix croissant
+                if (a.matchRatio !== b.matchRatio) return b.matchRatio - a.matchRatio;
+                return a.result.price - b.result.price;
+              });
+              const cheapestNew = candidates[0].result;
+              console.log(`[OKAZ] 7. Prix neuf réel Amazon: ${cheapestNew.price}€ (match ${Math.round(candidates[0].matchRatio * 100)}%) — ${cheapestNew.title}`);
+
+              initialNewRec = {
+                productName: cheapestNew.title,
+                estimatedPrice: cheapestNew.price,
+                reason: `Prix réel constaté sur Amazon.fr — ${amazonNewWithPrice.length} offre${amazonNewWithPrice.length > 1 ? 's' : ''} neuve${amazonNewWithPrice.length > 1 ? 's' : ''} disponible${amazonNewWithPrice.length > 1 ? 's' : ''}`,
+                searchQuery: q,
+                amazonUrl: cheapestNew.url,
+                isRealPrice: true,
+              };
+
+              // Intégrer le prix neuf dans le briefing
+              if (displayBriefing) {
+                displayBriefing = {
+                  ...displayBriefing,
+                  newProductPrice: {
+                    price: cheapestNew.price,
+                    label: `${cheapestNew.title.substring(0, 50)} — ${cheapestNew.price}€ neuf`,
+                  },
+                };
+              }
+            }
+            // Si candidates vide, initialNewRec reste null → fallback Gemini ci-dessous
           }
 
           // FALLBACK GEMINI : si pas de données Amazon, attendre la recommandation AVANT affichage
