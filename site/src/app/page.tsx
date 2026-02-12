@@ -1406,6 +1406,19 @@ export default function Home() {
   const [currentVisualContext, setCurrentVisualContext] = useState<VisualContext | null>(null);
   const [clarificationData, setClarificationData] = useState<{ question: string; options?: string[]; originalQuery: string; history: Array<{ question: string; answer: string }> } | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+
+  // Theme toggle (doit être avant tout return conditionnel)
+  const [darkMode, setDarkMode] = useState(false);
+  useEffect(() => {
+    setDarkMode(document.documentElement.classList.contains('dark'));
+  }, []);
+  const toggleTheme = () => {
+    const newDark = !darkMode;
+    setDarkMode(newDark);
+    document.documentElement.classList.toggle('dark', newDark);
+    localStorage.setItem('theme', newDark ? 'dark' : 'light');
+  };
+
   // Hook géolocalisation (doit être avant les effets qui l'utilisent)
   const { position, permissionState, isLoading: geoLoading, requestPermission } = useGeolocation({ enableHighAccuracy: true });
 
@@ -2303,18 +2316,6 @@ export default function Home() {
   }
 
   // Show home/search screen
-  // Theme toggle
-  const [darkMode, setDarkMode] = useState(false);
-  useEffect(() => {
-    setDarkMode(document.documentElement.classList.contains('dark'));
-  }, []);
-  const toggleTheme = () => {
-    const newDark = !darkMode;
-    setDarkMode(newDark);
-    document.documentElement.classList.toggle('dark', newDark);
-    localStorage.setItem('theme', newDark ? 'dark' : 'light');
-  };
-
   return (
     <main className="min-h-screen bg-[var(--bg-primary)]">
       {/* Theme toggle */}
