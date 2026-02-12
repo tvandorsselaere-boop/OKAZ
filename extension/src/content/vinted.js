@@ -110,7 +110,7 @@
     console.log(`OKAZ VINTED: Parsing de ${itemElements.length} éléments (${selector})`);
 
     itemElements.forEach((item, index) => {
-      if (index >= 20) return; // Limiter à 20 résultats
+      if (index >= 10) return; // Limiter à 10 résultats
 
       try {
         let title = '';

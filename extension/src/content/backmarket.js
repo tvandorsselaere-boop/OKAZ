@@ -109,7 +109,7 @@
     console.log(`OKAZ BACKMARKET: Parsing de ${productElements.length} éléments (${selector})`);
 
     productElements.forEach((product, index) => {
-      if (index >= 20) return; // Limiter à 20 résultats
+      if (index >= 10) return; // Limiter à 10 résultats
 
       try {
         let title = '';
