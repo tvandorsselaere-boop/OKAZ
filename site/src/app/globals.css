@@ -1,40 +1,64 @@
 @import "tailwindcss";
 
+/* ========================================
+   APPLE DESIGN TOKENS
+   ======================================== */
+
 :root {
-  /* Primary - Indigo */
-  --primary: #6366f1;
-  --primary-dark: #4f46e5;
-  --primary-light: #818cf8;
+  /* Backgrounds */
+  --bg-primary: #FFFFFF;
+  --bg-secondary: #F5F5F7;
+  --bg-tertiary: #E8E8ED;
 
-  /* Accent - Violet */
-  --accent: #8b5cf6;
-  --accent-dark: #7c3aed;
-  --accent-light: #a78bfa;
+  /* Text */
+  --text-primary: #1D1D1F;
+  --text-secondary: #86868B;
+  --text-tertiary: #AEAEB2;
 
-  /* Glassmorphism */
-  --glass-bg: rgba(255, 255, 255, 0.05);
-  --glass-border: rgba(255, 255, 255, 0.1);
-  --glass-blur: 12px;
+  /* Accent - Apple Blue */
+  --accent: #007AFF;
+  --accent-hover: #0066D6;
 
-  /* Dark mode */
-  --bg-primary: #0a0a0f;
-  --bg-secondary: #12121a;
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
+  /* Separators */
+  --separator: rgba(0, 0, 0, 0.08);
 
-  /* Scores */
-  --score-high: #22c55e;
-  --score-medium: #eab308;
-  --score-low: #ef4444;
+  /* Cards */
+  --card-bg: #FFFFFF;
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --card-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06);
+
+  /* Scores - Apple semantic colors */
+  --score-high: #34C759;
+  --score-medium: #FF9500;
+  --score-low: #FF3B30;
+}
+
+.dark {
+  /* Backgrounds */
+  --bg-primary: #000000;
+  --bg-secondary: #1C1C1E;
+  --bg-tertiary: #2C2C2E;
+
+  /* Text */
+  --text-primary: #F5F5F7;
+  --text-secondary: #98989D;
+  --text-tertiary: #636366;
+
+  /* Accent */
+  --accent: #0A84FF;
+  --accent-hover: #409CFF;
+
+  /* Separators */
+  --separator: rgba(255, 255, 255, 0.1);
+
+  /* Cards */
+  --card-bg: #1C1C1E;
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+  --card-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 @theme inline {
-  --color-primary: var(--primary);
-  --color-primary-dark: var(--primary-dark);
-  --color-primary-light: var(--primary-light);
   --color-accent: var(--accent);
-  --color-glass-bg: var(--glass-bg);
-  --color-glass-border: var(--glass-border);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -45,63 +69,21 @@ body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
-/* Glassmorphism base */
-.glass {
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
+/* ========================================
+   UTILITY CLASSES
+   ======================================== */
+
+/* Card base */
+.card {
+  background: var(--card-bg);
+  border-radius: 1rem;
+  box-shadow: var(--card-shadow);
+  border: 1px solid var(--separator);
+  transition: box-shadow 0.2s ease;
 }
 
-/* Animations */
-@keyframes pulse-glow {
-  0%, 100% {
-    box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
-  }
-  50% {
-    box-shadow: 0 0 40px rgba(99, 102, 241, 0.6);
-  }
-}
-
-@keyframes float {
-  0%, 100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
-}
-
-@keyframes gradient-shift {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-@keyframes shimmer {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
-}
-
-.animate-pulse-glow {
-  animation: pulse-glow 3s ease-in-out infinite;
-}
-
-.animate-float {
-  animation: float 3s ease-in-out infinite;
-}
-
-.animate-gradient {
-  background-size: 200% 200%;
-  animation: gradient-shift 8s ease infinite;
-}
-
-/* Gradient text */
-.gradient-text {
-  background: linear-gradient(135deg, var(--primary-light), var(--accent));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+.card-hover:hover {
+  box-shadow: var(--card-shadow-hover);
 }
 
 /* Score badges */
@@ -110,267 +92,34 @@ body {
 .score-low { background: var(--score-low); }
 
 /* ========================================
-   BUTTON EFFECTS - Inspired by Linear/Vercel
+   BUTTONS
    ======================================== */
 
-/* Base button styles */
 .btn {
   position: relative;
   overflow: hidden;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Subtle glow on hover */
-.btn-glow:hover {
-  box-shadow:
-    0 0 20px rgba(99, 102, 241, 0.4),
-    0 0 40px rgba(99, 102, 241, 0.2);
-}
-
-/* Primary button with shine effect */
-.btn-primary {
-  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  position: relative;
-  overflow: hidden;
-}
-
-.btn-primary::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.2),
-    transparent
-  );
-  transition: left 0.5s ease;
-}
-
-.btn-primary:hover::before {
-  left: 100%;
-}
-
-.btn-primary:hover {
-  transform: translateY(-1px);
-  box-shadow:
-    0 4px 12px rgba(99, 102, 241, 0.4),
-    0 0 0 1px rgba(255, 255, 255, 0.1);
-}
-
-.btn-primary:active {
-  transform: translateY(0);
-}
-
-/* Secondary button (ghost) */
-.btn-secondary {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
   transition: all 0.2s ease;
 }
 
-.btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
-  transform: translateY(-1px);
-}
-
-/* Example tags hover effect */
+/* Tag hover effect */
 .tag-hover {
   transition: all 0.2s ease;
 }
 
 .tag-hover:hover {
-  background: rgba(99, 102, 241, 0.15);
-  border-color: rgba(99, 102, 241, 0.3);
-  color: var(--primary-light);
-  transform: translateY(-1px);
+  background: rgba(0, 122, 255, 0.1);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
-/* ========================================
-   ENHANCED GLASSMORPHISM
-   ======================================== */
-
-.glass-card {
-  backdrop-filter: blur(16px) saturate(180%);
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.08),
-    rgba(255, 255, 255, 0.02)
-  );
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
-}
-
-.glass-card-hover {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.glass-card-hover:hover {
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.12),
-    rgba(255, 255, 255, 0.04)
-  );
-  border-color: rgba(255, 255, 255, 0.2);
-  box-shadow:
-    0 12px 40px rgba(0, 0, 0, 0.4),
-    0 0 30px rgba(99, 102, 241, 0.15),
-    inset 0 1px 0 rgba(255, 255, 255, 0.15);
-  transform: translateY(-2px);
-}
-
-/* Input glass style */
-.input-glass {
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+/* Input style */
+.input-clean {
+  background: var(--bg-secondary);
+  border: 1px solid var(--separator);
   transition: all 0.2s ease;
 }
 
-.input-glass:focus {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: var(--primary);
-  box-shadow:
-    0 0 0 3px rgba(99, 102, 241, 0.2),
-    0 4px 12px rgba(0, 0, 0, 0.2);
-}
-
-/* ========================================
-   LOGO EFFECTS
-   ======================================== */
-
-.logo-text {
-  position: relative;
-  display: inline-block;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-}
-
-/* Logo avec dégradé animé (Facile-IA style) */
-.logo-gradient {
-  background: linear-gradient(
-    135deg,
-    var(--primary-light) 0%,
-    var(--primary) 25%,
-    var(--accent) 50%,
-    var(--primary-light) 75%,
-    var(--primary) 100%
-  );
-  background-size: 200% 200%;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  animation: gradient-shift 6s ease infinite;
-}
-
-/* Gradient shift animation */
-@keyframes gradient-shift {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-/* Logo glow pulsant */
-.logo-glow {
-  animation: pulse-glow 3s ease-in-out infinite;
-}
-
-@keyframes pulse-glow {
-  0%, 100% {
-    filter: drop-shadow(0 0 10px rgba(99, 102, 241, 0.4))
-            drop-shadow(0 0 25px rgba(99, 102, 241, 0.2));
-  }
-  50% {
-    filter: drop-shadow(0 0 20px rgba(99, 102, 241, 0.6))
-            drop-shadow(0 0 40px rgba(139, 92, 246, 0.4));
-  }
-}
-
-/* Logo icon container - Glass effect */
-.logo-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 56px;
-  height: 56px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow:
-    0 4px 24px rgba(99, 102, 241, 0.25),
-    0 0 40px rgba(99, 102, 241, 0.15),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  position: relative;
-  overflow: hidden;
-}
-
-.logo-icon::before {
-  content: '';
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: linear-gradient(
-    45deg,
-    transparent 40%,
-    rgba(255, 255, 255, 0.15) 50%,
-    transparent 60%
-  );
-  animation: logo-shine 3s ease-in-out infinite;
-}
-
-.logo-icon::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 16px;
-  padding: 1px;
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.5), rgba(139, 92, 246, 0.5));
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
-}
-
-/* Synchronisé avec logo-sweep: icône finit à 25%, lettres commencent à 20% */
-@keyframes logo-shine {
-  0% { transform: translateX(-100%) rotate(45deg); }
-  25%, 100% { transform: translateX(100%) rotate(45deg); }
-}
-
-/* ========================================
-   SEARCH BUTTON - Simple glass (PAS de position/backdrop qui casse le positionnement)
-   ======================================== */
-
-.search-btn {
-  background: rgba(99, 102, 241, 0.15);
-  border: 1px solid rgba(129, 140, 248, 0.4);
-  transition: all 0.3s ease;
-  box-shadow:
-    0 0 20px rgba(99, 102, 241, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
-}
-
-.search-btn:hover {
-  background: rgba(99, 102, 241, 0.25);
-  border-color: rgba(129, 140, 248, 0.7);
-  box-shadow:
-    0 0 30px rgba(99, 102, 241, 0.5),
-    0 0 15px rgba(139, 92, 246, 0.3);
-}
-
-.search-btn svg {
-  color: var(--primary-light);
+.input-clean:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
 }

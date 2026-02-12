@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Sparkles, Shield, Zap, ArrowLeft, ExternalLink, AlertTriangle, Settings, Check, Wand2, TrendingDown, Lightbulb, BadgeCheck, ShoppingBag, X, MapPin, Navigation, Camera, Link2, MessageCircle, Monitor, Smartphone, Mail, Copy, CheckCircle } from "lucide-react";
+import { Search, Sparkles, Shield, ArrowLeft, ExternalLink, AlertTriangle, Settings, Check, Wand2, TrendingDown, Lightbulb, BadgeCheck, ShoppingBag, X, MapPin, Navigation, Camera, MessageCircle, Monitor, Mail, Copy, CheckCircle, Sun, Moon, Award, Handshake, Target, Package, ListFilter, ChevronDown } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
-import { SpotlightCard } from "@/components/ui/spotlight-card";
+
 import { UpgradeModal, SearchCounter } from "@/components/ui/upgrade-modal";
 import { analyzeResults, sortResults, findBestScoreResult, findBestLocalResult } from "@/lib/scoring";
 import { wrapAffiliateLink } from "@/lib/affiliate";
@@ -137,9 +137,9 @@ interface AnalyzeResponse {
 
 function ScoreBadge({ score }: { score: number }) {
   const getColor = () => {
-    if (score >= 80) return "bg-green-500";
-    if (score >= 50) return "bg-yellow-500";
-    return "bg-red-500";
+    if (score >= 80) return "bg-[var(--score-high)]";
+    if (score >= 50) return "bg-[var(--score-medium)]";
+    return "bg-[var(--score-low)]";
   };
 
   return (
@@ -153,19 +153,17 @@ function ScoreBadge({ score }: { score: number }) {
 
 // Indicateur de confiance du match (Gemini)
 function ConfidenceIndicator({ confidence, matchDetails }: { confidence: number; matchDetails?: string }) {
-  // Couleur selon le niveau de confiance
   const getConfidenceStyle = () => {
-    if (confidence >= 90) return { bg: 'bg-green-500/10', text: 'text-green-400', icon: '✓' };
-    if (confidence >= 70) return { bg: 'bg-blue-500/10', text: 'text-blue-400', icon: '~' };
-    if (confidence >= 50) return { bg: 'bg-yellow-500/10', text: 'text-yellow-400', icon: '?' };
-    return { bg: 'bg-orange-500/10', text: 'text-orange-400', icon: '⚠' };
+    if (confidence >= 90) return { bg: 'bg-[var(--score-high)]/10', text: 'text-[var(--score-high)]', label: 'Excellent' };
+    if (confidence >= 70) return { bg: 'bg-[var(--accent)]/10', text: 'text-[var(--accent)]', label: 'Bon' };
+    if (confidence >= 50) return { bg: 'bg-[var(--score-medium)]/10', text: 'text-[var(--score-medium)]', label: 'Moyen' };
+    return { bg: 'bg-[var(--score-low)]/10', text: 'text-[var(--score-low)]', label: 'Faible' };
   };
 
   const style = getConfidenceStyle();
 
   return (
     <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] ${style.bg} ${style.text}`} title={matchDetails || `Confiance: ${confidence}%`}>
-      <span>{style.icon}</span>
       <span>{confidence}%</span>
     </div>
   );
@@ -173,41 +171,35 @@ function ConfidenceIndicator({ confidence, matchDetails }: { confidence: number;
 
 // Composant "LA recommandation" - Carte dorée unique
 function TopRecommendation({ result, topPick }: { result: AnalyzedResult; topPick: TopPick }) {
-  const confidenceColors = {
-    high: 'from-amber-500/20 to-yellow-500/20 border-amber-500/40',
-    medium: 'from-amber-500/15 to-yellow-500/15 border-amber-500/30',
-    low: 'from-amber-500/10 to-yellow-500/10 border-amber-500/20',
-  };
-
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20, scale: 0.95 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.4, ease: 'easeOut' }}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
       className="mb-6"
     >
       <a
         href={result.url}
         target="_blank"
         rel="noopener noreferrer"
-        className={`block p-5 rounded-2xl bg-gradient-to-br ${confidenceColors[topPick.confidence]} border-2 hover:scale-[1.02] transition-all duration-200 group relative overflow-hidden`}
+        className="block p-5 rounded-2xl bg-[var(--card-bg)] border-2 border-[var(--accent)]/30 shadow-[var(--card-shadow)] hover:shadow-[var(--card-shadow-hover)] transition-all duration-200 group relative overflow-hidden"
       >
         {/* Badge "Mon choix" */}
-        <div className="absolute top-0 right-0 bg-gradient-to-l from-amber-500 to-yellow-500 text-black text-xs font-bold px-4 py-1.5 rounded-bl-xl">
-          ✨ MON CHOIX
+        <div className="absolute top-0 right-0 bg-[var(--accent)] text-white text-xs font-bold px-4 py-1.5 rounded-bl-xl">
+          Mon choix
         </div>
 
         {/* Header avec headline */}
         <div className="flex items-center gap-2 mb-3">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-yellow-500 flex items-center justify-center">
-            <Sparkles className="w-4 h-4 text-black" />
+          <div className="w-8 h-8 rounded-full bg-[var(--accent)]/10 flex items-center justify-center">
+            <Award className="w-4 h-4 text-[var(--accent)]" />
           </div>
-          <span className="text-amber-400 font-semibold text-sm">{topPick.headline}</span>
+          <span className="text-[var(--accent)] font-semibold text-sm">{topPick.headline}</span>
         </div>
 
         {/* Contenu principal */}
         <div className="flex gap-4">
-          <div className="relative w-24 h-24 rounded-xl overflow-hidden flex-shrink-0 bg-white/5 ring-2 ring-amber-500/30">
+          <div className="relative w-24 h-24 rounded-xl overflow-hidden flex-shrink-0 bg-[var(--bg-secondary)] ring-2 ring-[var(--accent)]/20">
             {result.image ? (
               <img
                 src={result.image}
@@ -218,22 +210,22 @@ function TopRecommendation({ result, topPick }: { result: AnalyzedResult; topPic
                 }}
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-3xl">
-                📦
+              <div className="w-full h-full flex items-center justify-center">
+                <Package className="w-8 h-8 text-[var(--text-tertiary)]" />
               </div>
             )}
           </div>
 
           <div className="flex-1 min-w-0">
-            <h3 className="text-base font-semibold text-white line-clamp-2 group-hover:text-amber-300 transition-colors">
+            <h3 className="text-base font-semibold text-[var(--text-primary)] line-clamp-2 group-hover:text-[var(--accent)] transition-colors">
               {result.title}
             </h3>
             <div className="flex items-center gap-3 mt-2">
-              <span className="text-2xl font-bold text-white">
+              <span className="text-2xl font-bold text-[var(--text-primary)]">
                 {result.price > 0 ? `${result.price.toLocaleString('fr-FR')} €` : 'Prix non indiqué'}
               </span>
               {result.analysis.dealType === 'good' && (
-                <span className="px-2 py-1 text-xs font-bold bg-green-500/20 text-green-400 rounded-full">
+                <span className="px-2 py-1 text-xs font-bold bg-[var(--score-high)]/10 text-[var(--score-high)] rounded-full">
                   {result.analysis.badges.find(b => b.text.includes('%'))?.text || 'Bon prix'}
                 </span>
               )}
@@ -242,9 +234,9 @@ function TopRecommendation({ result, topPick }: { result: AnalyzedResult; topPic
         </div>
 
         {/* Raison de la recommandation */}
-        <div className="mt-4 p-3 rounded-xl bg-black/20 border border-white/5">
-          <p className="text-sm text-white/90 leading-relaxed">
-            "{topPick.reason}"
+        <div className="mt-4 p-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--separator)]">
+          <p className="text-sm text-[var(--text-primary)] leading-relaxed">
+            &ldquo;{topPick.reason}&rdquo;
           </p>
         </div>
 
@@ -254,7 +246,7 @@ function TopRecommendation({ result, topPick }: { result: AnalyzedResult; topPic
             {topPick.highlights.map((highlight, i) => (
               <span
                 key={i}
-                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs bg-amber-500/10 text-amber-300 rounded-full"
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs bg-[var(--accent)]/10 text-[var(--accent)] rounded-full"
               >
                 <Check className="w-3 h-3" />
                 {highlight}
@@ -264,8 +256,8 @@ function TopRecommendation({ result, topPick }: { result: AnalyzedResult; topPic
         )}
 
         {/* CTA */}
-        <div className="flex items-center justify-end mt-4 text-amber-400 text-sm font-medium group-hover:text-amber-300">
-          Voir l'annonce
+        <div className="flex items-center justify-end mt-4 text-[var(--accent)] text-sm font-medium">
+          Voir l&apos;annonce
           <ExternalLink className="w-4 h-4 ml-1 group-hover:translate-x-0.5 transition-transform" />
         </div>
       </a>
@@ -274,37 +266,23 @@ function TopRecommendation({ result, topPick }: { result: AnalyzedResult; topPic
 }
 
 function ResultCard({ result, index = 0, showLocalBadge = false }: { result: AnalyzedResult; index?: number; showLocalBadge?: boolean }) {
-  // Utiliser l'analyse Gemini si disponible, sinon fallback sur l'analyse locale
   const gemini = result.geminiAnalysis;
   const dealType = gemini?.dealType || result.analysis.dealType;
   const isLocal = (result as AnalyzedResult & { isLocal?: boolean }).isLocal;
 
   const dealClass = dealType === 'excellent' || dealType === 'good'
-    ? 'bg-green-500/10 text-green-400'
+    ? 'bg-[var(--score-high)]/10 text-[var(--score-high)]'
     : dealType === 'overpriced' || dealType === 'suspicious'
-    ? 'bg-red-500/10 text-red-400'
+    ? 'bg-[var(--score-low)]/10 text-[var(--score-low)]'
     : dealType === 'fair'
-    ? 'bg-yellow-500/10 text-yellow-400'
-    : 'bg-white/5 text-white/50';
-
-  const dealIcon = dealType === 'excellent' ? '🔥'
-    : dealType === 'good' ? '✓'
-    : dealType === 'suspicious' ? '⚠'
-    : dealType === 'overpriced' ? '📉'
-    : '•';
-
-  // Couleur spotlight selon le deal type
-  const spotlightColor = dealType === 'excellent' || dealType === 'good'
-    ? 'rgba(34, 197, 94, 0.12)'
-    : dealType === 'suspicious' || dealType === 'overpriced'
-    ? 'rgba(239, 68, 68, 0.12)'
-    : 'rgba(99, 102, 241, 0.12)';
+    ? 'bg-[var(--score-medium)]/10 text-[var(--score-medium)]'
+    : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)]';
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay: index * 0.05 }}
+      transition={{ duration: 0.2, delay: index * 0.03 }}
     >
       <a
         href={result.url}
@@ -312,24 +290,21 @@ function ResultCard({ result, index = 0, showLocalBadge = false }: { result: Ana
         rel="noopener noreferrer"
         className="block"
       >
-        <SpotlightCard
-          spotlightColor={spotlightColor}
-          className="p-4 group cursor-pointer hover:scale-[1.01] transition-transform duration-200"
-        >
+        <div className="p-4 rounded-2xl bg-[var(--card-bg)] border border-[var(--separator)] shadow-[var(--card-shadow)] hover:shadow-[var(--card-shadow-hover)] transition-shadow duration-200 group cursor-pointer">
           <div className="flex gap-4">
-            <div className="relative w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-white/5">
+            <div className="relative w-20 h-20 rounded-xl overflow-hidden flex-shrink-0 bg-[var(--bg-secondary)]">
               {result.image ? (
                 <img
                   src={result.image}
                   alt={result.title}
-                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  className="w-full h-full object-cover"
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = 'none';
                   }}
                 />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-2xl">
-                  📦
+                <div className="w-full h-full flex items-center justify-center">
+                  <Package className="w-6 h-6 text-[var(--text-tertiary)]" />
                 </div>
               )}
               <div
@@ -338,9 +313,8 @@ function ResultCard({ result, index = 0, showLocalBadge = false }: { result: Ana
               >
                 {result.site}
               </div>
-              {/* Badge "Près de vous" sur l'image */}
               {isLocal && showLocalBadge && (
-                <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-green-500/90 text-white text-[8px] font-bold rounded">
+                <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-[var(--score-high)] text-white text-[8px] font-bold rounded">
                   LOCAL
                 </div>
               )}
@@ -348,17 +322,16 @@ function ResultCard({ result, index = 0, showLocalBadge = false }: { result: Ana
 
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between gap-2">
-                <h3 className="text-sm font-medium text-white line-clamp-2 group-hover:text-[var(--primary-light)] transition-colors">
+                <h3 className="text-sm font-medium text-[var(--text-primary)] line-clamp-2 group-hover:text-[var(--accent)] transition-colors">
                   {result.title}
                 </h3>
-                <ExternalLink className="w-4 h-4 text-white/30 group-hover:text-[var(--primary)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all flex-shrink-0" />
+                <ExternalLink className="w-4 h-4 text-[var(--text-tertiary)] group-hover:text-[var(--accent)] transition-all flex-shrink-0" />
               </div>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
-                <span className="text-lg font-bold text-white">
+                <span className="text-lg font-bold text-[var(--text-primary)]">
                   {result.price > 0 ? `${result.price.toLocaleString('fr-FR')} €` : 'Prix non indiqué'}
                 </span>
                 <ScoreBadge score={result.score} />
-                {/* Indicateur de confiance Gemini */}
                 {gemini?.confidence !== undefined && (
                   <ConfidenceIndicator confidence={gemini.confidence} matchDetails={gemini.matchDetails} />
                 )}
@@ -366,44 +339,38 @@ function ResultCard({ result, index = 0, showLocalBadge = false }: { result: Ana
             </div>
           </div>
 
-          {/* Match details si confiance < 70% */}
           {gemini?.matchDetails && gemini.confidence !== undefined && gemini.confidence < 70 && (
-            <div className="mt-2 px-3 py-1.5 rounded-lg bg-orange-500/5 border border-orange-500/10 text-[11px] text-orange-300/80">
+            <div className="mt-2 px-3 py-1.5 rounded-lg bg-[var(--score-medium)]/5 border border-[var(--score-medium)]/10 text-[11px] text-[var(--score-medium)]">
               {gemini.matchDetails}
             </div>
           )}
 
-          {/* Explication Gemini ou texte local */}
           {(gemini?.explanation || result.analysis.dealText) && (
             <div className={`mt-3 px-3 py-2 rounded-lg text-xs flex items-center gap-2 ${dealClass}`}>
-              <span>{dealIcon}</span>
               <span>{gemini?.explanation || result.analysis.dealText}</span>
             </div>
           )}
 
-          {/* Badges : RedFlags Gemini + badges locaux */}
           {((gemini?.redFlags?.length ?? 0) > 0 || result.analysis.badges.length > 0) && (
             <div className="flex flex-wrap gap-1.5 mt-2">
-              {/* Red flags de Gemini */}
               {gemini?.redFlags?.map((flag, i) => (
                 <span
                   key={`rf-${i}`}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full bg-red-500/15 text-red-400"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full bg-[var(--score-low)]/10 text-[var(--score-low)]"
                 >
                   <Shield className="w-3 h-3" />
                   {flag}
                 </span>
               ))}
-              {/* Badges locaux */}
               {result.analysis.badges.map((badge, i) => (
                 <span
                   key={`b-${i}`}
                   className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full ${
                     badge.type === 'positive'
-                      ? 'bg-green-500/15 text-green-400'
+                      ? 'bg-[var(--score-high)]/10 text-[var(--score-high)]'
                       : badge.type === 'warning'
-                      ? 'bg-yellow-500/15 text-yellow-400'
-                      : 'bg-red-500/15 text-red-400'
+                      ? 'bg-[var(--score-medium)]/10 text-[var(--score-medium)]'
+                      : 'bg-[var(--score-low)]/10 text-[var(--score-low)]'
                   }`}
                 >
                   {badge.type === 'danger' && <Shield className="w-3 h-3" />}
@@ -412,7 +379,7 @@ function ResultCard({ result, index = 0, showLocalBadge = false }: { result: Ana
               ))}
             </div>
           )}
-        </SpotlightCard>
+        </div>
       </a>
     </motion.div>
   );
@@ -436,45 +403,40 @@ function TopChoiceCard({
   const gemini = result.geminiAnalysis;
   const dealType = gemini?.dealType || result.analysis.dealType;
 
-  // Couleur selon le type
-  const bgGradient = type === 'score'
-    ? 'from-amber-500/15 to-yellow-500/15 border-amber-500/30 hover:border-amber-500/50'
-    : 'from-emerald-500/15 to-teal-500/15 border-emerald-500/30 hover:border-emerald-500/50';
-
-  const accentColor = type === 'score' ? 'amber' : 'emerald';
-  const icon = type === 'score' ? '🏆' : '🤝';
+  const borderColor = type === 'score' ? 'border-[var(--accent)]/30 hover:border-[var(--accent)]/50' : 'border-[var(--score-high)]/30 hover:border-[var(--score-high)]/50';
+  const accentText = type === 'score' ? 'text-[var(--accent)]' : 'text-[var(--score-high)]';
   const label = type === 'score' ? 'MEILLEUR SCORE' : 'MEILLEUR LOCAL';
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay: type === 'score' ? 0 : 0.1 }}
+      transition={{ duration: 0.2, delay: type === 'score' ? 0 : 0.1 }}
     >
       <a
         href={result.url}
         target="_blank"
         rel="noopener noreferrer"
-        className={`block p-4 rounded-xl bg-gradient-to-br ${bgGradient} border-2 hover:scale-[1.02] transition-all group h-full`}
+        className={`block p-4 rounded-2xl bg-[var(--card-bg)] border-2 ${borderColor} shadow-[var(--card-shadow)] hover:shadow-[var(--card-shadow-hover)] transition-all group h-full`}
       >
-        {/* Badge */}
-        <div className={`flex items-center gap-2 mb-3 text-${accentColor}-400`}>
-          <span className="text-lg">{icon}</span>
+        <div className={`flex items-center gap-2 mb-3 ${accentText}`}>
+          {type === 'score' ? <Award className="w-4 h-4" /> : <Handshake className="w-4 h-4" />}
           <span className="text-xs font-bold tracking-wide">{label}</span>
         </div>
 
-        {/* Image + Contenu */}
         <div className="flex gap-3">
-          <div className="relative w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-white/5">
+          <div className="relative w-20 h-20 rounded-xl overflow-hidden flex-shrink-0 bg-[var(--bg-secondary)]">
             {result.image ? (
               <img
                 src={result.image}
                 alt={result.title}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                className="w-full h-full object-cover"
                 onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-2xl">📦</div>
+              <div className="w-full h-full flex items-center justify-center">
+                <Package className="w-6 h-6 text-[var(--text-tertiary)]" />
+              </div>
             )}
             <div
               className="absolute bottom-0 left-0 right-0 py-0.5 text-[9px] text-white text-center font-medium"
@@ -485,44 +447,40 @@ function TopChoiceCard({
           </div>
 
           <div className="flex-1 min-w-0">
-            <h4 className={`text-sm font-medium text-white line-clamp-2 group-hover:text-${accentColor}-300 transition-colors`}>
+            <h4 className="text-sm font-medium text-[var(--text-primary)] line-clamp-2 group-hover:text-[var(--accent)] transition-colors">
               {result.title}
             </h4>
             <div className="flex items-center gap-2 mt-1.5">
-              <span className="text-xl font-bold text-white">
+              <span className="text-xl font-bold text-[var(--text-primary)]">
                 {result.price > 0 ? `${result.price.toLocaleString('fr-FR')} €` : 'Prix ?'}
               </span>
-              <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-${accentColor}-500/20 text-${accentColor}-400`}>
-                {result.score}%
-              </span>
+              <ScoreBadge score={result.score} />
             </div>
 
-            {/* Info contextuelle selon le type */}
-            <div className={`flex items-center gap-1.5 mt-1.5 text-[11px] text-${accentColor}-400/80`}>
+            <div className={`flex items-center gap-1.5 mt-1.5 text-[11px] ${accentText}`}>
               {type === 'score' ? (
                 <>
                   {dealType === 'excellent' && <><TrendingDown className="w-3 h-3" />Excellente affaire</>}
                   {dealType === 'good' && <><TrendingDown className="w-3 h-3" />Bon prix</>}
                   {dealType === 'fair' && <>Prix correct</>}
-                  {!['excellent', 'good', 'fair'].includes(dealType || '') && <>Score élevé</>}
+                  {!['excellent', 'good', 'fair'].includes(dealType || '') && <>Score eleve</>}
                 </>
               ) : (
                 <>
                   <MapPin className="w-3 h-3" />
                   {distance !== null && distance !== undefined
                     ? formatDistance(distance)
-                    : result.location || 'Localisation non précisée'}
+                    : result.location || 'Localisation non precisee'}
                 </>
               )}
             </div>
           </div>
         </div>
 
-        {/* Red flags si présents */}
         {gemini?.redFlags && gemini.redFlags.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-2">
             {gemini.redFlags.slice(0, 2).map((flag, i) => (
-              <span key={i} className="px-1.5 py-0.5 text-[9px] bg-red-500/15 text-red-400 rounded">
+              <span key={i} className="px-1.5 py-0.5 text-[9px] bg-[var(--score-low)]/10 text-[var(--score-low)] rounded">
                 {flag}
               </span>
             ))}
@@ -583,16 +541,15 @@ function SortBar({
   }
 
   return (
-    <div className="flex items-center gap-2 text-xs">
-      <span className="text-white/40">Tri:</span>
+    <div className="flex items-center gap-1 text-xs bg-[var(--bg-secondary)] rounded-full p-0.5">
       {options.map(opt => (
         <button
           key={opt.value}
           onClick={() => onSortChange(opt.value)}
-          className={`px-2.5 py-1 rounded-lg transition-all ${
+          className={`px-3 py-1.5 rounded-full transition-all ${
             currentSort === opt.value
-              ? 'bg-[var(--primary)]/20 text-[var(--primary)] border border-[var(--primary)]/30'
-              : 'bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/70 border border-transparent'
+              ? 'bg-[var(--card-bg)] text-[var(--text-primary)] shadow-sm font-medium'
+              : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
           }`}
         >
           {opt.label}
@@ -651,22 +608,20 @@ function MoreResultsSection({
       {/* Header cliquable */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/8 transition-colors"
+        className="w-full flex items-center justify-between p-3 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--separator)] hover:bg-[var(--bg-tertiary)] transition-colors"
       >
         <div className="flex items-center gap-2">
-          <span className="text-lg">📋</span>
-          <span className="text-sm font-medium text-white/80">
-            Plus de résultats
+          <ListFilter className="w-4 h-4 text-[var(--text-secondary)]" />
+          <span className="text-sm font-medium text-[var(--text-primary)]">
+            Plus de resultats
           </span>
-          <span className="text-xs text-white/40">({otherResults.length})</span>
+          <span className="text-xs text-[var(--text-tertiary)]">({otherResults.length})</span>
         </div>
         <motion.div
           animate={{ rotate: isExpanded ? 180 : 0 }}
           transition={{ duration: 0.2 }}
         >
-          <svg className="w-5 h-5 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
+          <ChevronDown className="w-5 h-5 text-[var(--text-tertiary)]" />
         </motion.div>
       </button>
 
@@ -750,17 +705,17 @@ function HandDeliverySection({ results, userLocation }: { results: AnalyzedResul
       className="space-y-4"
     >
       <div className="flex items-center gap-2">
-        <span className="text-lg">🤝</span>
-        <h3 className="text-sm font-semibold text-white/70 uppercase tracking-wide">
+        <Handshake className="w-4 h-4 text-[var(--text-secondary)]" />
+        <h3 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wide">
           Main propre
-          <span className="text-white/30 font-normal ml-2">({results.length})</span>
+          <span className="text-[var(--text-tertiary)] font-normal ml-2">({results.length})</span>
         </h3>
       </div>
 
       {/* Meilleur deal main propre - Carte mise en avant */}
       {bestDeal && (
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
         >
@@ -768,24 +723,26 @@ function HandDeliverySection({ results, userLocation }: { results: AnalyzedResul
             href={bestDeal.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="block p-4 rounded-xl bg-gradient-to-br from-emerald-500/10 to-teal-500/10 border-2 border-emerald-500/30 hover:border-emerald-500/50 hover:scale-[1.01] transition-all group relative overflow-hidden"
+            className="block p-4 rounded-2xl bg-[var(--card-bg)] border-2 border-[var(--score-high)]/30 hover:border-[var(--score-high)]/50 shadow-[var(--card-shadow)] hover:shadow-[var(--card-shadow-hover)] transition-all group relative overflow-hidden"
           >
             {/* Badge "Meilleur deal" */}
-            <div className="absolute top-0 right-0 bg-gradient-to-l from-emerald-500 to-teal-500 text-white text-[10px] font-bold px-3 py-1 rounded-bl-lg">
-              🎯 MEILLEUR DEAL
+            <div className="absolute top-0 right-0 bg-[var(--score-high)] text-white text-[10px] font-bold px-3 py-1 rounded-bl-lg">
+              <span className="flex items-center gap-1"><Target className="w-3 h-3" /> MEILLEUR DEAL</span>
             </div>
 
             <div className="flex gap-4">
-              <div className="relative w-24 h-24 rounded-xl overflow-hidden flex-shrink-0 bg-white/5 ring-2 ring-emerald-500/30">
+              <div className="relative w-24 h-24 rounded-xl overflow-hidden flex-shrink-0 bg-[var(--bg-secondary)] ring-2 ring-[var(--score-high)]/20">
                 {bestDeal.image ? (
                   <img
                     src={bestDeal.image}
                     alt={bestDeal.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                    className="w-full h-full object-cover"
                     onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-3xl">📦</div>
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Package className="w-8 h-8 text-[var(--text-tertiary)]" />
+                  </div>
                 )}
                 <div
                   className="absolute bottom-0 left-0 right-0 py-0.5 text-[10px] text-white text-center font-medium"
@@ -796,18 +753,18 @@ function HandDeliverySection({ results, userLocation }: { results: AnalyzedResul
               </div>
 
               <div className="flex-1 min-w-0 pt-2">
-                <h4 className="text-base font-semibold text-white line-clamp-2 group-hover:text-emerald-300 transition-colors">
+                <h4 className="text-base font-semibold text-[var(--text-primary)] line-clamp-2 group-hover:text-[var(--accent)] transition-colors">
                   {bestDeal.title}
                 </h4>
                 <div className="flex items-center gap-3 mt-2">
-                  <span className="text-2xl font-bold text-white">
+                  <span className="text-2xl font-bold text-[var(--text-primary)]">
                     {bestDeal.price > 0 ? `${bestDeal.price.toLocaleString('fr-FR')} €` : 'Prix sur demande'}
                   </span>
                   <ScoreBadge score={bestDeal.score} />
                 </div>
 
                 {/* Infos localisation */}
-                <div className="flex items-center gap-2 mt-2 text-xs text-emerald-400">
+                <div className="flex items-center gap-2 mt-2 text-xs text-[var(--score-high)]">
                   <MapPin className="w-3 h-3" />
                   {bestDeal.distance !== null ? (
                     <span>{formatDistance(bestDeal.distance)} de vous</span>
@@ -819,7 +776,7 @@ function HandDeliverySection({ results, userLocation }: { results: AnalyzedResul
                 </div>
               </div>
 
-              <ExternalLink className="w-5 h-5 text-emerald-400/50 group-hover:text-emerald-400 transition-colors flex-shrink-0 mt-2" />
+              <ExternalLink className="w-5 h-5 text-[var(--text-tertiary)] group-hover:text-[var(--accent)] transition-colors flex-shrink-0 mt-2" />
             </div>
           </a>
         </motion.div>
@@ -831,33 +788,20 @@ function HandDeliverySection({ results, userLocation }: { results: AnalyzedResul
           {otherResults.map((result, index) => (
             <div key={result.id} className="relative">
               <ResultCard result={result} index={index} />
-              {/* Badge distance si géoloc active */}
               {userLocation && result.distance !== null && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.1 + index * 0.05 }}
-                  className="absolute top-4 right-4 px-2 py-1 bg-blue-500/20 backdrop-blur-sm text-blue-400 text-[10px] rounded-full flex items-center gap-1 border border-blue-500/30"
-                >
+                <div className="absolute top-4 right-4 px-2 py-1 bg-[var(--accent)]/10 text-[var(--accent)] text-[10px] rounded-full flex items-center gap-1 border border-[var(--accent)]/20">
                   <MapPin className="w-3 h-3" />
                   {formatDistance(result.distance)}
-                </motion.div>
+                </div>
               )}
-              {/* Badge "Près de vous" pour résultats locaux */}
               {(result as AnalyzedResult & { isLocal?: boolean }).isLocal && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.1 + index * 0.05 }}
-                  className="absolute top-4 left-4 px-2 py-1 bg-green-500/20 backdrop-blur-sm text-green-400 text-[10px] rounded-full flex items-center gap-1 border border-green-500/30"
-                >
+                <div className="absolute top-4 left-4 px-2 py-1 bg-[var(--score-high)]/10 text-[var(--score-high)] text-[10px] rounded-full flex items-center gap-1 border border-[var(--score-high)]/20">
                   <Navigation className="w-3 h-3" />
-                  Près de vous
-                </motion.div>
+                  Pres de vous
+                </div>
               )}
-              {/* Afficher la ville si pas de géoloc */}
               {!userLocation && result.location && (
-                <div className="absolute top-4 right-4 px-2 py-1 bg-white/10 backdrop-blur-sm text-white/50 text-[10px] rounded-full border border-white/10">
+                <div className="absolute top-4 right-4 px-2 py-1 bg-[var(--bg-secondary)] text-[var(--text-secondary)] text-[10px] rounded-full border border-[var(--separator)]">
                   {result.location}
                 </div>
               )}
@@ -896,75 +840,70 @@ function SearchResults({ data, onBack }: { data: { query: string; categorized: C
       {/* Résultats - pleine largeur */}
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <motion.button
+          <button
             onClick={onBack}
-            whileHover={{ x: -2 }}
-            whileTap={{ scale: 0.95 }}
-            className="flex items-center gap-2 text-white/60 hover:text-white transition-colors btn-secondary px-3 py-1.5 rounded-lg"
+            className="flex items-center gap-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors px-3 py-1.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--separator)]"
           >
             <ArrowLeft className="w-4 h-4" />
             Retour
-          </motion.button>
+          </button>
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--primary)] to-[var(--accent)] flex items-center justify-center shadow-lg">
-              <Search className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-xl font-bold logo-gradient">OKAZ</span>
+            <span className="text-xl font-bold tracking-tight text-[var(--text-primary)]">OKAZ</span>
           </div>
         </div>
 
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="glass-card p-4 rounded-xl space-y-2"
+          className="p-4 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--separator)] space-y-2"
         >
           <div>
-            <div className="text-sm text-white/50">Recherche :</div>
-            <div className="text-white font-medium">{query}</div>
+            <div className="text-sm text-[var(--text-secondary)]">Recherche :</div>
+            <div className="text-[var(--text-primary)] font-medium">{query}</div>
           </div>
 
           {wasOptimized && criteria && (
-            <div className="pt-2 border-t border-white/10">
-              <div className="flex items-center gap-2 text-xs text-[var(--primary)]">
+            <div className="pt-2 border-t border-[var(--separator)]">
+              <div className="flex items-center gap-2 text-xs text-[var(--accent)]">
                 <Wand2 className="w-3 h-3" />
                 Optimise par IA
               </div>
               <div className="flex flex-wrap gap-2 mt-1">
-                <span className="text-xs bg-white/10 px-2 py-0.5 rounded text-white/70">
+                <span className="text-xs bg-[var(--bg-tertiary)] px-2 py-0.5 rounded text-[var(--text-secondary)]">
                   {criteria.keywords}
                 </span>
                 {criteria.priceMax && (
-                  <span className="text-xs bg-green-500/10 px-2 py-0.5 rounded text-green-400">
+                  <span className="text-xs bg-[var(--score-high)]/10 px-2 py-0.5 rounded text-[var(--score-high)]">
                     Max {criteria.priceMax}€
                   </span>
                 )}
                 {criteria.priceMin && (
-                  <span className="text-xs bg-blue-500/10 px-2 py-0.5 rounded text-blue-400">
+                  <span className="text-xs bg-[var(--accent)]/10 px-2 py-0.5 rounded text-[var(--accent)]">
                     Min {criteria.priceMin}€
                   </span>
                 )}
                 {criteria.shippable && (
-                  <span className="text-xs bg-purple-500/10 px-2 py-0.5 rounded text-purple-400">
+                  <span className="text-xs bg-[var(--accent)]/10 px-2 py-0.5 rounded text-[var(--accent)]">
                     Livrable
                   </span>
                 )}
                 {criteria.ownerType === 'private' && (
-                  <span className="text-xs bg-yellow-500/10 px-2 py-0.5 rounded text-yellow-400">
+                  <span className="text-xs bg-[var(--score-medium)]/10 px-2 py-0.5 rounded text-[var(--score-medium)]">
                     Particulier
                   </span>
                 )}
                 {criteria.category && (
-                  <span className="text-xs bg-indigo-500/10 px-2 py-0.5 rounded text-indigo-400">
+                  <span className="text-xs bg-[var(--accent)]/10 px-2 py-0.5 rounded text-[var(--accent)]">
                     {criteria.category}
                   </span>
                 )}
               </div>
               {criteria.sites && criteria.sites.length < 3 && (
-                <div className="flex items-center gap-1 mt-2 text-[10px] text-white/40">
+                <div className="flex items-center gap-1 mt-2 text-[10px] text-[var(--text-tertiary)]">
                   <span>Sites:</span>
                   {criteria.sites.map(site => (
-                    <span key={site} className="px-1.5 py-0.5 bg-white/5 rounded">
+                    <span key={site} className="px-1.5 py-0.5 bg-[var(--bg-tertiary)] rounded">
                       {site === 'leboncoin' ? 'LBC' : site === 'vinted' ? 'Vinted' : 'BackMarket'}
                     </span>
                   ))}
@@ -973,8 +912,8 @@ function SearchResults({ data, onBack }: { data: { query: string; categorized: C
             </div>
           )}
 
-          <div className="text-xs text-white/40">
-            {totalResults} résultat{totalResults > 1 ? 's' : ''} en {(duration / 1000).toFixed(1)}s
+          <div className="text-xs text-[var(--text-tertiary)]">
+            {totalResults} resultat{totalResults > 1 ? 's' : ''} en {(duration / 1000).toFixed(1)}s
           </div>
         </motion.div>
 
@@ -987,26 +926,26 @@ function SearchResults({ data, onBack }: { data: { query: string; categorized: C
             className="flex flex-wrap gap-2"
           >
             {briefing.newProductPrice && (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                <ShoppingBag className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="text-xs text-emerald-400 font-medium">Neuf : {briefing.newProductPrice.label}</span>
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--score-high)]/10 border border-[var(--score-high)]/20">
+                <ShoppingBag className="w-3.5 h-3.5 text-[var(--score-high)]" />
+                <span className="text-xs text-[var(--score-high)] font-medium">Neuf : {briefing.newProductPrice.label}</span>
               </div>
             )}
             {briefing.marketPriceRange && (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                <TrendingDown className="w-3.5 h-3.5 text-blue-400" />
-                <span className="text-xs text-blue-400 font-medium">
-                  Occasion : médiane {briefing.marketPriceRange.median}€
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--accent)]/10 border border-[var(--accent)]/20">
+                <TrendingDown className="w-3.5 h-3.5 text-[var(--accent)]" />
+                <span className="text-xs text-[var(--accent)] font-medium">
+                  Occasion : mediane {briefing.marketPriceRange.median}€
                   {briefing.marketPriceRange.count && (
-                    <span className="text-blue-400/50 ml-1">({briefing.marketPriceRange.count} annonces)</span>
+                    <span className="text-[var(--accent)]/50 ml-1">({briefing.marketPriceRange.count} annonces)</span>
                   )}
                 </span>
               </div>
             )}
             {briefing.warningPrice > 0 && (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20">
-                <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
-                <span className="text-xs text-red-400 font-medium">{briefing.warningText}</span>
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--score-low)]/10 border border-[var(--score-low)]/20">
+                <AlertTriangle className="w-3.5 h-3.5 text-[var(--score-low)]" />
+                <span className="text-xs text-[var(--score-low)] font-medium">{briefing.warningText}</span>
               </div>
             )}
           </motion.div>
@@ -1014,8 +953,8 @@ function SearchResults({ data, onBack }: { data: { query: string; categorized: C
 
         {totalResults === 0 && (
           <div className="text-center py-12">
-            <div className="text-4xl mb-4">😕</div>
-            <p className="text-white/60">Aucun resultat trouve pour cette recherche</p>
+            <Search className="w-10 h-10 text-[var(--text-tertiary)] mx-auto mb-4" />
+            <p className="text-[var(--text-secondary)]">Aucun resultat trouve pour cette recherche</p>
           </div>
         )}
 
@@ -1049,7 +988,7 @@ function SearchResults({ data, onBack }: { data: { query: string; categorized: C
 
         {/* Mention légale affiliation */}
         {totalResults > 0 && (
-          <p className="mt-8 text-center text-[11px] text-white/30 leading-relaxed px-4">
+          <p className="mt-8 text-center text-[11px] text-[var(--text-tertiary)] leading-relaxed px-4">
             Certains liens sont affiliés : si vous achetez via ces liens, OKAZ touche
             une petite commission qui aide à couvrir les frais du service.
             L&apos;affiliation n&apos;affecte en rien le classement et le scoring des résultats.
@@ -1113,19 +1052,19 @@ function LoadingBriefing({ briefing, searchPhase }: { briefing: SearchBriefing |
       {/* Carte 1: Prix neuf */}
       {visibleCards >= 1 && briefing.newProductPrice && (
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="p-3 rounded-lg bg-gradient-to-r from-emerald-500/10 to-green-500/10 border border-emerald-500/20"
+          className="p-3 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--separator)]"
         >
           <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
-              <ShoppingBag className="w-4 h-4 text-emerald-400" />
+            <div className="w-8 h-8 rounded-full bg-[var(--score-high)]/10 flex items-center justify-center flex-shrink-0">
+              <ShoppingBag className="w-4 h-4 text-[var(--score-high)]" />
             </div>
             <div className="flex-1">
-              <p className="text-sm font-medium text-emerald-400">Prix neuf</p>
-              <p className="text-white font-semibold">{briefing.newProductPrice.label}</p>
+              <p className="text-sm font-medium text-[var(--score-high)]">Prix neuf</p>
+              <p className="text-[var(--text-primary)] font-semibold">{briefing.newProductPrice.label}</p>
               {briefing.warningText && (
-                <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
+                <p className="text-xs text-[var(--score-low)] mt-1 flex items-center gap-1">
                   <AlertTriangle className="w-3 h-3" />
                   {briefing.warningText}
                 </p>
@@ -1138,20 +1077,20 @@ function LoadingBriefing({ briefing, searchPhase }: { briefing: SearchBriefing |
       {/* Carte 2: Tips contextuels */}
       {visibleCards >= 2 && briefing.tips.length > 0 && (
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="p-3 rounded-lg bg-gradient-to-r from-amber-500/10 to-yellow-500/10 border border-amber-500/20"
+          className="p-3 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--separator)]"
         >
           <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center flex-shrink-0">
-              <Lightbulb className="w-4 h-4 text-amber-400" />
+            <div className="w-8 h-8 rounded-full bg-[var(--score-medium)]/10 flex items-center justify-center flex-shrink-0">
+              <Lightbulb className="w-4 h-4 text-[var(--score-medium)]" />
             </div>
             <div className="flex-1">
-              <p className="text-sm font-medium text-amber-400">Conseil</p>
+              <p className="text-sm font-medium text-[var(--score-medium)]">Conseil</p>
               <ul className="mt-1 space-y-1">
                 {briefing.tips.map((tip, i) => (
-                  <li key={i} className="text-xs text-white/80 flex items-start gap-2">
-                    <span className="text-amber-400">•</span>
+                  <li key={i} className="text-xs text-[var(--text-primary)] flex items-start gap-2">
+                    <span className="text-[var(--score-medium)]">·</span>
                     {tip}
                   </li>
                 ))}
@@ -1161,24 +1100,24 @@ function LoadingBriefing({ briefing, searchPhase }: { briefing: SearchBriefing |
         </motion.div>
       )}
 
-      {/* Carte 3: Prix du marché occasion (basé sur résultats réels) */}
+      {/* Carte 3: Prix du marché occasion */}
       {visibleCards >= 3 && briefing.marketPriceRange && (
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="p-3 rounded-lg bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border border-blue-500/20"
+          className="p-3 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--separator)]"
         >
           <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-              <TrendingDown className="w-4 h-4 text-blue-400" />
+            <div className="w-8 h-8 rounded-full bg-[var(--accent)]/10 flex items-center justify-center flex-shrink-0">
+              <TrendingDown className="w-4 h-4 text-[var(--accent)]" />
             </div>
             <div className="flex-1">
-              <p className="text-sm font-medium text-blue-400">Prix du marché occasion</p>
-              <p className="text-white font-semibold">{briefing.marketPriceRange.label}</p>
+              <p className="text-sm font-medium text-[var(--accent)]">Prix du marche occasion</p>
+              <p className="text-[var(--text-primary)] font-semibold">{briefing.marketPriceRange.label}</p>
               {briefing.marketPriceRange.count && (
-                <p className="text-xs text-blue-400/60 mt-1 flex items-center gap-1">
+                <p className="text-xs text-[var(--accent)]/60 mt-1 flex items-center gap-1">
                   <BadgeCheck className="w-3 h-3" />
-                  Basé sur {briefing.marketPriceRange.count} annonces réelles
+                  Base sur {briefing.marketPriceRange.count} annonces reelles
                 </p>
               )}
             </div>
@@ -1233,46 +1172,46 @@ function ExtensionSetup({ onSave }: { onSave: (id: string) => void }) {
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-[var(--primary)]/20 flex items-center justify-center">
-          <Settings className="w-8 h-8 text-[var(--primary)]" />
+        <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-[var(--accent)]/10 flex items-center justify-center">
+          <Settings className="w-8 h-8 text-[var(--accent)]" />
         </div>
-        <h2 className="text-xl font-bold text-white mb-2">Configuration requise</h2>
-        <p className="text-sm text-white/60">
-          Connectez l'extension Chrome pour utiliser OKAZ
+        <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">Configuration requise</h2>
+        <p className="text-sm text-[var(--text-secondary)]">
+          Connectez l&apos;extension Chrome pour utiliser OKAZ
         </p>
       </div>
 
       <div className="space-y-4">
         <div>
-          <label className="block text-sm text-white/60 mb-2">
-            ID de l'extension Chrome
+          <label className="block text-sm text-[var(--text-secondary)] mb-2">
+            ID de l&apos;extension Chrome
           </label>
           <input
             type="text"
             value={extensionId}
             onChange={(e) => setExtensionId(e.target.value)}
             placeholder="Ex: abcdefghijklmnopqrstuvwxyz123456"
-            className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+            className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--separator)] rounded-xl text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/30 focus:border-[var(--accent)]"
           />
         </div>
 
-        <div className="text-xs text-white/40 space-y-1">
-          <p>Pour trouver l'ID :</p>
+        <div className="text-xs text-[var(--text-tertiary)] space-y-1">
+          <p>Pour trouver l&apos;ID :</p>
           <ol className="list-decimal list-inside space-y-1 ml-2">
-            <li>Ouvrez <code className="bg-white/10 px-1 rounded">chrome://extensions</code></li>
-            <li>Activez le "Mode developpeur"</li>
-            <li>Trouvez "OKAZ" et copiez l'ID</li>
+            <li>Ouvrez <code className="bg-[var(--bg-tertiary)] px-1 rounded">chrome://extensions</code></li>
+            <li>Activez le &quot;Mode developpeur&quot;</li>
+            <li>Trouvez &quot;OKAZ&quot; et copiez l&apos;ID</li>
           </ol>
         </div>
 
         {testResult === 'error' && (
-          <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
-            Connexion echouee. Verifiez que l'extension est installee et l'ID est correct.
+          <div className="p-3 bg-[var(--score-low)]/10 border border-[var(--score-low)]/20 rounded-xl text-[var(--score-low)] text-sm">
+            Connexion echouee. Verifiez que l&apos;extension est installee et l&apos;ID est correct.
           </div>
         )}
 
         {testResult === 'success' && (
-          <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg text-green-400 text-sm flex items-center gap-2">
+          <div className="p-3 bg-[var(--score-high)]/10 border border-[var(--score-high)]/20 rounded-xl text-[var(--score-high)] text-sm flex items-center gap-2">
             <Check className="w-4 h-4" />
             Extension connectee avec succes !
           </div>
@@ -1281,7 +1220,7 @@ function ExtensionSetup({ onSave }: { onSave: (id: string) => void }) {
         <button
           onClick={testConnection}
           disabled={!extensionId.trim() || testing}
-          className="w-full py-3 px-4 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-dark)] disabled:opacity-50 text-white font-medium transition-all"
+          className="w-full py-3 px-4 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white font-medium transition-all"
         >
           {testing ? 'Test en cours...' : 'Tester la connexion'}
         </button>
@@ -1332,23 +1271,16 @@ function MobileLanding() {
   };
 
   return (
-    <main className="min-h-screen relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-br from-[var(--primary)]/10 via-transparent to-[var(--accent)]/10" />
-      <div className="absolute top-20 -left-10 w-72 h-72 bg-[var(--primary)]/20 rounded-full blur-3xl" />
-      <div className="absolute bottom-20 -right-10 w-72 h-72 bg-[var(--accent)]/20 rounded-full blur-3xl" />
-
-      <div className="relative z-10 container mx-auto px-6 py-12 max-w-md">
+    <main className="min-h-screen bg-[var(--bg-primary)]">
+      <div className="container mx-auto px-6 py-12 max-w-md">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           className="text-center"
         >
           {/* Logo */}
           <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="logo-icon" style={{ width: 40, height: 40 }}>
-              <Search className="w-5 h-5 text-[var(--primary-light)]" />
-            </div>
-            <h1 className="logo-text text-4xl logo-gradient logo-glow">OKAZ</h1>
+            <h1 className="text-4xl font-bold tracking-tight text-[var(--text-primary)]">OKAZ</h1>
           </div>
           <p className="text-sm text-[var(--text-secondary)] mb-10">
             Comparateur intelligent de petites annonces
@@ -1357,16 +1289,16 @@ function MobileLanding() {
           {/* Explication */}
           <GlassCard variant="bordered" className="p-6 text-left mb-6">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-[var(--primary)]/20 flex items-center justify-center">
-                <Monitor className="w-5 h-5 text-[var(--primary-light)]" />
+              <div className="w-10 h-10 rounded-xl bg-[var(--accent)]/10 flex items-center justify-center">
+                <Monitor className="w-5 h-5 text-[var(--accent)]" />
               </div>
               <div>
-                <h2 className="text-base font-semibold text-white">Disponible sur ordinateur</h2>
-                <p className="text-xs text-white/50">Extension Chrome requise</p>
+                <h2 className="text-base font-semibold text-[var(--text-primary)]">Disponible sur ordinateur</h2>
+                <p className="text-xs text-[var(--text-secondary)]">Extension Chrome requise</p>
               </div>
             </div>
 
-            <p className="text-sm text-white/70 leading-relaxed mb-5">
+            <p className="text-sm text-[var(--text-secondary)] leading-relaxed mb-5">
               OKAZ utilise une extension Chrome pour comparer les prix sur LeBonCoin, Vinted, Back Market et Amazon en temps reel. Cette technologie necessite un navigateur desktop.
             </p>
 
@@ -1378,16 +1310,16 @@ function MobileLanding() {
                 { icon: '3', text: 'L\'IA compare les prix et te trouve la meilleure affaire' },
               ].map((step, i) => (
                 <div key={i} className="flex items-start gap-3">
-                  <span className="w-6 h-6 rounded-full bg-[var(--primary)]/20 text-[var(--primary-light)] text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <span className="w-6 h-6 rounded-full bg-[var(--accent)]/10 text-[var(--accent)] text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
                     {step.icon}
                   </span>
-                  <p className="text-sm text-white/80">{step.text}</p>
+                  <p className="text-sm text-[var(--text-primary)]">{step.text}</p>
                 </div>
               ))}
             </div>
 
             {/* Sites compares */}
-            <div className="flex flex-wrap gap-2 pt-3 border-t border-white/10">
+            <div className="flex flex-wrap gap-2 pt-3 border-t border-[var(--separator)]">
               {[
                 { name: "leboncoin", color: "#FF6E14" },
                 { name: "Vinted", color: "#09B1BA" },
@@ -1403,17 +1335,16 @@ function MobileLanding() {
 
           {/* Actions */}
           <GlassCard variant="bordered" className="p-5 mb-6">
-            <p className="text-xs text-white/50 mb-4">Envoie-toi le lien pour ouvrir sur ton PC</p>
+            <p className="text-xs text-[var(--text-secondary)] mb-4">Envoie-toi le lien pour ouvrir sur ton PC</p>
 
-            {/* Copier le lien */}
             <button
               onClick={handleCopy}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[var(--primary)]/20 hover:bg-[var(--primary)]/30 border border-[var(--primary)]/30 text-white text-sm font-medium transition-all mb-3"
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium transition-all mb-3"
             >
               {copied ? (
                 <>
-                  <CheckCircle className="w-4 h-4 text-green-400" />
-                  <span className="text-green-400">Lien copie !</span>
+                  <CheckCircle className="w-4 h-4" />
+                  Lien copie !
                 </>
               ) : (
                 <>
@@ -1423,29 +1354,28 @@ function MobileLanding() {
               )}
             </button>
 
-            {/* Envoyer par email */}
             <div className="flex gap-2">
               <input
                 type="email"
                 placeholder="ton@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="flex-1 px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[var(--primary)]/50"
+                className="flex-1 px-3 py-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--separator)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--accent)]"
               />
               <button
                 onClick={handleSendEmail}
                 disabled={!email || emailSent}
-                className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-white text-sm transition-all disabled:opacity-40"
+                className="px-4 py-2.5 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] border border-[var(--separator)] text-[var(--text-primary)] text-sm transition-all disabled:opacity-40"
               >
-                {emailSent ? <Check className="w-4 h-4 text-green-400" /> : <Mail className="w-4 h-4" />}
+                {emailSent ? <Check className="w-4 h-4 text-[var(--score-high)]" /> : <Mail className="w-4 h-4" />}
               </button>
             </div>
           </GlassCard>
 
           {/* Footer */}
-          <p className="text-xs text-white/30">
+          <p className="text-xs text-[var(--text-tertiary)]">
             Un projet{' '}
-            <a href="https://facile-ia.fr" target="_blank" rel="noopener noreferrer" className="text-[var(--primary)] hover:text-[var(--primary-light)] transition-colors font-medium">
+            <a href="https://facile-ia.fr" target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline transition-colors font-medium">
               Facile-IA
             </a>
           </p>
@@ -2348,9 +2278,8 @@ export default function Home() {
   // Show results screen
   if (searchData) {
     return (
-      <main className="min-h-screen relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-[var(--primary)]/10 via-transparent to-[var(--accent)]/10" />
-        <div className="relative z-10 container mx-auto px-4 py-8 max-w-2xl">
+      <main className="min-h-screen bg-[var(--bg-primary)]">
+        <div className="container mx-auto px-4 py-8 max-w-2xl">
           <SearchResults data={searchData} onBack={handleBack} />
         </div>
       </main>
@@ -2360,14 +2289,10 @@ export default function Home() {
   // Show setup screen
   if (showSetup) {
     return (
-      <main className="min-h-screen relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-[var(--primary)]/10 via-transparent to-[var(--accent)]/10" />
-        <div className="absolute top-20 left-10 w-72 h-72 bg-[var(--primary)]/20 rounded-full blur-3xl animate-float" />
-        <div className="absolute bottom-20 right-10 w-96 h-96 bg-[var(--accent)]/20 rounded-full blur-3xl animate-float" style={{ animationDelay: "1s" }} />
-
-        <div className="relative z-10 container mx-auto px-4 py-16 max-w-md">
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-            <h1 className="text-4xl font-bold gradient-text text-center mb-8">OKAZ</h1>
+      <main className="min-h-screen bg-[var(--bg-primary)]">
+        <div className="container mx-auto px-4 py-16 max-w-md">
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+            <h1 className="text-4xl font-bold tracking-tight text-[var(--text-primary)] text-center mb-8">OKAZ</h1>
             <GlassCard variant="bordered" className="p-6">
               <ExtensionSetup onSave={handleSaveExtensionId} />
             </GlassCard>
@@ -2378,36 +2303,42 @@ export default function Home() {
   }
 
   // Show home/search screen
-  return (
-    <main className="min-h-screen relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-br from-[var(--primary)]/10 via-transparent to-[var(--accent)]/10" />
-      <div className="absolute top-20 left-10 w-72 h-72 bg-[var(--primary)]/20 rounded-full blur-3xl animate-float" />
-      <div
-        className="absolute bottom-20 right-10 w-96 h-96 bg-[var(--accent)]/20 rounded-full blur-3xl animate-float"
-        style={{ animationDelay: "1s" }}
-      />
+  // Theme toggle
+  const [darkMode, setDarkMode] = useState(false);
+  useEffect(() => {
+    setDarkMode(document.documentElement.classList.contains('dark'));
+  }, []);
+  const toggleTheme = () => {
+    const newDark = !darkMode;
+    setDarkMode(newDark);
+    document.documentElement.classList.toggle('dark', newDark);
+    localStorage.setItem('theme', newDark ? 'dark' : 'light');
+  };
 
-      <div className="relative z-10 container mx-auto px-4 py-16 lg:py-24">
+  return (
+    <main className="min-h-screen bg-[var(--bg-primary)]">
+      {/* Theme toggle */}
+      <div className="fixed top-4 right-4 z-50">
+        <button
+          onClick={toggleTheme}
+          className="p-2.5 rounded-full bg-[var(--bg-secondary)] border border-[var(--separator)] shadow-sm hover:shadow-md transition-all"
+          title={darkMode ? 'Mode clair' : 'Mode sombre'}
+        >
+          {darkMode ? <Sun className="w-4 h-4 text-[var(--text-secondary)]" /> : <Moon className="w-4 h-4 text-[var(--text-secondary)]" />}
+        </button>
+      </div>
+
+      <div className="container mx-auto px-4 py-16 lg:py-24">
         <div className={`mx-auto transition-all duration-300 ${isSearching ? 'max-w-6xl' : 'max-w-2xl'}`}>
           {/* Logo */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             className="text-center mb-12"
           >
-            {/* Logo Icon + Text */}
-            <div className="flex items-center justify-center gap-4 mb-6">
-              <motion.div
-                className="logo-icon"
-                whileHover={{ scale: 1.05, rotate: 2 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <Search className="w-7 h-7 text-[var(--primary-light)]" />
-              </motion.div>
-              <h1 className="logo-text text-5xl sm:text-6xl logo-gradient logo-glow">
-                OKAZ
-              </h1>
-            </div>
+            <h1 className="text-5xl sm:text-6xl font-bold tracking-tight text-[var(--text-primary)] mb-4">
+              OKAZ
+            </h1>
 
             <p className="text-lg text-[var(--text-secondary)]">
               Trouvez la meilleure affaire en une recherche
@@ -2418,24 +2349,23 @@ export default function Home() {
           <div className={`flex flex-col ${isSearching ? 'lg:flex-row' : ''} gap-6`}>
             {/* Colonne principale */}
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
               className="flex-1 min-w-0"
             >
-              <div className="glass-card glass-card-hover p-6 rounded-2xl">
+              <div className="bg-[var(--card-bg)] border border-[var(--separator)] shadow-[var(--card-shadow)] hover:shadow-[var(--card-shadow-hover)] transition-shadow p-6 rounded-2xl">
               {isSearching ? (
-                /* Récap compact pendant la recherche */
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-[var(--primary)]/20 flex items-center justify-center flex-shrink-0">
-                      <Search className="w-5 h-5 text-[var(--primary-light)]" />
+                    <div className="w-10 h-10 rounded-xl bg-[var(--accent)]/10 flex items-center justify-center flex-shrink-0">
+                      <Search className="w-5 h-5 text-[var(--accent)]" />
                     </div>
-                    <p className="text-white text-base truncate">{query}</p>
+                    <p className="text-[var(--text-primary)] text-base truncate">{query}</p>
                   </div>
                   <button
                     onClick={() => handleSearch()}
-                    className="p-3 rounded-xl bg-red-500 hover:bg-red-600 transition-all hover:scale-105 active:scale-95 flex-shrink-0"
+                    className="p-3 rounded-xl bg-[var(--score-low)] hover:bg-[var(--score-low)]/90 transition-all flex-shrink-0"
                   >
                     <X className="w-5 h-5 text-white" />
                   </button>
@@ -2459,12 +2389,12 @@ export default function Home() {
                   <textarea
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Décrivez ce que vous cherchez...
+                    placeholder="Decrivez ce que vous cherchez...
 
-Ex: MacBook Pro M2 à moins de 800€ pour coder,
+Ex: MacBook Pro M2 a moins de 800€ pour coder,
 main propre Paris ou livraison si garantie"
                     rows={3}
-                    className="input-glass w-full px-5 py-4 pl-14 pr-20 text-base rounded-xl text-white placeholder:text-white/40 focus:outline-none resize-none"
+                    className="input-clean w-full px-5 py-4 pl-14 pr-20 text-base rounded-xl text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none resize-none"
                     onKeyDown={(e) => {
                       // Cmd/Ctrl + Enter pour lancer la recherche
                       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
@@ -2478,16 +2408,16 @@ main propre Paris ou livraison si garantie"
                   <button
                     type="button"
                     onClick={() => imageInputRef.current?.click()}
-                    className={`absolute left-3 bottom-3 z-10 p-2.5 rounded-lg transition-all ${
+                    className={`absolute left-3 bottom-3 z-10 p-2.5 rounded-xl transition-all ${
                       uploadedImage
-                        ? 'bg-purple-500/20 text-purple-400'
-                        : 'bg-white/5 text-white/40 hover:bg-white/10 hover:text-white/60'
+                        ? 'bg-[var(--accent)]/10 text-[var(--accent)]'
+                        : 'bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
                     }`}
-                    title={uploadedImage ? 'Photo ajoutée' : 'Ajouter une photo'}
+                    title={uploadedImage ? 'Photo ajoutee' : 'Ajouter une photo'}
                   >
                     <Camera className="w-5 h-5" />
                     {uploadedImage && (
-                      <span className="absolute -top-1 -right-1 w-3 h-3 bg-purple-500 rounded-full flex items-center justify-center">
+                      <span className="absolute -top-1 -right-1 w-3 h-3 bg-[var(--accent)] rounded-full flex items-center justify-center">
                         <Check className="w-2 h-2 text-white" />
                       </span>
                     )}
@@ -2497,7 +2427,7 @@ main propre Paris ou livraison si garantie"
                   <button
                     type="submit"
                     disabled={!query.trim()}
-                    className="absolute right-3 bottom-3 z-10 p-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95 search-btn"
+                    className="absolute right-3 bottom-3 z-10 p-3 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Search className="w-5 h-5 text-white" />
                   </button>
@@ -2512,7 +2442,7 @@ main propre Paris ou livraison si garantie"
                     <button
                       type="button"
                       onClick={handleRemoveImage}
-                      className="flex items-center gap-1.5 px-2 py-1 bg-purple-500/10 rounded-lg border border-purple-500/20 text-purple-400 hover:bg-purple-500/20 transition-all text-xs"
+                      className="flex items-center gap-1.5 px-2 py-1 bg-[var(--accent)]/10 rounded-lg border border-[var(--accent)]/20 text-[var(--accent)] hover:bg-[var(--accent)]/15 transition-all text-xs"
                     >
                       <span className="truncate max-w-[80px]">{uploadedImage.name}</span>
                       <X className="w-3 h-3" />
@@ -2524,10 +2454,10 @@ main propre Paris ou livraison si garantie"
                     type="button"
                     onClick={handleGeolocToggle}
                     disabled={geoLoading}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                       geolocEnabled && position
-                        ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
-                        : 'bg-white/5 border border-white/10 text-white/40 hover:bg-white/10 hover:text-white/60'
+                        ? 'bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/20'
+                        : 'bg-[var(--bg-secondary)] border border-[var(--separator)] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
                     }`}
                   >
                     {geoLoading ? (
@@ -2540,15 +2470,14 @@ main propre Paris ou livraison si garantie"
                   </button>
 
                   {geolocEnabled && permissionState === 'denied' && (
-                    <span className="text-[10px] text-yellow-400 px-1.5 py-0.5 bg-yellow-500/10 rounded border border-yellow-500/20">
-                      Refusée
+                    <span className="text-[10px] text-[var(--score-medium)] px-1.5 py-0.5 bg-[var(--score-medium)]/10 rounded border border-[var(--score-medium)]/20">
+                      Refusee
                     </span>
                   )}
                 </div>
 
-                {/* Raccourci clavier */}
-                <span className="text-[10px] text-white/30 hidden sm:block">
-                  ⌘ + Enter
+                <span className="text-[10px] text-[var(--text-tertiary)] hidden sm:block">
+                  Cmd + Enter
                 </span>
               </div>
                 </>
@@ -2563,65 +2492,60 @@ main propre Paris ou livraison si garantie"
                     exit={{ opacity: 0, height: 0 }}
                     className="mt-6 space-y-4"
                   >
-                        {/* Timeline de progression - Horizontale */}
-                        <div className="flex items-center justify-between gap-2 p-3 rounded-xl bg-white/5 border border-white/10">
-                          {/* Étape 1: Optimisation */}
+                        {/* Timeline de progression */}
+                        <div className="flex items-center justify-between gap-2 p-3 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--separator)]">
                           <div className="flex items-center gap-2 flex-1">
                             <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
-                              isOptimizing ? 'bg-[var(--primary)]/20' : 'bg-green-500/20'
+                              isOptimizing ? 'bg-[var(--accent)]/15' : 'bg-[var(--score-high)]/15'
                             }`}>
                               {isOptimizing ? (
-                                <div className="w-2.5 h-2.5 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
+                                <div className="w-2.5 h-2.5 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
                               ) : (
-                                <Check className="w-2.5 h-2.5 text-green-400" />
+                                <Check className="w-2.5 h-2.5 text-[var(--score-high)]" />
                               )}
                             </div>
-                            <span className={`text-xs ${isOptimizing ? 'text-white' : 'text-green-400'}`}>
+                            <span className={`text-xs ${isOptimizing ? 'text-[var(--text-primary)]' : 'text-[var(--score-high)]'}`}>
                               IA
                             </span>
                           </div>
 
-                          {/* Ligne de connexion 1 */}
-                          <div className={`h-0.5 w-8 ${!isOptimizing ? 'bg-green-500/30' : 'bg-white/10'}`} />
+                          <div className={`h-0.5 w-8 ${!isOptimizing ? 'bg-[var(--score-high)]/30' : 'bg-[var(--separator)]'}`} />
 
-                          {/* Étape 2: Recherche */}
                           <div className="flex items-center gap-2 flex-1">
                             <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
-                              isOptimizing ? 'bg-white/10' :
-                              searchPhase === 'searching' ? 'bg-blue-500/20' : 'bg-green-500/20'
+                              isOptimizing ? 'bg-[var(--bg-tertiary)]' :
+                              searchPhase === 'searching' ? 'bg-[var(--accent)]/15' : 'bg-[var(--score-high)]/15'
                             }`}>
                               {isOptimizing ? (
-                                <Search className="w-2.5 h-2.5 text-white/30" />
+                                <Search className="w-2.5 h-2.5 text-[var(--text-tertiary)]" />
                               ) : searchPhase === 'searching' ? (
-                                <div className="w-2.5 h-2.5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                                <div className="w-2.5 h-2.5 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
                               ) : (
-                                <Check className="w-2.5 h-2.5 text-green-400" />
+                                <Check className="w-2.5 h-2.5 text-[var(--score-high)]" />
                               )}
                             </div>
                             <span className={`text-xs ${
-                              isOptimizing ? 'text-white/30' :
-                              searchPhase === 'searching' ? 'text-white' : 'text-green-400'
+                              isOptimizing ? 'text-[var(--text-tertiary)]' :
+                              searchPhase === 'searching' ? 'text-[var(--text-primary)]' : 'text-[var(--score-high)]'
                             }`}>
                               Recherche
                             </span>
                           </div>
 
-                          {/* Ligne de connexion 2 */}
-                          <div className={`h-0.5 w-8 ${searchPhase === 'analyzing' ? 'bg-purple-500/30' : 'bg-white/10'}`} />
+                          <div className={`h-0.5 w-8 ${searchPhase === 'analyzing' ? 'bg-[var(--accent)]/30' : 'bg-[var(--separator)]'}`} />
 
-                          {/* Étape 3: Analyse */}
                           <div className="flex items-center gap-2 flex-1">
                             <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
-                              searchPhase === 'analyzing' ? 'bg-purple-500/20' : 'bg-white/10'
+                              searchPhase === 'analyzing' ? 'bg-[var(--accent)]/15' : 'bg-[var(--bg-tertiary)]'
                             }`}>
                               {searchPhase === 'analyzing' ? (
-                                <div className="w-2.5 h-2.5 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+                                <div className="w-2.5 h-2.5 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
                               ) : (
-                                <Sparkles className="w-2.5 h-2.5 text-white/30" />
+                                <Sparkles className="w-2.5 h-2.5 text-[var(--text-tertiary)]" />
                               )}
                             </div>
                             <span className={`text-xs ${
-                              searchPhase === 'analyzing' ? 'text-white' : 'text-white/30'
+                              searchPhase === 'analyzing' ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]'
                             }`}>
                               Analyse
                             </span>
@@ -2639,7 +2563,7 @@ main propre Paris ou livraison si garantie"
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="mt-4 p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm"
+                  className="mt-4 p-4 bg-[var(--score-low)]/10 border border-[var(--score-low)]/20 rounded-2xl text-[var(--score-low)] text-sm"
                 >
                   {error}
                 </motion.div>
@@ -2649,27 +2573,23 @@ main propre Paris ou livraison si garantie"
               <AnimatePresence>
                 {clarificationData && !isSearching && (
                   <motion.div
-                    initial={{ opacity: 0, y: 10 }}
+                    initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="mt-6 p-5 rounded-2xl bg-[var(--primary)]/10 border border-[var(--primary)]/20 backdrop-blur-sm"
+                    exit={{ opacity: 0, y: -8 }}
+                    className="mt-6 p-5 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--separator)]"
                   >
-                    {/* Header */}
                     <div className="flex items-center gap-3 mb-3">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[var(--primary)] to-[var(--accent)] flex items-center justify-center flex-shrink-0">
-                        <MessageCircle className="w-4 h-4 text-white" />
+                      <div className="w-8 h-8 rounded-full bg-[var(--accent)]/10 flex items-center justify-center flex-shrink-0">
+                        <MessageCircle className="w-4 h-4 text-[var(--accent)]" />
                       </div>
-                      <span className="text-sm font-semibold text-white">OKAZ a une question</span>
+                      <span className="text-sm font-semibold text-[var(--text-primary)]">OKAZ a une question</span>
                     </div>
 
-                    {/* Question */}
-                    <p className="text-sm text-white/80 mb-4 leading-relaxed">
+                    <p className="text-sm text-[var(--text-secondary)] mb-4 leading-relaxed">
                       {clarificationData.question}
                     </p>
 
-                    {/* Options cliquables */}
                     {(() => {
-                      // Utiliser les options structurées de Gemini, ou fallback sur l'extracteur
                       const options = clarificationData.options && clarificationData.options.length > 0
                         ? clarificationData.options
                         : extractChipsFromQuestion(clarificationData.question);
@@ -2679,7 +2599,7 @@ main propre Paris ou livraison si garantie"
                             <button
                               key={option}
                               onClick={() => handleClarificationAnswer(option)}
-                              className="px-4 py-2 text-sm bg-white/10 border border-white/15 rounded-xl text-white/90 hover:bg-[var(--primary)]/20 hover:border-[var(--primary)]/40 hover:text-white transition-all"
+                              className="px-4 py-2 text-sm bg-[var(--card-bg)] border border-[var(--separator)] rounded-xl text-[var(--text-primary)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all"
                             >
                               {option}
                             </button>
@@ -2688,7 +2608,6 @@ main propre Paris ou livraison si garantie"
                       ) : null;
                     })()}
 
-                    {/* Input libre */}
                     <form
                       onSubmit={(e) => {
                         e.preventDefault();
@@ -2702,29 +2621,27 @@ main propre Paris ou livraison si garantie"
                       <input
                         name="clarification"
                         type="text"
-                        placeholder="Ou précise ici..."
-                        className="flex-1 px-3 py-2 text-sm bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/30 focus:outline-none focus:border-[var(--primary)]/40"
+                        placeholder="Ou precise ici..."
+                        className="flex-1 px-3 py-2 text-sm bg-[var(--card-bg)] border border-[var(--separator)] rounded-xl text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--accent)]"
                       />
                       <button
                         type="submit"
-                        className="px-4 py-2 text-sm font-medium bg-[var(--primary)]/20 border border-[var(--primary)]/30 rounded-lg text-[var(--primary-light)] hover:bg-[var(--primary)]/30 transition-all"
+                        className="px-4 py-2 text-sm font-medium bg-[var(--accent)] text-white rounded-xl hover:bg-[var(--accent-hover)] transition-all"
                       >
                         OK
                       </button>
                     </form>
 
-                    {/* Skip */}
                     <button
                       onClick={() => {
                         const history = clarificationData.history;
                         const originalQ = clarificationData.originalQuery;
                         setClarificationData(null);
-                        // Passer l'historique pour ne pas reposer les mêmes questions
                         handleSearch(originalQ, undefined, history);
                       }}
-                      className="mt-3 text-xs text-white/30 hover:text-white/50 transition-colors"
+                      className="mt-3 text-xs text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors"
                     >
-                      Chercher quand même sans préciser
+                      Chercher quand meme sans preciser
                     </button>
                   </motion.div>
                 )}
@@ -2733,27 +2650,27 @@ main propre Paris ou livraison si garantie"
               {/* Mini-tuto - remplace les exemples */}
               {!isSearching && !error && !clarificationData && (
                 <motion.div
-                  initial={{ opacity: 0, y: 10 }}
+                  initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.15 }}
-                  className="mt-6 p-4 rounded-xl bg-white/5 border border-white/10"
+                  className="mt-6 p-4 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--separator)]"
                 >
                   <div className="flex items-center gap-2 mb-2.5">
                     <Lightbulb className="w-4 h-4 text-[var(--accent)]" />
-                    <span className="text-xs font-medium text-white/60">Plus tu donnes de contexte, meilleurs sont les résultats</span>
+                    <span className="text-xs font-medium text-[var(--text-secondary)]">Plus tu donnes de contexte, meilleurs sont les resultats</span>
                   </div>
                   <div className="flex flex-wrap gap-1.5 mb-3">
-                    {['Budget', 'Usage', 'Taille', 'Livraison', 'État'].map((tag) => (
+                    {['Budget', 'Usage', 'Taille', 'Livraison', 'Etat'].map((tag) => (
                       <span
                         key={tag}
-                        className="px-2 py-0.5 text-[10px] font-medium bg-white/8 border border-white/10 rounded-full text-white/40"
+                        className="px-2 py-0.5 text-[10px] font-medium bg-[var(--bg-tertiary)] border border-[var(--separator)] rounded-full text-[var(--text-tertiary)]"
                       >
                         {tag}
                       </span>
                     ))}
                   </div>
-                  <p className="text-xs text-white/30 italic">
-                    Ex : &quot;MacBook Pro M2 à moins de 800€ pour coder, bon état, livrable&quot;
+                  <p className="text-xs text-[var(--text-tertiary)] italic">
+                    Ex : &quot;MacBook Pro M2 a moins de 800€ pour coder, bon etat, livrable&quot;
                   </p>
                 </motion.div>
               )}
@@ -2785,9 +2702,9 @@ main propre Paris ou livraison si garantie"
           >
             {extensionConnected ? (
               <>
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-500/10 border border-green-500/20 text-xs text-green-400">
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--score-high)]/10 border border-[var(--score-high)]/20 text-xs text-[var(--score-high)]">
                   <Check className="w-3 h-3" />
-                  Extension connectée
+                  Extension connectee
                 </div>
                 {quota && (
                   <SearchCounter
@@ -2801,15 +2718,13 @@ main propre Paris ou livraison si garantie"
                 )}
               </>
             ) : (
-              <motion.button
+              <button
                 onClick={() => setShowSetup(true)}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="text-xs text-white/40 hover:text-white/60 transition-all inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-white/5"
+                className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-all inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl hover:bg-[var(--bg-secondary)]"
               >
                 <Settings className="w-3 h-3" />
-                Configurer l'extension
-              </motion.button>
+                Configurer l&apos;extension
+              </button>
             )}
           </motion.div>
 
@@ -2839,7 +2754,7 @@ main propre Paris ou livraison si garantie"
                     ? 'opacity-60 hover:opacity-100'
                     : 'opacity-20'
                 }`}
-                style={{ color: site.active ? site.color : 'rgba(255,255,255,0.4)' }}
+                style={{ color: site.active ? site.color : 'var(--text-tertiary)' }}
               >
                 {site.name}
               </motion.span>
@@ -2851,14 +2766,14 @@ main propre Paris ou livraison si garantie"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.4 }}
-            className="mt-16 text-center text-xs text-white/40"
+            className="mt-16 text-center text-xs text-[var(--text-tertiary)]"
           >
             Un projet{" "}
             <a
               href="https://facile-ia.fr"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[var(--primary)] hover:text-[var(--primary-light)] transition-colors font-medium"
+              className="text-[var(--accent)] hover:underline transition-colors font-medium"
             >
               Facile-IA
             </a>

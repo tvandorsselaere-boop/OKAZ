@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Lightbulb } from "lucide-react";
 import { buildAmazonSearchLink, wrapAffiliateLink } from "@/lib/affiliate";
 
 interface NewProductBannerProps {
@@ -19,26 +19,28 @@ export function NewProductBanner({ productName, estimatedPrice, reason, searchQu
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay: 0.2 }}
-      className="mt-6 p-4 rounded-xl bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-pink-500/10 border border-indigo-500/20"
+      transition={{ duration: 0.2, delay: 0.2 }}
+      className="mt-6 p-4 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--separator)]"
     >
       <div className="flex items-start gap-3">
-        <span className="text-xl flex-shrink-0 mt-0.5">💡</span>
+        <div className="w-8 h-8 rounded-full bg-[var(--accent)]/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+          <Lightbulb className="w-4 h-4 text-[var(--accent)]" />
+        </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-indigo-300">
+          <p className="text-sm font-semibold text-[var(--accent)]">
             Et en neuf ?
           </p>
-          <p className="text-white font-medium mt-1">
+          <p className="text-[var(--text-primary)] font-medium mt-1">
             {productName}
             {estimatedPrice && (
-              <span className="ml-2 text-indigo-400">
+              <span className="ml-2 text-[var(--accent)]">
                 {isRealPrice ? '' : '~'}{estimatedPrice} €
               </span>
             )}
           </p>
-          <p className="text-xs text-white/60 mt-1 leading-relaxed">
+          <p className="text-xs text-[var(--text-secondary)] mt-1 leading-relaxed">
             {reason}
           </p>
         </div>
@@ -46,7 +48,7 @@ export function NewProductBanner({ productName, estimatedPrice, reason, searchQu
           href={amazonLink}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#DAA520]/15 border border-[#DAA520]/30 text-[#DAA520] text-xs font-medium hover:bg-[#DAA520]/25 transition-colors"
+          className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#FF9900] text-white text-xs font-medium hover:bg-[#E68A00] transition-colors"
         >
           Voir sur Amazon
           <ExternalLink className="w-3 h-3" />

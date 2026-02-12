@@ -9,14 +9,14 @@ interface GlassCardProps extends HTMLAttributes<HTMLDivElement> {
 const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(
   ({ className = "", variant = "default", children, ...props }, ref) => {
     const baseClasses =
-      "backdrop-blur-md bg-white/5 border border-white/10 rounded-2xl shadow-2xl";
+      "bg-[var(--card-bg)] border border-[var(--separator)] rounded-2xl shadow-[var(--card-shadow)]";
 
     const variantClasses = {
       default: "",
       hover:
-        "transition-all duration-300 hover:bg-white/10 hover:border-white/20 hover:shadow-[0_0_30px_rgba(99,102,241,0.3)]",
+        "transition-shadow duration-200 hover:shadow-[var(--card-shadow-hover)]",
       bordered:
-        "border-2 border-[var(--primary)]/20 shadow-[0_0_20px_rgba(99,102,241,0.15)]",
+        "border-2 border-[var(--accent)]/20",
     };
 
     return (
