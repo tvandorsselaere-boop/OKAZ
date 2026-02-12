@@ -1,8 +1,8 @@
-// OKAZ Content Script - Vinted Parser v0.3.4
+// OKAZ Content Script - Vinted Parser v0.5.0
 // S'exécute automatiquement sur les pages de recherche Vinted
 
 (function() {
-  console.log('OKAZ: Vinted parser v0.3.4 chargé');
+  console.log('OKAZ: Vinted parser v0.5.0 chargé');
   console.log('OKAZ: URL =', window.location.href);
 
   // Debug: afficher la structure de la page

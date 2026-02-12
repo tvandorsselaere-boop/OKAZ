@@ -3,12 +3,17 @@
 -- Système d'identification et paiement
 -- =============================================
 
--- Table utilisateurs (premium uniquement, identifiés par email)
+-- Table utilisateurs (identifiés par email)
 CREATE TABLE IF NOT EXISTS okaz_users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email VARCHAR(255) UNIQUE NOT NULL,
   extension_uuid VARCHAR(36),              -- Lien avec extension anonyme
-  premium_until TIMESTAMPTZ,               -- Date fin premium (NULL = pas premium)
+  premium_until TIMESTAMPTZ,               -- LEGACY (backward compat)
+  plan_type VARCHAR(20) DEFAULT 'free',    -- 'free' | 'pro' | 'premium'
+  plan_until TIMESTAMPTZ,                  -- Date fin plan actif
+  monthly_searches_limit INT DEFAULT 0,    -- Quota mensuel max (0 = free)
+  monthly_searches_used INT DEFAULT 0,     -- Recherches utilisees ce mois
+  monthly_reset_date DATE,                 -- Dernier reset (YYYY-MM-01)
   current_token_jti VARCHAR(36),           -- JTI du token actif (pour révocation)
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -21,7 +26,7 @@ CREATE TABLE IF NOT EXISTS okaz_purchases (
   extension_uuid VARCHAR(36),              -- UUID extension (pour boost)
   stripe_payment_id VARCHAR(255) NOT NULL,
   stripe_customer_id VARCHAR(255),
-  type VARCHAR(20) NOT NULL CHECK (type IN ('boost', 'premium')),
+  type VARCHAR(20) NOT NULL CHECK (type IN ('boost', 'plus', 'pro', 'premium')),
   amount_cents INT NOT NULL,
   credits_added INT,                       -- Pour boost uniquement
   created_at TIMESTAMPTZ DEFAULT NOW()

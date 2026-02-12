@@ -1,11 +1,16 @@
 // OKAZ API - Consommer une recherche
 // POST /api/quota/consume { uuid }
-// Retourne: { allowed, source, remaining, boostRemaining }
+// Plans: free = daily quota, plus/pro = monthly quota, boost = one-time credits
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 
 const DAILY_LIMIT = 5;
+
+function getCurrentMonthStart(): string {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,25 +25,85 @@ export async function POST(request: NextRequest) {
 
     const supabase = createServiceClient();
 
-    // Vérifier si premium
+    // Vérifier le plan utilisateur
     const { data: user } = await supabase
       .from('okaz_users')
-      .select('premium_until')
+      .select('id, plan_type, plan_until, premium_until, monthly_searches_limit, monthly_searches_used, monthly_reset_date')
       .eq('extension_uuid', uuid)
       .single();
 
-    if (user?.premium_until && new Date(user.premium_until) > new Date()) {
+    const planUntil = user?.plan_until || user?.premium_until;
+    const planType = user?.plan_type || 'free';
+    const isPlanActive = planUntil && new Date(planUntil) > new Date();
+    const hasActivePlan = isPlanActive && planType !== 'free';
+
+    if (hasActivePlan && user) {
+      // Plan Plus ou Pro : quota mensuel
+      let monthlyUsed = user.monthly_searches_used || 0;
+      const monthlyLimit = user.monthly_searches_limit || 0;
+      const currentMonthStart = getCurrentMonthStart();
+
+      // Reset lazy si nouveau mois
+      if (user.monthly_reset_date && user.monthly_reset_date < currentMonthStart) {
+        monthlyUsed = 0;
+        await supabase
+          .from('okaz_users')
+          .update({
+            monthly_searches_used: 0,
+            monthly_reset_date: currentMonthStart,
+          })
+          .eq('id', user.id);
+      }
+
+      if (monthlyUsed < monthlyLimit) {
+        await supabase
+          .from('okaz_users')
+          .update({ monthly_searches_used: monthlyUsed + 1 })
+          .eq('id', user.id);
+
+        return NextResponse.json({
+          allowed: true,
+          source: 'plan',
+          remaining: monthlyLimit - monthlyUsed - 1,
+          boostRemaining: -1,
+        });
+      }
+
+      // Quota mensuel épuisé, vérifier boost
+      const today = new Date().toISOString().split('T')[0];
+      const { data: quota } = await supabase
+        .from('okaz_quotas')
+        .select('id, boost_credits')
+        .eq('extension_uuid', uuid)
+        .eq('date', today)
+        .single();
+
+      if (quota && quota.boost_credits > 0) {
+        await supabase
+          .from('okaz_quotas')
+          .update({ boost_credits: quota.boost_credits - 1 })
+          .eq('id', quota.id)
+          .eq('boost_credits', quota.boost_credits);
+
+        return NextResponse.json({
+          allowed: true,
+          source: 'boost',
+          remaining: 0,
+          boostRemaining: quota.boost_credits - 1,
+        });
+      }
+
       return NextResponse.json({
-        allowed: true,
-        source: 'premium',
-        remaining: -1,
-        boostRemaining: -1,
+        allowed: false,
+        source: 'exhausted',
+        remaining: 0,
+        boostRemaining: 0,
       });
     }
 
+    // Free: quota journalier
     const today = new Date().toISOString().split('T')[0];
 
-    // Récupérer ou créer le quota du jour
     let { data: quota } = await supabase
       .from('okaz_quotas')
       .select('id, searches_used, boost_credits')
@@ -47,7 +112,6 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (!quota) {
-      // Créer le quota du jour
       const { data: newQuota, error: insertError } = await supabase
         .from('okaz_quotas')
         .insert({
@@ -60,7 +124,6 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (insertError) {
-        // Race condition: quelqu'un d'autre a créé le quota
         const { data: existingQuota } = await supabase
           .from('okaz_quotas')
           .select('id, searches_used, boost_credits')
@@ -81,17 +144,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Vérifier quota journalier
+    // Quota journalier
     if (quota.searches_used < DAILY_LIMIT) {
-      // Incrémenter atomiquement
       const { error: updateError } = await supabase
         .from('okaz_quotas')
         .update({ searches_used: quota.searches_used + 1 })
         .eq('id', quota.id)
-        .eq('searches_used', quota.searches_used); // Optimistic locking
+        .eq('searches_used', quota.searches_used);
 
       if (updateError) {
-        // Race condition, réessayer
         return NextResponse.json(
           { error: 'Réessayez', retry: true },
           { status: 409 }
@@ -106,13 +167,13 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Quota journalier épuisé, vérifier boost
+    // Boost
     if (quota.boost_credits > 0) {
       const { error: updateError } = await supabase
         .from('okaz_quotas')
         .update({ boost_credits: quota.boost_credits - 1 })
         .eq('id', quota.id)
-        .eq('boost_credits', quota.boost_credits); // Optimistic locking
+        .eq('boost_credits', quota.boost_credits);
 
       if (updateError) {
         return NextResponse.json(
@@ -129,7 +190,6 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Aucun quota disponible
     return NextResponse.json({
       allowed: false,
       source: 'exhausted',

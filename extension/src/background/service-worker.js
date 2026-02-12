@@ -1,5 +1,5 @@
-// OKAZ Service Worker - Background Script v0.3.9
-// Orchestre les recherches sur les différents sites (LeBonCoin, Vinted, Back Market)
+// OKAZ Service Worker - Background Script v0.5.0
+// Orchestre les recherches sur les différents sites (LeBonCoin, Vinted, Back Market, Amazon)
 
 // Importer le module de gestion des quotas
 importScripts('../lib/quota.js');
@@ -12,6 +12,40 @@ let pendingBackMarketResolvers = new Map();
 let pendingAmazonNewResolvers = new Map();
 let pendingAmazonUsedResolvers = new Map();
 let amazonTabTypes = new Map(); // tabId -> 'new' | 'used'
+
+// Tracking centralisé des onglets ouverts par OKAZ pour cleanup fiable
+const okazTabs = new Set();
+
+function trackTab(tabId) {
+  okazTabs.add(tabId);
+}
+
+function untrackTab(tabId) {
+  okazTabs.delete(tabId);
+}
+
+// Cleanup global : fermer tous les onglets OKAZ restants
+function cleanupAllTabs() {
+  for (const tabId of okazTabs) {
+    try {
+      chrome.tabs.remove(tabId);
+    } catch (e) { /* tab already closed */ }
+  }
+  okazTabs.clear();
+}
+
+// Nettoyage périodique des onglets zombies (toutes les 2 minutes)
+setInterval(() => {
+  if (okazTabs.size === 0) return;
+  // Vérifier si les onglets existent encore
+  for (const tabId of okazTabs) {
+    chrome.tabs.get(tabId, (tab) => {
+      if (chrome.runtime.lastError || !tab) {
+        okazTabs.delete(tabId);
+      }
+    });
+  }
+}, 120_000);
 
 // Initialiser l'UUID au démarrage
 (async () => {
@@ -425,6 +459,7 @@ async function searchLeBonCoin(query, criteria, localSearch = false) {
     const cleanup = () => {
       if (tabId) {
         pendingResolvers.delete(tabId);
+        untrackTab(tabId);
         try { chrome.tabs.remove(tabId); } catch (e) {}
       }
     };
@@ -446,6 +481,7 @@ async function searchLeBonCoin(query, criteria, localSearch = false) {
       });
 
       tabId = tab.id;
+      trackTab(tabId);
       console.log('OKAZ SW: Onglet créé', tabId);
 
       // Stocker le resolver pour les résultats auto du content script
@@ -578,6 +614,7 @@ async function searchVinted(query, criteria) {
     const cleanup = () => {
       if (tabId) {
         pendingVintedResolvers.delete(tabId);
+        untrackTab(tabId);
         try { chrome.tabs.remove(tabId); } catch (e) {}
       }
     };
@@ -599,6 +636,7 @@ async function searchVinted(query, criteria) {
       });
 
       tabId = tab.id;
+      trackTab(tabId);
       console.log('OKAZ SW: Onglet Vinted créé', tabId);
 
       // Stocker le resolver
@@ -714,6 +752,7 @@ async function searchBackMarket(query, criteria) {
     const cleanup = () => {
       if (tabId) {
         pendingBackMarketResolvers.delete(tabId);
+        untrackTab(tabId);
         try { chrome.tabs.remove(tabId); } catch (e) {}
       }
     };
@@ -735,6 +774,7 @@ async function searchBackMarket(query, criteria) {
       });
 
       tabId = tab.id;
+      trackTab(tabId);
       console.log('OKAZ SW: Onglet Back Market créé', tabId);
 
       // Stocker le resolver
@@ -860,6 +900,7 @@ function _searchAmazon(searchUrl, label, resolverMap, maxResults, tabType) {
       if (tabId) {
         resolverMap.delete(tabId);
         amazonTabTypes.delete(tabId);
+        untrackTab(tabId);
         try { chrome.tabs.remove(tabId); } catch (e) {}
       }
     };
@@ -880,6 +921,7 @@ function _searchAmazon(searchUrl, label, resolverMap, maxResults, tabType) {
       });
 
       tabId = tab.id;
+      trackTab(tabId);
       console.log(`OKAZ SW: Onglet Amazon ${label} créé`, tabId);
 
       resolverMap.set(tabId, resolveWith);

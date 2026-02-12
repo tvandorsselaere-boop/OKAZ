@@ -2,6 +2,8 @@
 // Score principal (0-100) neutre entre sites
 // Les highlights sont gérés séparément dans highlights.ts
 
+import { geocodeLocation, calculateDistance } from './geo';
+
 // ============================================================================
 // INTERFACES
 // ============================================================================
@@ -641,7 +643,7 @@ export function findBestLocalResult(
 ): AnalyzedResult | null {
   if (!userLocation) return null;
 
-  const { geocodeLocation, calculateDistance } = require('./geo');
+  // geocodeLocation & calculateDistance importés en haut du fichier
 
   // Parmi les résultats isLocal, vérifier la distance réelle
   const localTagged = results.filter(r => r.isLocal === true);

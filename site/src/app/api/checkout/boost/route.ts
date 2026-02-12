@@ -3,7 +3,7 @@
 // Retourne: { checkoutUrl }
 
 import { NextRequest, NextResponse } from 'next/server';
-import { stripe, STRIPE_PRICES, AMOUNTS } from '@/lib/stripe';
+import { stripe, STRIPE_PRICES } from '@/lib/stripe';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
@@ -26,14 +26,7 @@ export async function POST(request: NextRequest) {
       payment_method_types: ['card'],
       line_items: [
         {
-          price_data: {
-            currency: 'eur',
-            product_data: {
-              name: 'OKAZ Pack Boost',
-              description: '+10 recherches supplémentaires',
-            },
-            unit_amount: AMOUNTS.BOOST,
-          },
+          price: STRIPE_PRICES.BOOST,
           quantity: 1,
         },
       ],

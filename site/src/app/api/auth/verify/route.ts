@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get('token');
 
   if (!token) {
-    return NextResponse.redirect(`${APP_URL}?auth=error&reason=missing_token`);
+    return NextResponse.redirect(`${APP_URL}#auth=error&reason=missing_token`);
   }
 
   try {
@@ -27,19 +27,19 @@ export async function GET(request: NextRequest) {
 
     if (!magicToken) {
       console.log('[OKAZ Auth] Token invalide:', token.substring(0, 8) + '...');
-      return NextResponse.redirect(`${APP_URL}?auth=error&reason=invalid_token`);
+      return NextResponse.redirect(`${APP_URL}#auth=error&reason=invalid_token`);
     }
 
     // Vérifier expiration
     if (new Date(magicToken.expires_at) < new Date()) {
       console.log('[OKAZ Auth] Token expiré:', token.substring(0, 8) + '...');
-      return NextResponse.redirect(`${APP_URL}?auth=error&reason=expired`);
+      return NextResponse.redirect(`${APP_URL}#auth=error&reason=expired`);
     }
 
     // Vérifier si déjà utilisé
     if (magicToken.used_at) {
       console.log('[OKAZ Auth] Token déjà utilisé:', token.substring(0, 8) + '...');
-      return NextResponse.redirect(`${APP_URL}?auth=error&reason=already_used`);
+      return NextResponse.redirect(`${APP_URL}#auth=error&reason=already_used`);
     }
 
     // Marquer comme utilisé
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
       .single();
 
     if (!user) {
-      return NextResponse.redirect(`${APP_URL}?auth=error&reason=user_not_found`);
+      return NextResponse.redirect(`${APP_URL}#auth=error&reason=user_not_found`);
     }
 
     // Générer un nouveau JWT (révoque automatiquement l'ancien)
@@ -65,12 +65,12 @@ export async function GET(request: NextRequest) {
 
     console.log('[OKAZ Auth] Connexion réussie pour:', user.email);
 
-    // Rediriger avec le token
-    // L'extension interceptera ce paramètre
-    return NextResponse.redirect(`${APP_URL}?auth=success&token=${jwt}&email=${encodeURIComponent(user.email)}`);
+    // Rediriger avec le token dans le fragment hash (pas en query param)
+    // Le hash n'est pas envoyé au serveur, pas dans les logs, pas dans le referrer
+    return NextResponse.redirect(`${APP_URL}#auth=success&token=${jwt}&email=${encodeURIComponent(user.email)}`);
 
   } catch (error) {
     console.error('[OKAZ Auth] Erreur verify:', error);
-    return NextResponse.redirect(`${APP_URL}?auth=error&reason=server_error`);
+    return NextResponse.redirect(`${APP_URL}#auth=error&reason=server_error`);
   }
 }

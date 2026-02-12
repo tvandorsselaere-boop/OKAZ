@@ -1,4 +1,4 @@
-// OKAZ Popup v0.3.0 - Interface épurée avec scoring intelligent
+// OKAZ Popup v0.5.0 - Interface épurée avec scoring intelligent
 
 const searchInput = document.getElementById('searchInput');
 const searchBtn = document.getElementById('searchBtn');
@@ -11,16 +11,7 @@ const backBtn = document.getElementById('backBtn');
 let isSearching = false;
 let currentQuery = '';
 
-// Prix moyens de référence (à améliorer avec des données réelles)
-const MARKET_PRICES = {
-  'iphone 13': { min: 350, avg: 450, max: 550 },
-  'iphone 14': { min: 500, avg: 650, max: 800 },
-  'iphone 15': { min: 700, avg: 850, max: 1000 },
-  'macbook pro': { min: 800, avg: 1200, max: 1800 },
-  'macbook air': { min: 600, avg: 900, max: 1200 },
-  'ps5': { min: 350, avg: 420, max: 500 },
-  'nintendo switch': { min: 180, avg: 250, max: 320 }
-};
+// Prix de référence calculés dynamiquement à partir des résultats (pas de données hardcodées)
 
 // Events
 searchBtn.addEventListener('click', handleSearch);
@@ -108,7 +99,7 @@ function analyzeResults(results, query) {
   if (!results || results.length === 0) return { recommended: [], others: [], avoid: [] };
 
   const queryLower = query.toLowerCase();
-  const marketRef = findMarketReference(queryLower);
+  const marketRef = computeMarketReference(results);
 
   return results.map(result => {
     const analysis = analyzeResult(result, marketRef, queryLower);
@@ -125,13 +116,13 @@ function analyzeResults(results, query) {
   }, { recommended: [], others: [], avoid: [] });
 }
 
-function findMarketReference(query) {
-  for (const [key, value] of Object.entries(MARKET_PRICES)) {
-    if (query.includes(key)) {
-      return value;
-    }
-  }
-  return null;
+// Calcule les prix de référence à partir des résultats réels (médiane)
+function computeMarketReference(results) {
+  const prices = results.map(r => r.price).filter(p => p > 0).sort((a, b) => a - b);
+  if (prices.length === 0) return null;
+  const mid = Math.floor(prices.length / 2);
+  const avg = prices.length % 2 ? prices[mid] : Math.round((prices[mid - 1] + prices[mid]) / 2);
+  return { min: prices[0], avg, max: prices[prices.length - 1] };
 }
 
 function analyzeResult(result, marketRef, query) {
@@ -334,4 +325,4 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-console.log('OKAZ Popup v0.3.0 loaded');
+console.log('OKAZ Popup v0.5.0 loaded');

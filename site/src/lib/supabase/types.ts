@@ -1,10 +1,17 @@
 // OKAZ - Types Supabase
 
+import type { PlanType } from '@/lib/stripe';
+
 export interface OkazUser {
   id: string;
   email: string;
   extension_uuid: string | null;
-  premium_until: string | null;
+  premium_until: string | null;  // legacy, kept for backward compat
+  plan_type: PlanType;
+  plan_until: string | null;
+  monthly_searches_limit: number;
+  monthly_searches_used: number;
+  monthly_reset_date: string | null;
   current_token_jti: string | null;
   created_at: string;
   updated_at: string;
@@ -16,7 +23,7 @@ export interface OkazPurchase {
   extension_uuid: string | null;
   stripe_payment_id: string;
   stripe_customer_id: string | null;
-  type: 'boost' | 'premium';
+  type: 'boost' | 'pro' | 'premium';
   amount_cents: number;
   credits_added: number | null;
   created_at: string;
@@ -50,18 +57,22 @@ export interface OkazRevokedToken {
 // Résultat de la fonction consume_search
 export interface ConsumeSearchResult {
   allowed: boolean;
-  source: 'premium' | 'daily' | 'boost' | 'exhausted';
+  source: 'plan' | 'daily' | 'boost' | 'exhausted';
   remaining: number;
   boost_remaining: number;
 }
 
 // État du quota pour l'extension
 export interface QuotaStatus {
-  isPremium: boolean;
-  premiumUntil?: string;
+  isPremium: boolean;  // true si plus ou pro actif
+  planType: PlanType;
+  planUntil?: string;
   dailyUsed: number;
   dailyLimit: number;
   dailyRemaining: number;
   boostCredits: number;
-  totalRemaining: number;  // daily + boost (ou -1 si premium)
+  monthlyUsed: number;
+  monthlyLimit: number;
+  monthlyRemaining: number;
+  totalRemaining: number;  // daily + boost, ou monthly remaining pour plans
 }

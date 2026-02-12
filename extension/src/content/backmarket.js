@@ -1,8 +1,8 @@
-// OKAZ Content Script - Back Market Parser v0.3.5
+// OKAZ Content Script - Back Market Parser v0.5.0
 // S'exécute automatiquement sur les pages de recherche Back Market
 
 (function() {
-  console.log('OKAZ: Back Market parser v0.3.5 chargé');
+  console.log('OKAZ: Back Market parser v0.5.0 chargé');
   console.log('OKAZ: URL =', window.location.href);
 
   // Debug: afficher la structure de la page

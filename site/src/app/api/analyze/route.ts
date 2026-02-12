@@ -4,8 +4,18 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { analyzeResultsWithGemini, RawResult, VisualContext, RealPriceStats } from '@/lib/gemini';
+import { checkRateLimit, getClientIP } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
+  const ip = getClientIP(request.headers);
+  const limit = checkRateLimit(`analyze:${ip}`, 10, 60_000);
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: 'Trop de requêtes, réessayez dans quelques secondes' },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil(limit.resetIn / 1000)) } }
+    );
+  }
+
   try {
     const body = await request.json();
     const { results, query, visualContext, priceStats } = body;

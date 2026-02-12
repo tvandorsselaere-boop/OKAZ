@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Sparkles, Shield, Zap, ArrowLeft, ExternalLink, AlertTriangle, Settings, Check, Wand2, TrendingDown, Lightbulb, BadgeCheck, ShoppingBag, X, MapPin, Navigation, Camera, Link2, MessageCircle } from "lucide-react";
+import { Search, Sparkles, Shield, Zap, ArrowLeft, ExternalLink, AlertTriangle, Settings, Check, Wand2, TrendingDown, Lightbulb, BadgeCheck, ShoppingBag, X, MapPin, Navigation, Camera, Link2, MessageCircle, Monitor, Smartphone, Mail, Copy, CheckCircle } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { SpotlightCard } from "@/components/ui/spotlight-card";
 import { UpgradeModal, SearchCounter } from "@/components/ui/upgrade-modal";
@@ -17,11 +17,15 @@ import { geocodeLocation, calculateDistance, formatDistance, reverseGeocodeLocal
 // Interface pour le quota
 interface QuotaStatus {
   isPremium: boolean;
-  premiumUntil?: string;
+  planType: string;
+  planUntil?: string;
   dailyUsed: number;
   dailyLimit: number;
   dailyRemaining: number;
   boostCredits: number;
+  monthlyUsed: number;
+  monthlyLimit: number;
+  monthlyRemaining: number;
   totalRemaining: number;
 }
 
@@ -1286,7 +1290,173 @@ function ExtensionSetup({ onSave }: { onSave: (id: string) => void }) {
   );
 }
 
+// Detection mobile
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => {
+      const ua = navigator.userAgent;
+      const mobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua)
+        || (window.innerWidth < 768 && 'ontouchstart' in window);
+      setIsMobile(mobile);
+    };
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+  return isMobile;
+}
+
+// Page mobile : explique le produit + redirige vers desktop
+function MobileLanding() {
+  const [copied, setCopied] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
+  const [email, setEmail] = useState('');
+
+  const siteUrl = typeof window !== 'undefined' ? window.location.origin : 'https://okaz-ia.fr';
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(siteUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* fallback silencieux */ }
+  };
+
+  const handleSendEmail = () => {
+    if (!email || !email.includes('@')) return;
+    const subject = encodeURIComponent('OKAZ - Lien pour ton ordinateur');
+    const body = encodeURIComponent(`Ouvre ce lien sur ton PC pour utiliser OKAZ :\n\n${siteUrl}\n\nTu auras besoin de l'extension Chrome pour commencer.`);
+    window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+    setEmailSent(true);
+  };
+
+  return (
+    <main className="min-h-screen relative overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-br from-[var(--primary)]/10 via-transparent to-[var(--accent)]/10" />
+      <div className="absolute top-20 -left-10 w-72 h-72 bg-[var(--primary)]/20 rounded-full blur-3xl" />
+      <div className="absolute bottom-20 -right-10 w-72 h-72 bg-[var(--accent)]/20 rounded-full blur-3xl" />
+
+      <div className="relative z-10 container mx-auto px-6 py-12 max-w-md">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center"
+        >
+          {/* Logo */}
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <div className="logo-icon" style={{ width: 40, height: 40 }}>
+              <Search className="w-5 h-5 text-[var(--primary-light)]" />
+            </div>
+            <h1 className="logo-text text-4xl logo-gradient logo-glow">OKAZ</h1>
+          </div>
+          <p className="text-sm text-[var(--text-secondary)] mb-10">
+            Comparateur intelligent de petites annonces
+          </p>
+
+          {/* Explication */}
+          <GlassCard variant="bordered" className="p-6 text-left mb-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-[var(--primary)]/20 flex items-center justify-center">
+                <Monitor className="w-5 h-5 text-[var(--primary-light)]" />
+              </div>
+              <div>
+                <h2 className="text-base font-semibold text-white">Disponible sur ordinateur</h2>
+                <p className="text-xs text-white/50">Extension Chrome requise</p>
+              </div>
+            </div>
+
+            <p className="text-sm text-white/70 leading-relaxed mb-5">
+              OKAZ utilise une extension Chrome pour comparer les prix sur LeBonCoin, Vinted, Back Market et Amazon en temps reel. Cette technologie necessite un navigateur desktop.
+            </p>
+
+            {/* Comment ca marche */}
+            <div className="space-y-3 mb-5">
+              {[
+                { icon: '1', text: 'Installe l\'extension Chrome sur ton PC' },
+                { icon: '2', text: 'Decris ce que tu cherches ou uploade une photo' },
+                { icon: '3', text: 'L\'IA compare les prix et te trouve la meilleure affaire' },
+              ].map((step, i) => (
+                <div key={i} className="flex items-start gap-3">
+                  <span className="w-6 h-6 rounded-full bg-[var(--primary)]/20 text-[var(--primary-light)] text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                    {step.icon}
+                  </span>
+                  <p className="text-sm text-white/80">{step.text}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Sites compares */}
+            <div className="flex flex-wrap gap-2 pt-3 border-t border-white/10">
+              {[
+                { name: "leboncoin", color: "#FF6E14" },
+                { name: "Vinted", color: "#09B1BA" },
+                { name: "Back Market", color: "#4D3DF7" },
+                { name: "Amazon", color: "#DAA520" },
+              ].map((site) => (
+                <span key={site.name} className="text-xs font-semibold opacity-70" style={{ color: site.color }}>
+                  {site.name}
+                </span>
+              ))}
+            </div>
+          </GlassCard>
+
+          {/* Actions */}
+          <GlassCard variant="bordered" className="p-5 mb-6">
+            <p className="text-xs text-white/50 mb-4">Envoie-toi le lien pour ouvrir sur ton PC</p>
+
+            {/* Copier le lien */}
+            <button
+              onClick={handleCopy}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[var(--primary)]/20 hover:bg-[var(--primary)]/30 border border-[var(--primary)]/30 text-white text-sm font-medium transition-all mb-3"
+            >
+              {copied ? (
+                <>
+                  <CheckCircle className="w-4 h-4 text-green-400" />
+                  <span className="text-green-400">Lien copie !</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-4 h-4" />
+                  Copier le lien
+                </>
+              )}
+            </button>
+
+            {/* Envoyer par email */}
+            <div className="flex gap-2">
+              <input
+                type="email"
+                placeholder="ton@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="flex-1 px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[var(--primary)]/50"
+              />
+              <button
+                onClick={handleSendEmail}
+                disabled={!email || emailSent}
+                className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-white text-sm transition-all disabled:opacity-40"
+              >
+                {emailSent ? <Check className="w-4 h-4 text-green-400" /> : <Mail className="w-4 h-4" />}
+              </button>
+            </div>
+          </GlassCard>
+
+          {/* Footer */}
+          <p className="text-xs text-white/30">
+            Un projet{' '}
+            <a href="https://facile-ia.fr" target="_blank" rel="noopener noreferrer" className="text-[var(--primary)] hover:text-[var(--primary-light)] transition-colors font-medium">
+              Facile-IA
+            </a>
+          </p>
+        </motion.div>
+      </div>
+    </main>
+  );
+}
+
 export default function Home() {
+  const isMobile = useIsMobile();
   const [query, setQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [isOptimizing, setIsOptimizing] = useState(false);
@@ -1362,68 +1532,40 @@ export default function Home() {
   }, [extensionConnected, extensionId, fetchQuotaFromExtension]);
 
   // Gérer les retours d'auth (magic link) et de paiement (Stripe)
-  // Les query params sont ajoutés par les redirections de /api/auth/verify et Stripe
+  // Auth via fragment hash (#auth=success&token=JWT), Stripe via query params
   useEffect(() => {
     if (!extensionConnected || !extensionId) return;
 
     const params = new URLSearchParams(window.location.search);
 
-    // Retour magic link: ?auth=success&token=JWT&email=xxx
-    if (params.get('auth') === 'success') {
-      const token = params.get('token');
-      const email = params.get('email');
+    // Retour magic link: #auth=success&token=JWT&email=xxx (fragment hash pour securite)
+    const hash = window.location.hash;
+    if (hash.includes('auth=success')) {
+      const hashParams = new URLSearchParams(hash.substring(1));
+      const token = hashParams.get('token');
+      const email = hashParams.get('email');
 
       if (token && email) {
         console.log('[OKAZ] Auth magic link réussie pour:', email);
-        // Envoyer le JWT à l'extension pour stockage
         // @ts-ignore
         chrome.runtime.sendMessage(extensionId, {
           type: 'SAVE_AUTH',
           jwt: token,
           email,
-          premiumUntil: null, // Sera mis à jour via le quota refresh
+          premiumUntil: null,
         }, () => {
-          // Rafraîchir le quota pour récupérer le statut premium
           fetchQuotaFromExtension();
         });
-      } else if (params.get('auth') === 'error') {
-        const reason = params.get('reason');
-        console.error('[OKAZ] Auth magic link échouée:', reason);
       }
 
-      // Nettoyer l'URL
-      const cleanUrl = window.location.pathname;
-      window.history.replaceState({}, '', cleanUrl);
+      // Nettoyer l'URL (hash inclus)
+      window.history.replaceState({}, '', window.location.pathname);
     }
 
-    // Retour Stripe boost: ?boost=success
-    if (params.get('boost') === 'success') {
-      console.log('[OKAZ] Achat boost réussi');
-      // Attendre un peu que le webhook Stripe soit traité
-      setTimeout(() => {
-        fetchQuotaFromExtension();
-      }, 2000);
-
-      const cleanUrl = window.location.pathname;
-      window.history.replaceState({}, '', cleanUrl);
-    }
-
-    // Retour Stripe premium: ?premium=success&email=xxx
-    if (params.get('premium') === 'success') {
-      const email = params.get('email');
-      console.log('[OKAZ] Achat premium réussi pour:', email);
-      // Attendre que le webhook Stripe crée/mette à jour l'utilisateur
-      setTimeout(() => {
-        fetchQuotaFromExtension();
-      }, 2000);
-
-      const cleanUrl = window.location.pathname;
-      window.history.replaceState({}, '', cleanUrl);
-    }
-
-    // Retour auth erreur: ?auth=error&reason=xxx
-    if (params.get('auth') === 'error') {
-      const reason = params.get('reason');
+    // Retour auth erreur: #auth=error&reason=xxx
+    if (hash.includes('auth=error')) {
+      const hashParams = new URLSearchParams(hash.substring(1));
+      const reason = hashParams.get('reason');
       const messages: Record<string, string> = {
         invalid_token: 'Lien de connexion invalide',
         expired: 'Lien de connexion expiré (15 min)',
@@ -1433,9 +1575,28 @@ export default function Home() {
         server_error: 'Erreur serveur, réessayez',
       };
       setError(messages[reason || ''] || 'Erreur de connexion');
+      window.history.replaceState({}, '', window.location.pathname);
+    }
 
-      const cleanUrl = window.location.pathname;
-      window.history.replaceState({}, '', cleanUrl);
+    // Retour Stripe boost: ?boost=success
+    if (params.get('boost') === 'success') {
+      console.log('[OKAZ] Achat boost réussi');
+      setTimeout(() => {
+        fetchQuotaFromExtension();
+      }, 2000);
+
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+
+    // Retour Stripe premium: ?premium=success&email=xxx
+    if (params.get('premium') === 'success') {
+      const email = params.get('email');
+      console.log('[OKAZ] Achat premium réussi pour:', email);
+      setTimeout(() => {
+        fetchQuotaFromExtension();
+      }, 2000);
+
+      window.history.replaceState({}, '', window.location.pathname);
     }
   }, [extensionConnected, extensionId, fetchQuotaFromExtension]);
 
@@ -1475,16 +1636,14 @@ export default function Home() {
     }
   };
 
-  const handleBuyPremium = async () => {
-    // Demander l'email pour le Premium
-    const email = window.prompt('Entrez votre email pour le compte Premium:');
+  const handleBuyPlan = async (planType: 'pro' | 'premium') => {
+    const email = window.prompt('Entrez votre email pour votre abonnement:');
     if (!email || !email.includes('@')) {
-      return; // Annulé ou email invalide
+      return;
     }
 
     setIsUpgrading(true);
     try {
-      // Récupérer l'UUID de l'extension
       // @ts-ignore
       const uuidResponse = await new Promise<{ success: boolean; uuid?: string }>((resolve) => {
         // @ts-ignore
@@ -1496,7 +1655,8 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email,
-          uuid: uuidResponse?.uuid || ''
+          uuid: uuidResponse?.uuid || '',
+          planType,
         }),
       });
 
@@ -1507,7 +1667,7 @@ export default function Home() {
         throw new Error(data.error || 'Erreur checkout');
       }
     } catch (err) {
-      console.error('[OKAZ] Erreur achat premium:', err);
+      console.error('[OKAZ] Erreur achat plan:', err);
       setError('Erreur lors de la création du paiement');
       setShowUpgradeModal(false);
     } finally {
@@ -2140,6 +2300,11 @@ export default function Home() {
     return chips.slice(0, 5);
   };
 
+  // Mobile: ecran d'onboarding desktop-only
+  if (isMobile) {
+    return <MobileLanding />;
+  }
+
   // Show results screen
   if (searchData) {
     return (
@@ -2586,8 +2751,11 @@ main propre Paris ou livraison si garantie"
                 </div>
                 {quota && (
                   <SearchCounter
-                    remaining={quota.isPremium ? -1 : quota.totalRemaining}
+                    remaining={quota.totalRemaining}
                     total={quota.dailyLimit}
+                    planType={quota.planType}
+                    monthlyRemaining={quota.monthlyRemaining}
+                    monthlyLimit={quota.monthlyLimit}
                     onManageSubscription={quota.isPremium ? handleManageSubscription : undefined}
                   />
                 )}
@@ -2665,7 +2833,7 @@ main propre Paris ou livraison si garantie"
           onClose={() => setShowUpgradeModal(false)}
           quota={quota}
           onBuyBoost={handleBuyBoost}
-          onBuyPremium={handleBuyPremium}
+          onBuyPlan={handleBuyPlan}
           isLoading={isUpgrading}
         />
       )}

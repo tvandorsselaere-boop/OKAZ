@@ -108,15 +108,14 @@ export async function sendWelcomePremium(email: string): Promise<boolean> {
             </p>
 
             <ul style="font-size: 15px; line-height: 1.8; padding-left: 20px;">
-              <li>✓ Recherches illimitées</li>
-              <li>✓ Alertes nouvelles annonces</li>
-              <li>✓ Historique des prix</li>
-              <li>✓ Nego-Coach (aide à la négociation)</li>
-              <li>✓ Sans publicité</li>
+              <li>✓ Quota de recherches rechargé chaque mois</li>
+              <li>✓ Analyse IA avancée de chaque résultat</li>
+              <li>✓ Recommandations personnalisées</li>
+              <li>✓ Accès prioritaire aux nouvelles fonctionnalités</li>
             </ul>
 
             <p style="font-size: 14px; color: #94a3b8; margin-top: 32px;">
-              Ton abonnement se renouvelle automatiquement dans 1 an.<br>
+              Ton abonnement se renouvelle automatiquement chaque année.<br>
               Tu peux l'annuler à tout moment depuis ton espace.
             </p>
 
