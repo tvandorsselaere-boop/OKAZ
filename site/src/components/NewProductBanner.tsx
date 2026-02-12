@@ -22,7 +22,7 @@ export function NewProductBanner({ productName, estimatedPrice, reason, searchQu
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2, delay: 0.2 }}
-      className="mt-6 p-4 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--separator)]"
+      className="mt-6 p-4 rounded-2xl bg-[var(--card-bg)] border border-[var(--separator)] shadow-[var(--card-shadow)]"
     >
       <div className="flex items-start gap-3">
         <div className="w-8 h-8 rounded-full bg-[var(--accent)]/10 flex items-center justify-center flex-shrink-0 mt-0.5">

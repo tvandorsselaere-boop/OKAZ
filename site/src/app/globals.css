@@ -6,9 +6,9 @@
 
 :root {
   /* Backgrounds */
-  --bg-primary: #F5F5F7;
-  --bg-secondary: #EDEDF0;
-  --bg-tertiary: #E5E5EA;
+  --bg-primary: #F2F2F7;
+  --bg-secondary: #E5E5EA;
+  --bg-tertiary: #D1D1D6;
 
   /* Text */
   --text-primary: #1D1D1F;
@@ -24,8 +24,8 @@
 
   /* Cards */
   --card-bg: #FFFFFF;
-  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
-  --card-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06);
+  --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --card-shadow-hover: 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.06);
 
   /* Scores - Apple semantic colors */
   --score-high: #34C759;
@@ -59,14 +59,14 @@
 
 @theme inline {
   --color-accent: var(--accent);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-jakarta);
   --font-mono: var(--font-geist-mono);
 }
 
 body {
   background: var(--bg-primary);
   color: var(--text-primary);
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-family: var(--font-jakarta), system-ui, sans-serif;
 }
 
 /* ========================================

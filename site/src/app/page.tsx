@@ -622,7 +622,7 @@ function MoreResultsSection({
       {/* Header cliquable */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full flex items-center justify-between p-3 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--separator)] hover:bg-[var(--bg-tertiary)] transition-colors"
+        className="w-full flex items-center justify-between p-3 rounded-2xl bg-[var(--card-bg)] border border-[var(--separator)] shadow-[var(--card-shadow)] hover:shadow-[var(--card-shadow-hover)] transition-all"
       >
         <div className="flex items-center gap-2">
           <ListFilter className="w-4 h-4 text-[var(--text-secondary)]" />
@@ -870,7 +870,7 @@ function SearchResults({ data, onBack }: { data: { query: string; categorized: C
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="p-4 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--separator)] space-y-2"
+          className="p-4 rounded-2xl bg-[var(--card-bg)] border border-[var(--separator)] shadow-[var(--card-shadow)] space-y-2"
         >
           <div>
             <div className="text-sm text-[var(--text-secondary)]">Recherche :</div>
@@ -2136,11 +2136,35 @@ export default function Home() {
 
             // Filtrer : garder ceux qui matchent au moins 75% des termes
             const relevant = scored.filter(s => s.matchRatio >= 0.75);
-            // Si aucun résultat suffisamment pertinent, ne pas forcer un mauvais match → fallback Gemini
-            if (relevant.length === 0) {
-              console.log(`[OKAZ] 7. Aucun résultat Amazon ne matche >= 75% (meilleur: ${Math.round((scored[0]?.matchRatio || 0) * 100)}%), fallback Gemini`);
+
+            // Filtre anti-accessoires : exclure coques, étuis, housses, câbles, etc.
+            const accessoryWords = /\b(coque|etui|housse|protection|film|verre\s*tremp|cable|chargeur|adaptateur|support|stand|sac|sacoche|sleeve|skin|sticker|autocollant|compatible\s*avec|pour\s+(?:iphone|macbook|ipad|samsung))\b/i;
+            const filtered = relevant.filter(s => {
+              const titleLower = s.result.title.toLowerCase();
+              if (accessoryWords.test(titleLower)) {
+                console.log(`[OKAZ] 7. Exclu accessoire Amazon: "${s.result.title}" (${s.result.price}€)`);
+                return false;
+              }
+              return true;
+            });
+
+            // Filtre prix aberrant : si prix Amazon < 20% de la médiane occasion, c'est suspect
+            const usedPrices = correctedResults.map(r => r.price).filter(p => p > 0);
+            const medianUsed = usedPrices.length > 0 ? usedPrices.sort((a, b) => a - b)[Math.floor(usedPrices.length / 2)] : 0;
+            const candidates = medianUsed > 0
+              ? filtered.filter(s => {
+                  if (s.result.price < medianUsed * 0.2) {
+                    console.log(`[OKAZ] 7. Exclu prix aberrant Amazon: "${s.result.title}" ${s.result.price}€ (médiane occasion: ${medianUsed}€)`);
+                    return false;
+                  }
+                  return true;
+                })
+              : filtered;
+
+            // Si aucun résultat suffisamment pertinent, fallback Gemini
+            if (candidates.length === 0) {
+              console.log(`[OKAZ] 7. Aucun résultat Amazon valide (${relevant.length} matchés, ${filtered.length} après accessoires, ${candidates.length} après prix), fallback Gemini`);
             }
-            const candidates = relevant;
 
             if (candidates.length > 0) {
               // Parmi les candidats pertinents, prendre le moins cher
