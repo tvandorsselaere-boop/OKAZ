@@ -1855,6 +1855,7 @@ export default function Home() {
     try {
       // Étape 1: Optimiser la requête via Gemini
       console.log('[OKAZ] ====== DÉBUT RECHERCHE ======');
+      const t0 = Date.now();
       console.log('[OKAZ] 1. Optimisation Gemini en cours...');
       console.log('[OKAZ] Requête:', q);
       let criteria: SearchCriteria;
@@ -1929,6 +1930,8 @@ export default function Home() {
         criteria = { keywords: q.trim(), originalQuery: q.trim() };
       }
 
+      const t1 = Date.now();
+      console.log(`[OKAZ] ⏱ OPTIMIZE: ${((t1 - t0) / 1000).toFixed(1)}s`);
       console.log('[OKAZ] 2. Gemini terminé, critères finaux:', criteria);
       if (visualContext) {
         console.log('[OKAZ] 2a. Contexte visuel à passer à l\'analyse:', visualContext);
@@ -1981,6 +1984,8 @@ export default function Home() {
         }
 
         if (response && response.success && response.results) {
+          const t2 = Date.now();
+          console.log(`[OKAZ] ⏱ SCRAPING: ${((t2 - t1) / 1000).toFixed(1)}s`);
           console.log('[OKAZ] 4. Résultats reçus de l\'extension:', response.results.length);
 
           // Extraire les résultats Amazon Neuf (séparés des résultats occasion)
@@ -2028,6 +2033,7 @@ export default function Home() {
           }
 
           // Étape 3: Analyser les résultats avec Gemini
+          const t3 = Date.now();
           console.log('[OKAZ] 5. Analyse Gemini des résultats...', resultsForAnalysis.length, 'résultats');
           setSearchPhase('analyzing');
           let geminiAnalysis: Record<string, { relevant?: boolean; confidence?: number; matchDetails?: string; correctedPrice?: number; marketPrice?: number; dealScore?: number; dealType?: string; explanation?: string; redFlags?: string[] }> = {};
@@ -2064,6 +2070,8 @@ export default function Home() {
           } catch (analyzeErr) {
             console.error('[OKAZ] 5d. ❌ Analyse Gemini échouée:', analyzeErr);
           }
+          const t4 = Date.now();
+          console.log(`[OKAZ] ⏱ ANALYZE: ${((t4 - t3) / 1000).toFixed(1)}s`);
 
           // Appliquer les corrections Gemini
           // 1. Filtrer si confidence < 30% (vraiment hors-sujet)
@@ -2248,6 +2256,9 @@ export default function Home() {
             }
           }
 
+          const t5 = Date.now();
+          console.log(`[OKAZ] ⏱ RECOMMEND: ${((t5 - t4) / 1000).toFixed(1)}s`);
+          console.log(`[OKAZ] ⏱⏱ TOTAL: ${((t5 - t0) / 1000).toFixed(1)}s (optimize=${((t1-t0)/1000).toFixed(1)}s + scraping=${((t2-t1)/1000).toFixed(1)}s + analyze=${((t4-t3)/1000).toFixed(1)}s + recommend=${((t5-t4)/1000).toFixed(1)}s)`);
           console.log('[OKAZ] 7. Affichage des résultats');
           setSearchData({
             query: q,
