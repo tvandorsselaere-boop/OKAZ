@@ -4,7 +4,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Sites disponibles pour la recherche
-export type SearchSite = 'leboncoin' | 'vinted' | 'backmarket' | 'amazon';
+export type SearchSite = 'leboncoin' | 'vinted' | 'backmarket' | 'amazon' | 'ebay';
 
 // Types pour les critères de recherche
 export interface SearchCriteria {
@@ -31,13 +31,13 @@ export interface VisualContext {
 
 // Mapping catégorie → sites pertinents
 const SITES_BY_CATEGORY: Record<string, SearchSite[]> = {
-  tech: ['leboncoin', 'backmarket', 'amazon'],  // Tech = LBC + Back Market + Amazon
-  mode: ['vinted', 'leboncoin', 'amazon'],      // Mode = Vinted + LBC + Amazon
-  auto: ['leboncoin'],                          // Auto = LBC seulement (pas Amazon)
-  immo: ['leboncoin'],                          // Immo = LBC seulement (pas Amazon)
-  maison: ['leboncoin', 'vinted', 'amazon'],    // Maison = LBC + Vinted + Amazon
-  loisirs: ['leboncoin', 'vinted', 'amazon'],   // Loisirs = LBC + Vinted + Amazon
-  autre: ['leboncoin', 'vinted', 'backmarket', 'amazon'], // Autre = tous
+  tech: ['leboncoin', 'backmarket', 'amazon', 'ebay'],     // Tech = LBC + Back Market + Amazon + eBay
+  mode: ['vinted', 'leboncoin', 'amazon', 'ebay'],         // Mode = Vinted + LBC + Amazon + eBay
+  auto: ['leboncoin', 'ebay'],                             // Auto = LBC + eBay
+  immo: ['leboncoin'],                                     // Immo = LBC seulement
+  maison: ['leboncoin', 'vinted', 'amazon', 'ebay'],       // Maison = LBC + Vinted + Amazon + eBay
+  loisirs: ['leboncoin', 'vinted', 'amazon', 'ebay'],      // Loisirs = LBC + Vinted + Amazon + eBay
+  autre: ['leboncoin', 'vinted', 'backmarket', 'amazon', 'ebay'], // Autre = tous
 };
 
 // Briefing Pré-Chasse - Contenu affiché pendant le loading

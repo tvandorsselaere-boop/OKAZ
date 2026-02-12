@@ -295,12 +295,13 @@
         if (!location) {
           const adText = ad.textContent || '';
           // Pattern: "Ville (13)" ou "Aix-en-Provence (13)" — typique LBC
-          const cityMatch = adText.match(/((?:[A-ZÀ-Ü][a-zà-ü]+[-'\s]?(?:de|du|des|en|la|le|les|sur|sous|lès|près|saint|sainte|lez|l'|d')?\s?)*[A-ZÀ-Ü][a-zà-ü]+)\s*\((\d{2,3})\)/);
+          // Regex: mots avec accents, tirets, apostrophes, espaces — suivi de (XX)
+          const cityMatch = adText.match(/((?:[A-ZÀ-Ü][a-zà-ü']+(?:[-\s][a-zà-ü']*)*(?:[-\s][A-ZÀ-Ü][a-zà-ü']+)*))\s*\((\d{2,3})\)/);
           if (cityMatch && cityMatch[1].length < 40) {
             location = cityMatch[0];
           } else {
             // Pattern: "Aix-en-Provence 13100" (nom composé + code postal 5 chiffres)
-            const postalMatch = adText.match(/((?:[A-ZÀ-Ü][a-zà-ü]+[-'\s]?(?:de|du|des|en|la|le|les|sur|sous|lès|près|saint|sainte|lez|l'|d')?\s?)*[A-ZÀ-Ü][a-zà-ü]+)\s+(\d{5})/);
+            const postalMatch = adText.match(/((?:[A-ZÀ-Ü][a-zà-ü']+(?:[-\s][a-zà-ü']*)*(?:[-\s][A-ZÀ-Ü][a-zà-ü']+)*))\s+(\d{5})/);
             if (postalMatch && postalMatch[1].length < 40 && !postalMatch[1].match(/MacBook|iPhone|Samsung|Dell|HP|Asus|Lenovo|Apple|Go\b|Pro\b|Air\b|Max\b/i)) {
               location = postalMatch[1] + ' ' + postalMatch[2];
             }

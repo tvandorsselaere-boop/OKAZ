@@ -1422,6 +1422,7 @@ export default function Home() {
   const [currentVisualContext, setCurrentVisualContext] = useState<VisualContext | null>(null);
   const [clarificationData, setClarificationData] = useState<{ question: string; options?: string[]; originalQuery: string; history: Array<{ question: string; answer: string }> } | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const searchCancelledRef = useRef(false);
 
   // Theme toggle (doit être avant tout return conditionnel)
   const [darkMode, setDarkMode] = useState(false);
@@ -1738,6 +1739,7 @@ export default function Home() {
   // Annuler la recherche en cours
   const handleCancelSearch = () => {
     console.log('[OKAZ] Recherche annulée par l\'utilisateur');
+    searchCancelledRef.current = true;
     setIsSearching(false);
     setIsOptimizing(false);
     setSearchPhase('idle');
@@ -1800,6 +1802,7 @@ export default function Home() {
       return;
     }
 
+    searchCancelledRef.current = false;
     setIsSearching(true);
     setIsOptimizing(true);
     setError(null);
@@ -1943,6 +1946,11 @@ export default function Home() {
         }
 
         if (response && response.success && response.results) {
+          // Vérifier annulation après scraping
+          if (searchCancelledRef.current) {
+            console.log('[OKAZ] Recherche annulée — arrêt après scraping');
+            return;
+          }
           const t2 = Date.now();
           console.log(`[OKAZ] ⏱ SCRAPING: ${((t2 - t1) / 1000).toFixed(1)}s`);
           console.log('[OKAZ] 4. Résultats reçus de l\'extension:', response.results.length);
@@ -1989,6 +1997,12 @@ export default function Home() {
               count: scrapedPrices.length,
             };
             console.log(`[OKAZ] 4d. Prix réels: médiane=${median}€, min=${priceStats.min}€, max=${priceStats.max}€ (${priceStats.count} annonces)`);
+          }
+
+          // Vérifier annulation avant analyse Gemini
+          if (searchCancelledRef.current) {
+            console.log('[OKAZ] Recherche annulée — arrêt avant analyse');
+            return;
           }
 
           // Étape 3: Analyser les résultats avec Gemini
@@ -2245,6 +2259,12 @@ export default function Home() {
           const t5 = Date.now();
           console.log(`[OKAZ] ⏱ RECOMMEND: ${((t5 - t4) / 1000).toFixed(1)}s`);
           console.log(`[OKAZ] ⏱⏱ TOTAL: ${((t5 - t0) / 1000).toFixed(1)}s (optimize=${((t1-t0)/1000).toFixed(1)}s + scraping=${((t2-t1)/1000).toFixed(1)}s + analyze=${((t4-t3)/1000).toFixed(1)}s + recommend=${((t5-t4)/1000).toFixed(1)}s)`);
+          // Vérifier annulation avant affichage
+          if (searchCancelledRef.current) {
+            console.log('[OKAZ] Recherche annulée — arrêt avant affichage');
+            return;
+          }
+
           console.log('[OKAZ] 7. Affichage des résultats');
           setSearchData({
             query: q,
