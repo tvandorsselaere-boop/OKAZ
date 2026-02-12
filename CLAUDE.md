@@ -408,13 +408,13 @@ NEXT_PUBLIC_ADSENSE_SLOT_RECTANGLE=1234...
 
 | Fichier | Role |
 |---------|------|
-| `site/src/app/page.tsx` | Page principale (~2300 lignes) — UI, search flow, resultats, modals |
-| `site/src/app/layout.tsx` | Layout + script AdSense |
-| `site/src/components/NewProductBanner.tsx` | Bandeau "Et en neuf ?" |
-| `site/src/components/ui/glass-card.tsx` | Carte glassmorphism |
-| `site/src/components/ui/liquid-button.tsx` | Bouton anime |
+| `site/src/app/page.tsx` | Page principale (~2900 lignes) — UI, search flow, resultats, modals, ThemeToggleButton |
+| `site/src/app/layout.tsx` | Layout + Plus Jakarta Sans + dark mode script + AdSense |
+| `site/src/components/NewProductBanner.tsx` | Bandeau "Et en neuf ?" (Lucide icon, card-bg) |
+| `site/src/components/ui/glass-card.tsx` | Carte Apple-style (card-bg + shadow, pas de blur) |
+| `site/src/components/ui/liquid-button.tsx` | Bouton flat (accent, secondary, ghost) |
 | `site/src/components/ui/upgrade-modal.tsx` | Modal upgrade + compteur recherches |
-| `site/src/components/ui/spotlight-card.tsx` | Carte avec effet spotlight |
+| `site/src/components/ui/spotlight-card.tsx` | Carte simple (card-bg + border, pas de spotlight) |
 | `site/src/components/ads/AdSlot.tsx` | Composant generique pub |
 | `site/src/components/ads/AdSidebar.tsx` | Sidebar pubs |
 
@@ -469,17 +469,34 @@ IA:
 
 ---
 
-## Design System Facile-IA
+## Design System OKAZ (v0.9.0 — Apple-style)
 
 ```css
-/* Couleurs */
---primary: #6366f1;        /* Indigo */
---accent: #8b5cf6;         /* Violet */
---glass-bg: rgba(255, 255, 255, 0.05);
---glass-border: rgba(255, 255, 255, 0.1);
+/* Theme: Light par defaut + dark mode (.dark sur <html>) */
 
+:root {
+  --bg-primary: #F2F2F7;       /* Page background (Apple iOS gray 6) */
+  --bg-secondary: #E5E5EA;     /* Inner recessed areas */
+  --bg-tertiary: #D1D1D6;      /* Tags, pills */
+  --card-bg: #FFFFFF;           /* Cards pop on gray bg */
+  --text-primary: #1D1D1F;
+  --text-secondary: #86868B;
+  --text-tertiary: #AEAEB2;
+  --accent: #007AFF;            /* Apple Blue */
+  --separator: rgba(0,0,0,0.08);
+  --score-high: #34C759;        /* Apple Green */
+  --score-medium: #FF9500;      /* Apple Orange */
+  --score-low: #FF3B30;         /* Apple Red */
+}
+
+/* Police: Plus Jakarta Sans (arrondie, moderne) */
 /* Polices INTERDITES: Inter, Roboto, Arial, Space Grotesk */
-/* Polices APPROUVEES: Geist, DM Sans, Plus Jakarta Sans, Satoshi */
+/* Polices APPROUVEES: Plus Jakarta Sans, DM Sans, Geist, Satoshi */
+
+/* Dark mode: .dark classe sur <html> (localStorage + prefers-color-scheme) */
+/* Toggle Sun/Moon fixe en haut a droite sur toutes les pages */
+/* Zero glow/shimmer/neon → ombres douces, transitions 0.2s */
+/* Zero emoji en UI → Lucide icons */
 ```
 
 ---
@@ -582,9 +599,16 @@ cd site && npm run test:relevance
 - [x] Sélection intelligente produit neuf (filtrage pertinence titre)
 - [x] Prix neuf réel Amazon (remplace estimation Gemini)
 - [x] Couleur Amazon jaune foncé (#DAA520) distincte de LBC
+- [x] Redesign Apple-style (light/dark mode, Plus Jakarta Sans, Lucide icons)
+- [x] Dark mode toggle (Sun/Moon, localStorage, toutes les pages)
+- [x] Filtre anti-accessoires Amazon (coque, étui, housse → exclus)
+- [x] Filtre prix aberrant Amazon (< 20% médiane occasion → exclu)
+- [x] Amazon matching via keywordsBM (sans specs RAM/SSD)
+- [x] Matching post-clarification (criteria.keywords au lieu de q brute)
+- [x] Deploiement Vercel (okaz-ia.fr) ✅ Auto-deploy main
 - [ ] Finaliser extension pour Chrome Web Store
 - [ ] UI responsive mobile
-- [ ] Deploiement Vercel (okaz-ia.fr)
+- [ ] SEO: robots.txt, sitemap.xml, meta OG, favicon
 
 ### Phase 5: Sites par Categorie + Musique (ROADMAP)
 
