@@ -416,7 +416,7 @@ OKAZ est un **projet Lab** de l'écosystème Facile-IA.
 | Fichier | Role |
 |---------|------|
 | `site/src/app/page.tsx` | Page principale (~2900 lignes) — UI, search flow, resultats, modals, ThemeToggleButton |
-| `site/src/app/layout.tsx` | Layout + Plus Jakarta Sans + dark mode script + AdSense |
+| `site/src/app/layout.tsx` | Layout + Inter font + dark mode script + AdSense |
 | `site/src/components/NewProductBanner.tsx` | Bandeau "Et en neuf ?" (Lucide icon, card-bg) |
 | `site/src/components/ui/glass-card.tsx` | Carte Apple-style (card-bg + shadow, pas de blur) |
 | `site/src/components/ui/liquid-button.tsx` | Bouton flat (accent, secondary, ghost) |
@@ -477,33 +477,33 @@ IA:
 
 ---
 
-## Design System OKAZ (v0.9.0 — Apple-style)
+## Design System OKAZ (v1.0.0 — V0 Modern)
 
 ```css
 /* Theme: Light par defaut + dark mode (.dark sur <html>) */
 
 :root {
-  --bg-primary: #F2F2F7;       /* Page background (Apple iOS gray 6) */
-  --bg-secondary: #E5E5EA;     /* Inner recessed areas */
-  --bg-tertiary: #D1D1D6;      /* Tags, pills */
-  --card-bg: #FFFFFF;           /* Cards pop on gray bg */
-  --text-primary: #1D1D1F;
-  --text-secondary: #86868B;
-  --text-tertiary: #AEAEB2;
-  --accent: #007AFF;            /* Apple Blue */
-  --separator: rgba(0,0,0,0.08);
-  --score-high: #34C759;        /* Apple Green */
-  --score-medium: #FF9500;      /* Apple Orange */
-  --score-low: #FF3B30;         /* Apple Red */
+  --bg-primary: #F8FAFC;       /* Slate 50 */
+  --bg-secondary: rgba(241, 245, 249, 0.7);
+  --bg-tertiary: rgba(226, 232, 240, 0.8);
+  --card-bg: rgba(255, 255, 255, 0.7);
+  --text-primary: #0F172A;     /* Slate 900 — high contrast */
+  --text-secondary: #64748B;
+  --text-tertiary: #94A3B8;
+  --accent: #6366F1;            /* Indigo 500 */
+  --accent-secondary: #8B5CF6;  /* Violet 500 */
+  --score-high: #10B981;        /* Emerald 500 */
+  --score-medium: #F59E0B;      /* Amber 500 */
+  --score-low: #EF4444;         /* Red 500 */
 }
 
-/* Police: Plus Jakarta Sans (arrondie, moderne) */
-/* Polices INTERDITES: Inter, Roboto, Arial, Space Grotesk */
-/* Polices APPROUVEES: Plus Jakarta Sans, DM Sans, Geist, Satoshi */
-
-/* Dark mode: .dark classe sur <html> (localStorage + prefers-color-scheme) */
-/* Toggle Sun/Moon fixe en haut a droite sur toutes les pages */
-/* Zero glow/shimmer/neon → ombres douces, transitions 0.2s */
+/* Police: Inter (clean, neutre, lisible) */
+/* Dark mode: .dark → bg #0F172A, accent #818CF8 */
+/* Fond: gradient-mesh anime (15s) — remplace les glow orbs */
+/* Transitions: cubic-bezier(0.4, 0, 0.2, 1), 300ms */
+/* Cards: rounded-[20px], hover scale-[1.02], backdrop-blur-2xl */
+/* Boutons: gradient accent→violet, shadow accent/25 */
+/* Score: jauge 10 barres (9/10 vert, 8/10 orange) */
 /* Zero emoji en UI → Lucide icons */
 ```
 
@@ -596,7 +596,7 @@ cd site && npm run test:relevance
 - [x] Extension: quota sync + UUID storage
 - [x] Modal upgrade + compteur recherches + bouton "Gérer" pour premium
 
-### Phase 4: Demo & Debug (EN COURS)
+### Phase 4: Demo & Debug ✅
 - [x] Geolocalisation LBC: format URL `locations=Ville_CP__lat_lng_5000_rayon`
 - [x] Geocoding par code postal (fallback quand nom de ville pas reconnu)
 - [x] Extraction localisation LBC (noms composés: Aix-en-Provence, Saint-Maximin...)
@@ -607,7 +607,7 @@ cd site && npm run test:relevance
 - [x] Sélection intelligente produit neuf (filtrage pertinence titre)
 - [x] Prix neuf réel Amazon (remplace estimation Gemini)
 - [x] Couleur Amazon jaune foncé (#DAA520) distincte de LBC
-- [x] Redesign Apple-style (light/dark mode, Plus Jakarta Sans, Lucide icons)
+- [x] Redesign V0 Modern (Inter, indigo/violet, mesh gradient, jauge score)
 - [x] Dark mode toggle (Sun/Moon, localStorage, toutes les pages)
 - [x] Filtre anti-accessoires Amazon (coque, étui, housse → exclus)
 - [x] Filtre prix aberrant Amazon (< 20% médiane occasion → exclu)
@@ -615,12 +615,56 @@ cd site && npm run test:relevance
 - [x] Matching post-clarification (criteria.keywords au lieu de q brute)
 - [x] Deploiement Vercel (okaz-ia.fr) ✅ Auto-deploy main
 - [x] Intégration eBay (parser s-card 2025 + 4 stratégies multi-fallback)
-- [x] eBay: activation tab temporaire pour rendu lazy + restauration onglet original
+- [x] eBay: scraping 100% arrière-plan (plus de flash onglet)
 - [x] Amazon Seconde Main: ajout locale __mk_fr_FR pour warehouse-deals
 - [x] Amazon URL: fix encodeURIComponent (URLSearchParams droppait le 1er mot)
-- [ ] Finaliser extension pour Chrome Web Store
+- [x] Amazon Neuf exclus des résultats principaux (bandeau "Et en neuf?" uniquement)
+- [x] Fix best score = vrai meilleur score (plus de filtre red flags)
+- [x] Résumé recherche condensé sur 1 ligne
+- [x] Score jauge visuelle 10 barres (remplace double pourcentage)
+
+### Phase 4.5: Lancement (EN COURS — objectif 15 fev 2026)
+
+#### Chrome Web Store (PRIORITE 1)
+- [ ] Screenshots extension (1280x800 ou 640x400)
+- [ ] Icone extension 128x128 PNG
+- [ ] Description courte + longue Chrome Web Store
+- [ ] Categorie + tags
+- [ ] Politique de confidentialite (URL okaz-ia.fr/privacy)
+- [ ] Justification permissions (tabs, scripting, externally_connectable)
+- [ ] Soumettre pour review (compte dev Chrome: 5$ one-time)
+- [ ] Mettre a jour `externally_connectable` avec l'ID publie
+
+#### RGPD / Legal (PRIORITE 1)
+- [ ] Bandeau cookies (consentement avant Gemini/Supabase/Stripe/AdSense)
+- [ ] Page /privacy : mise a jour avec cookies, Gemini, Supabase, Stripe
+- [ ] Page /mentions-legales (obligatoire loi francaise: editeur, hebergeur, contact)
+- [ ] Page /cgu (conditions generales d'utilisation — pour freemium/Stripe)
+- [ ] Footer avec liens: Confidentialite | Mentions legales | CGU | FAQ
+- [ ] Mention affiliation dans le footer ("Liens affilies Amazon, Back Market")
+
+#### FAQ (PRIORITE 2)
+- [ ] Page /faq avec questions courantes :
+  - Comment installer l'extension ?
+  - Pourquoi faut-il une extension ?
+  - Quels sites sont compares ?
+  - Comment fonctionne le score ?
+  - Mes donnees sont-elles en securite ?
+  - C'est quoi les plans Pro/Premium ?
+  - Comment annuler mon abonnement ?
+
+#### SEO & Meta (PRIORITE 2)
+- [ ] Favicon (ico + apple-touch-icon)
+- [ ] Meta OG (titre, description, image)
+- [ ] robots.txt
+- [ ] sitemap.xml
+- [ ] Structured data (JSON-LD WebApplication)
+
+#### Nice-to-have (post-lancement)
 - [ ] UI responsive mobile
-- [ ] SEO: robots.txt, sitemap.xml, meta OG, favicon
+- [ ] S'inscrire Amazon Partenaires
+- [ ] S'inscrire Awin editeur + postuler programmes
+- [ ] S'inscrire AdSense
 
 ### Phase 5: Sites par Categorie + Musique (ROADMAP)
 
@@ -720,4 +764,4 @@ Plan : Finir desktop → Prototype RN → Tester stores → Fallback PWA si reje
 
 ---
 
-*Mis a jour le 14 fevrier 2026 - v0.9.1*
+*Mis a jour le 14 fevrier 2026 - v1.0.0-rc1 (Release Candidate)*
