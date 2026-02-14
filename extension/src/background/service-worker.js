@@ -390,8 +390,9 @@ async function handleSearch(query, criteria, sendResponse) {
 
     console.log(`OKAZ SW: LeBonCoin=${lbcResults.length}, Vinted=${vintedResults.length}, BackMarket=${bmResults.length}, AmazonNeuf=${amazonNewResults.length}, AmazonSecondMain=${amazonUsedResults.length}, eBay=${ebayResults.length}`);
 
-    // Résultats principaux : LBC + Vinted + BM + Amazon Seconde Main + Amazon Neuf + eBay
-    const allResults = [...lbcResults, ...vintedResults, ...bmResults, ...amazonUsedResults, ...amazonNewResults, ...ebayResults].sort((a, b) => b.score - a.score);
+    // Résultats principaux : LBC + Vinted + BM + Amazon Seconde Main + eBay
+    // Amazon Neuf n'est PAS inclus ici — il sert uniquement au bandeau "Et en neuf?"
+    const allResults = [...lbcResults, ...vintedResults, ...bmResults, ...amazonUsedResults, ...ebayResults].sort((a, b) => b.score - a.score);
 
     // Top 5 Amazon Neuf les moins chers → prix neuf de référence pour le bandeau
     const amazonNewForBanner = [...amazonNewResults]
