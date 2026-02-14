@@ -1400,19 +1400,9 @@ async function searchEbay(query, criteria) {
             return;
           }
 
-          // Page chargée — activer brièvement pour déclencher le rendu lazy
-          console.log('OKAZ SW: eBay page chargée, activation pour rendu...');
-          let originalTabId = null;
-          try {
-            const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-            originalTabId = activeTab?.id;
-            await chrome.tabs.update(tabId, { active: true });
-          } catch {}
+          // Page chargée — attendre le chargement du contenu (pas d'activation au premier plan)
+          console.log('OKAZ SW: eBay page chargée, attente du contenu...');
           await new Promise(r => setTimeout(r, 3000));
-          // Revenir à l'onglet d'origine
-          if (originalTabId) {
-            try { await chrome.tabs.update(originalTabId, { active: true }); } catch {}
-          }
           if (resolved) return;
 
           // Parser via executeScript (multi-stratégie intégrée)
