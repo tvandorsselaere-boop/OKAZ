@@ -42,7 +42,7 @@ SOLUTION: L'extension Chrome fait le scraping dans le navigateur de l'utilisateu
 │                                                             │
 │  1. Recoit les criteres structures                          │
 │  2. Construit URLs optimisees pour chaque site             │
-│  3. Ouvre LBC + Vinted + BackMarket + Amazon en parallele  │
+│  3. Ouvre LBC + Vinted + BackMarket + Amazon + eBay en //  │
 │     (Amazon: neuf + seconde main warehouse-deals)           │
 │  4. Parse les resultats, combine et renvoie au site        │
 │  5. amazonNewResults separes pour prix neuf de reference    │
@@ -357,7 +357,14 @@ NEXT_PUBLIC_ADSENSE_SLOT_RECTANGLE=1234...
 - Stripe (paiements boost/premium)
 - Resend (emails magic link)
 
-**Parent**: Facile-IA (Lab Project)
+## Écosystème Facile-IA
+
+OKAZ est un **projet Lab** de l'écosystème Facile-IA.
+- **Entreprise mère** : Facile-IA — Agence digitale IA pour PME/artisans
+- **Projet maître** : `/Users/vandorsselaere/Documents/CURSOR/FACILIA-WEBSITE/`
+- **Registre projets** : `FACILIA-WEBSITE/REGISTRE-PROJETS.md`
+- **Skills business** (stratégie, pricing, marketing) : dans `.claude/skills/` du projet FACILIA-WEBSITE
+- **QG central** : Projet Claude.ai "FACILE-IA" (planification, specs, décisions inter-projets)
 
 ---
 
@@ -428,6 +435,7 @@ NEXT_PUBLIC_ADSENSE_SLOT_RECTANGLE=1234...
 | `extension/src/content/vinted.js` | Parser DOM Vinted |
 | `extension/src/content/backmarket.js` | Parser DOM Back Market |
 | `extension/src/content/amazon.js` | Parser DOM Amazon (neuf + seconde main) |
+| `extension/src/content/ebay.js` | Parser DOM eBay v0.8.0 (s-card 2025 + /itm/ fallback) |
 | `extension/src/lib/quota.js` | Gestion quota cote extension |
 | `extension/src/popup/popup.js` | Popup extension |
 
@@ -606,6 +614,10 @@ cd site && npm run test:relevance
 - [x] Amazon matching via keywordsBM (sans specs RAM/SSD)
 - [x] Matching post-clarification (criteria.keywords au lieu de q brute)
 - [x] Deploiement Vercel (okaz-ia.fr) ✅ Auto-deploy main
+- [x] Intégration eBay (parser s-card 2025 + 4 stratégies multi-fallback)
+- [x] eBay: activation tab temporaire pour rendu lazy + restauration onglet original
+- [x] Amazon Seconde Main: ajout locale __mk_fr_FR pour warehouse-deals
+- [x] Amazon URL: fix encodeURIComponent (URLSearchParams droppait le 1er mot)
 - [ ] Finaliser extension pour Chrome Web Store
 - [ ] UI responsive mobile
 - [ ] SEO: robots.txt, sitemap.xml, meta OG, favicon
@@ -637,7 +649,7 @@ Gemini detecte la categorie de recherche et selectionne les sites pertinents :
 | MODE | Vinted | Non | ⭐⭐⭐ | ✅ Done |
 | TECH | Amazon | Direct 1-12% | ⭐⭐⭐ | ✅ Done |
 | TECH | Rakuten | Awin 2-9% | ⭐⭐⭐ | A faire |
-| ALL | eBay | Awin 1-4% | ⭐⭐⭐ | A faire |
+| ALL | eBay | Awin 1-4% | ⭐⭐⭐ | ✅ Done |
 | TECH | Fnac | Awin | ⭐⭐ | A faire |
 | MUSIQUE | Zikinf | Non | ⭐⭐⭐ | A faire |
 | MUSIQUE | Audiofanzine | Non | ⭐⭐ | A faire |
@@ -708,4 +720,4 @@ Plan : Finir desktop → Prototype RN → Tester stores → Fallback PWA si reje
 
 ---
 
-*Mis a jour le 8 fevrier 2026 - v0.8.0*
+*Mis a jour le 14 fevrier 2026 - v0.9.1*
