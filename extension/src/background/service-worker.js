@@ -1077,35 +1077,11 @@ async function searchEbay(query, criteria) {
     };
 
     // Fonction de parsing injectée via chrome.scripting.executeScript
-    // Ceci est autonome — pas besoin du content script ebay.js
+    // Nouveau DOM eBay 2025 : plus de .s-item, on utilise a[href*="/itm/"]
     async function parseEbayPage() {
       const MAX = 10;
       const results = [];
       const seenUrls = new Set();
-
-      // Attendre que les résultats apparaissent (max 10s)
-      const waitForItems = () => new Promise((res) => {
-        let tries = 0;
-        const check = () => {
-          tries++;
-          // Essayer plusieurs sélecteurs
-          const selectors = [
-            'li.s-item', 'div.s-item', '.srp-results .s-item',
-            'ul.srp-results > li', 'a[href*="/itm/"]'
-          ];
-          for (const sel of selectors) {
-            const els = document.querySelectorAll(sel);
-            const valid = [...els].filter(el => {
-              const t = el.textContent || '';
-              return t.length > 20 && !t.includes('Shop on eBay') && !t.includes('VOUS AIMEREZ');
-            });
-            if (valid.length > 0) return res({ items: valid, sel });
-          }
-          if (tries < 20) setTimeout(check, 500);
-          else res({ items: [], sel: 'none' });
-        };
-        check();
-      });
 
       // Scroll pour lazy loading
       for (let i = 0; i < 3; i++) {
@@ -1115,83 +1091,75 @@ async function searchEbay(query, criteria) {
       window.scrollTo(0, 0);
       await new Promise(r => setTimeout(r, 500));
 
-      const { items, sel } = await waitForItems();
-      console.log(`OKAZ EBAY INJECT: ${items.length} items via "${sel}"`);
+      // Attendre les liens /itm/
+      const waitForLinks = () => new Promise((res) => {
+        let tries = 0;
+        const check = () => {
+          tries++;
+          const links = document.querySelectorAll('a[href*="/itm/"]');
+          if (links.length > 0) return res(links);
+          if (tries < 20) setTimeout(check, 500);
+          else res([]);
+        };
+        check();
+      });
 
-      // Debug DOM si rien trouvé
-      if (items.length === 0) {
-        console.log('OKAZ EBAY INJECT DEBUG:', {
-          url: location.href,
-          title: document.title,
-          bodyLen: document.body?.innerHTML?.length || 0,
-          sItems: document.querySelectorAll('.s-item').length,
-          itmLinks: document.querySelectorAll('a[href*="/itm/"]').length,
-          consent: !!document.querySelector('#consent_prompt, #gdpr-banner, .consent-page'),
-          captcha: !!document.querySelector('#captcha, .captcha, [class*="captcha"]'),
-          // Première partie du HTML pour debug
-          bodySnippet: document.body?.innerHTML?.substring(0, 500) || ''
-        });
+      const links = await waitForLinks();
+      console.log(`OKAZ EBAY INJECT: ${links.length} liens /itm/ trouvés`);
+
+      // Trouver le conteneur parent d'un lien (avec prix EUR)
+      function findContainer(link) {
+        let el = link.parentElement;
+        for (let i = 0; i < 6; i++) {
+          if (!el) break;
+          if ((el.textContent || '').match(/[\d,.]+\s*EUR/) && (el.textContent || '').length > 50) return el;
+          el = el.parentElement;
+        }
+        return link.parentElement?.parentElement?.parentElement || link.parentElement;
       }
 
-      items.forEach((product, index) => {
-        if (index >= MAX) return;
+      for (const link of links) {
+        if (results.length >= MAX) break;
         try {
-          const link = product.tagName === 'A' ? product :
-            (product.querySelector('a.s-item__link') || product.querySelector('a[href*="/itm/"]'));
-          let url = link?.href || '';
-          if (url) try { const u = new URL(url); url = `${u.origin}${u.pathname}`; } catch {}
-          if (!url || !url.includes('/itm/') || seenUrls.has(url)) return;
+          let url = link.href || '';
+          if (!url.includes('/itm/')) continue;
+          try { const u = new URL(url); url = `${u.origin}${u.pathname}`; } catch {}
+          if (seenUrls.has(url)) continue;
           seenUrls.add(url);
 
-          let title = '';
-          const titleEl = product.querySelector('.s-item__title span[role="heading"]') ||
-                          product.querySelector('.s-item__title span:not(.LIGHT_HIGHLIGHT)') ||
-                          product.querySelector('.s-item__title') ||
-                          product.querySelector('h3');
-          if (titleEl?.textContent?.trim()) {
-            title = titleEl.textContent.trim()
-              .replace(/^(Neuf|D'occasion|Nouveau)\s*[–-]\s*/i, '')
-              .replace(/^Sponsorisé\s*/i, '');
+          let title = link.title || '';
+          if (!title) {
+            const h = link.querySelector('span[role="heading"], h3, span');
+            title = h?.textContent?.trim() || link.textContent?.trim() || '';
           }
-          if (!title && link) title = link.title || link.textContent?.trim()?.substring(0, 80) || '';
+          title = title.replace(/^(Neuf|D'occasion|Nouveau)\s*[–-]\s*/i, '').replace(/^Sponsorisé\s*/i, '').substring(0, 100);
+          if (!title || title.length < 5) continue;
 
+          const container = findContainer(link);
+          const priceMatch = (container?.textContent || '').match(/([\d\s]+(?:[.,]\d{2})?)\s*EUR/);
           let price = 0;
-          const priceEl = product.querySelector('.s-item__price');
-          const priceText = priceEl?.textContent?.trim() || '';
-          const priceMatch = priceText.match(/([\d\s]+(?:[.,]\d{2})?)\s*(?:EUR|€)/);
           if (priceMatch) {
             const v = parseFloat(priceMatch[1].replace(/\s/g, '').replace(',', '.'));
             if (v > 0 && v < 50000) price = Math.round(v);
           }
-          if (price === 0) {
-            const m2 = product.textContent.match(/([\d\s]+(?:[.,]\d{2})?)\s*(?:EUR|€)/);
-            if (m2) {
-              const v = parseFloat(m2[1].replace(/\s/g, '').replace(',', '.'));
-              if (v > 0 && v < 50000) price = Math.round(v);
-            }
-          }
+          if (price === 0) continue;
 
           let image = null;
-          const imgEl = product.querySelector('.s-item__image-wrapper img') ||
-                        product.querySelector('.s-item__image img') ||
-                        product.querySelector('img[src*="ebayimg"]');
+          const imgEl = container?.querySelector('img[src*="ebayimg"]') || container?.querySelector('img:not([src*="ebaystatic"])');
           if (imgEl) {
-            image = imgEl.src || imgEl.dataset?.src;
-            if (image && (image.includes('placeholder') || image.includes('data:image') || image.includes('blank') || image.includes('ebaystatic.com/cr/v/c1'))) image = null;
+            image = imgEl.src || imgEl.dataset?.src || null;
+            if (image && (image.includes('placeholder') || image.includes('data:image') || image.includes('blank'))) image = null;
           }
 
-          if (title && url) {
-            results.push({
-              id: `ebay-${index}-${Date.now()}`,
-              title: title.substring(0, 80),
-              price, site: 'eBay', siteColor: '#E53238',
-              image, url, location: '',
-              handDelivery: false, hasShipping: true, hasWarranty: false,
-              score: 70, redFlags: []
-            });
-          }
-        } catch (e) { console.error('OKAZ EBAY INJECT: parse error', index, e); }
-      });
+          results.push({
+            id: `ebay-${results.length}-${Date.now()}`,
+            title, price, site: 'eBay', siteColor: '#E53238',
+            image, url, location: '',
+            handDelivery: false, hasShipping: true, hasWarranty: false,
+            score: 70, redFlags: []
+          });
+        } catch (e) { console.error('OKAZ EBAY INJECT: parse error', e); }
+      }
 
       console.log(`OKAZ EBAY INJECT: ${results.length} résultats parsés`);
       return results;

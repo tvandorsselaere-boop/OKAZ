@@ -1,185 +1,156 @@
-// OKAZ Content Script - eBay.fr Parser v0.5.2
-// S'exécute automatiquement sur les pages de recherche eBay France
+// OKAZ Content Script - eBay.fr Parser v0.6.0
+// Nouveau DOM eBay (2025) : plus de .s-item, utilise a[href*="/itm/"] + conteneur parent
 
 (function() {
-  console.log('OKAZ: eBay parser v0.5.2 chargé');
+  console.log('OKAZ: eBay parser v0.6.0 chargé');
   console.log('OKAZ: URL =', window.location.href);
-
-  // Détecter si on est sur une page de consentement
-  const isConsentPage = window.location.href.includes('consent') ||
-    !!document.querySelector('#consent_prompt, .consent-page, #gdpr-banner');
 
   // Accepter le consentement GDPR si présent
   function acceptConsent() {
-    const consentSelectors = [
-      '#gdpr-banner-accept',
-      'button#consent-page-btn-accept',
-      '[data-testid="gdpr-banner-accept"]',
-      'button.gdpr-banner__accept',
-      '#consent_prompt_submit',
-      'button[id*="accept"]',
-      'button[data-testid*="accept"]',
-      // Boutons génériques "Accepter"
-      'button[name="accept"]',
-      '#accept'
+    const selectors = [
+      '#gdpr-banner-accept', 'button#consent-page-btn-accept',
+      '[data-testid="gdpr-banner-accept"]', 'button.gdpr-banner__accept',
+      '#consent_prompt_submit', 'button[id*="accept"]',
+      'button[name="accept"]', '#accept'
     ];
-    for (const sel of consentSelectors) {
+    for (const sel of selectors) {
       const el = document.querySelector(sel);
-      if (el && (el.tagName === 'BUTTON' || el.tagName === 'INPUT' || el.tagName === 'A')) {
-        console.log('OKAZ EBAY: Consentement accepté via', sel);
-        el.click();
-        return true;
-      }
+      if (el) { el.click(); return true; }
     }
-    // Fallback: chercher tout bouton contenant "accept" dans le texte
-    const allButtons = document.querySelectorAll('button, [role="button"], input[type="submit"]');
-    for (const btn of allButtons) {
+    const btns = document.querySelectorAll('button, [role="button"], input[type="submit"]');
+    for (const btn of btns) {
       const text = (btn.textContent || btn.value || '').toLowerCase();
-      if (text.includes('accepter') || text.includes('accept') || text.includes('agree') || text.includes('consent')) {
-        console.log('OKAZ EBAY: Consentement accepté via bouton texte:', text.trim().substring(0, 30));
-        btn.click();
-        return true;
+      if (text.includes('accepter') || text.includes('accept') || text.includes('agree')) {
+        btn.click(); return true;
       }
     }
     return false;
   }
 
-  // Essayer d'accepter le consentement
   acceptConsent();
   setTimeout(acceptConsent, 500);
   setTimeout(acceptConsent, 1500);
-  setTimeout(acceptConsent, 3000);
 
-  // Attendre que les résultats soient chargés
+  // Attendre les liens /itm/ (= résultats chargés)
   function waitForResults() {
     return new Promise((resolve) => {
       let attempts = 0;
-      const maxAttempts = 20;
-
       const check = () => {
         attempts++;
-
         if (attempts <= 3) acceptConsent();
 
-        const selectorsList = [
-          'li.s-item',
-          'div.s-item',
-          '.srp-results .s-item',
-          'ul.srp-results > li',
-          'a[href*="/itm/"]'
-        ];
-
-        for (const selector of selectorsList) {
-          const products = document.querySelectorAll(selector);
-          const filtered = [...products].filter(el => {
-            const text = el.textContent || '';
-            return text.length > 20 &&
-              !text.includes('Shop on eBay') &&
-              !text.includes('VOUS AIMEREZ');
-          });
-          if (filtered.length > 0) {
-            console.log(`OKAZ EBAY: ${filtered.length} produits via "${selector}"`);
-            resolve({ products: filtered, selector });
-            return;
-          }
+        const links = document.querySelectorAll('a[href*="/itm/"]');
+        if (links.length > 0) {
+          console.log(`OKAZ EBAY: ${links.length} liens /itm/ trouvés (tentative ${attempts})`);
+          resolve(links);
+          return;
         }
 
-        if (attempts < maxAttempts) {
+        if (attempts < 30) {
           setTimeout(check, 500);
         } else {
-          console.log('OKAZ EBAY: Timeout, 0 produits trouvés');
-          // Debug info
-          console.log('OKAZ EBAY DEBUG:', {
-            url: location.href,
-            title: document.title,
-            bodyLen: document.body?.innerHTML?.length || 0,
-            sItems: document.querySelectorAll('.s-item').length,
-            itmLinks: document.querySelectorAll('a[href*="/itm/"]').length,
-          });
-          resolve({ products: [], selector: 'none' });
+          console.log('OKAZ EBAY: Timeout, 0 liens /itm/');
+          resolve([]);
         }
       };
-
       check();
     });
   }
 
+  // Trouver le conteneur d'un lien /itm/ (remonter le DOM)
+  function findItemContainer(link) {
+    let el = link.parentElement;
+    // Remonter max 6 niveaux pour trouver un conteneur avec prix
+    for (let i = 0; i < 6; i++) {
+      if (!el) break;
+      const text = el.textContent || '';
+      // Un bon conteneur a le prix EUR et du texte substantiel
+      if (text.match(/[\d,.]+\s*EUR/) && text.length > 50) {
+        return el;
+      }
+      el = el.parentElement;
+    }
+    // Fallback: remonter 3 niveaux
+    return link.parentElement?.parentElement?.parentElement || link.parentElement;
+  }
+
+  // Extraire le prix d'un texte
+  function extractPrice(text) {
+    // Prendre le PREMIER prix trouvé (prix principal, pas le "à X EUR" des enchères)
+    const match = text.match(/([\d\s]+(?:[.,]\d{2})?)\s*EUR/);
+    if (match) {
+      const v = parseFloat(match[1].replace(/\s/g, '').replace(',', '.'));
+      if (v > 0 && v < 50000) return Math.round(v);
+    }
+    return 0;
+  }
+
   // Parser les résultats
   async function parseResults(maxResults = 10) {
-    const { products: productElements, selector } = await waitForResults();
+    const links = await waitForResults();
     const results = [];
     const seenUrls = new Set();
 
-    productElements.forEach((product, index) => {
-      if (index >= maxResults) return;
+    for (const link of links) {
+      if (results.length >= maxResults) break;
 
       try {
-        const link = product.tagName === 'A' ? product :
-          (product.querySelector('a.s-item__link') || product.querySelector('a[href*="/itm/"]'));
-        let url = link?.href || '';
-
-        if (url) {
-          try { const u = new URL(url); url = `${u.origin}${u.pathname}`; } catch {}
-        }
-
-        if (!url || !url.includes('/itm/') || seenUrls.has(url)) return;
+        let url = link.href || '';
+        if (!url.includes('/itm/')) continue;
+        // Nettoyer l'URL (enlever les query params)
+        try { const u = new URL(url); url = `${u.origin}${u.pathname}`; } catch {}
+        if (seenUrls.has(url)) continue;
         seenUrls.add(url);
 
-        let title = '';
-        const titleEl = product.querySelector('.s-item__title span[role="heading"]') ||
-                        product.querySelector('.s-item__title span:not(.LIGHT_HIGHLIGHT)') ||
-                        product.querySelector('.s-item__title') ||
-                        product.querySelector('h3');
-        if (titleEl?.textContent?.trim()) {
-          title = titleEl.textContent.trim()
-            .replace(/^(Neuf|D'occasion|Nouveau)\s*[–-]\s*/i, '')
-            .replace(/^Sponsorisé\s*/i, '');
+        // Titre : texte du lien ou attribut title
+        let title = link.title || '';
+        if (!title) {
+          // Chercher un span/heading dans le lien
+          const heading = link.querySelector('span[role="heading"], h3, span');
+          title = heading?.textContent?.trim() || link.textContent?.trim() || '';
         }
-        if (!title && link) title = link.title || link.textContent?.trim()?.substring(0, 80) || '';
+        title = title
+          .replace(/^(Neuf|D'occasion|Nouveau)\s*[–-]\s*/i, '')
+          .replace(/^Sponsorisé\s*/i, '')
+          .substring(0, 100);
 
-        let price = 0;
-        const priceEl = product.querySelector('.s-item__price');
-        const priceText = priceEl?.textContent?.trim() || '';
-        const priceMatch = priceText.match(/([\d\s]+(?:[.,]\d{2})?)\s*(?:EUR|€)/);
-        if (priceMatch) {
-          const v = parseFloat(priceMatch[1].replace(/\s/g, '').replace(',', '.'));
-          if (v > 0 && v < 50000) price = Math.round(v);
-        }
-        if (price === 0) {
-          const m2 = product.textContent.match(/([\d\s]+(?:[.,]\d{2})?)\s*(?:EUR|€)/);
-          if (m2) {
-            const v = parseFloat(m2[1].replace(/\s/g, '').replace(',', '.'));
-            if (v > 0 && v < 50000) price = Math.round(v);
-          }
-        }
+        if (!title || title.length < 5) continue;
 
+        // Trouver le conteneur parent pour prix et image
+        const container = findItemContainer(link);
+
+        // Prix
+        const price = extractPrice(container?.textContent || '');
+
+        // Image
         let image = null;
-        const imgEl = product.querySelector('.s-item__image-wrapper img') ||
-                      product.querySelector('.s-item__image img') ||
-                      product.querySelector('img[src*="ebayimg"]');
+        const imgEl = container?.querySelector('img[src*="ebayimg"]') ||
+                      container?.querySelector('img[src*="i.ebayimg"]') ||
+                      container?.querySelector('img:not([src*="ebaystatic"])');
         if (imgEl) {
-          image = imgEl.src || imgEl.dataset?.src;
+          image = imgEl.src || imgEl.dataset?.src || null;
           if (image && (image.includes('placeholder') || image.includes('data:image') || image.includes('blank') || image.includes('ebaystatic.com/cr/v/c1'))) {
             image = null;
           }
         }
 
-        if (title && url) {
-          results.push({
-            id: `ebay-${index}-${Date.now()}`,
-            title: title.substring(0, 80),
-            price, site: 'eBay', siteColor: '#E53238',
-            image, url, location: '',
-            handDelivery: false, hasShipping: true, hasWarranty: false,
-            score: 70, redFlags: []
-          });
-        }
-      } catch (e) {
-        console.error('OKAZ EBAY: Erreur parsing', index, e);
-      }
-    });
+        // Filtrer les résultats sponsorisés/promos sans prix
+        if (price === 0) continue;
 
-    console.log(`OKAZ EBAY: ${results.length} résultats parsés`);
+        results.push({
+          id: `ebay-${results.length}-${Date.now()}`,
+          title,
+          price, site: 'eBay', siteColor: '#E53238',
+          image, url, location: '',
+          handDelivery: false, hasShipping: true, hasWarranty: false,
+          score: 70, redFlags: []
+        });
+      } catch (e) {
+        console.error('OKAZ EBAY: Erreur parsing item', e);
+      }
+    }
+
+    console.log(`OKAZ EBAY: ${results.length} résultats parsés sur ${seenUrls.size} URLs uniques`);
     return results;
   }
 
@@ -187,9 +158,9 @@
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.type === 'PARSE_PAGE') {
       console.log('OKAZ EBAY: PARSE_PAGE reçue');
-      const maxResults = request.maxResults || 10;
 
       (async () => {
+        // Scroll pour lazy loading
         for (let i = 0; i < 3; i++) {
           window.scrollBy(0, 400);
           await new Promise(r => setTimeout(r, 250));
@@ -197,8 +168,7 @@
         window.scrollTo(0, 0);
         await new Promise(r => setTimeout(r, 400));
 
-        const results = await parseResults(maxResults);
-        console.log('OKAZ EBAY: Réponse PARSE_PAGE:', results.length, 'résultats');
+        const results = await parseResults(request.maxResults || 10);
         sendResponse({ success: true, results });
       })().catch(error => {
         console.error('OKAZ EBAY: Erreur PARSE_PAGE', error);
@@ -215,7 +185,6 @@
 
     setTimeout(async () => {
       try {
-        // Scroll pour déclencher le lazy loading
         for (let i = 0; i < 3; i++) {
           window.scrollBy(0, 400);
           await new Promise(r => setTimeout(r, 400));
@@ -226,7 +195,6 @@
         const results = await parseResults();
         console.log('OKAZ EBAY AUTO:', results.length, 'résultats');
 
-        // N'envoyer que si on a des résultats — sinon laisser le SW retenter via executeScript
         if (results.length > 0) {
           chrome.runtime.sendMessage({
             type: 'EBAY_RESULTS',
@@ -234,15 +202,7 @@
             url: window.location.href
           });
         } else {
-          console.log('OKAZ EBAY AUTO: 0 résultats, pas d\'envoi (le SW retentera)');
-          // Debug: lister tous les éléments sur la page
-          console.log('OKAZ EBAY AUTO DEBUG:', {
-            sItems: document.querySelectorAll('.s-item').length,
-            srpResults: document.querySelectorAll('.srp-results').length,
-            itmLinks: document.querySelectorAll('a[href*="/itm/"]').length,
-            allLinks: document.querySelectorAll('a').length,
-            bodyLen: document.body?.innerHTML?.length || 0,
-          });
+          console.log('OKAZ EBAY AUTO: 0 résultats, le SW retentera');
         }
       } catch (error) {
         console.error('OKAZ EBAY AUTO: Erreur', error);
