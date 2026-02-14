@@ -1085,230 +1085,292 @@ async function searchEbay(query, criteria) {
     };
 
     // Fonction de parsing injectée via chrome.scripting.executeScript
-    // Nouveau DOM eBay 2025 : plus de .s-item, on utilise a[href*="/itm/"]
+    // Multi-stratégie : DOM classique → Shadow DOM → HTML brut regex → JSON embarqué
     async function parseEbayPage() {
       const MAX = 10;
       const results = [];
-      const seenUrls = new Set();
+      const seenIds = new Set();
 
-      // Scroll pour lazy loading
-      for (let i = 0; i < 3; i++) {
-        window.scrollBy(0, 400);
-        await new Promise(r => setTimeout(r, 300));
-      }
-      window.scrollTo(0, 0);
-      await new Promise(r => setTimeout(r, 500));
-
-      // Attendre les liens /itm/
-      const waitForLinks = () => new Promise((res) => {
-        let tries = 0;
-        const check = () => {
-          tries++;
-          const links = document.querySelectorAll('a[href*="/itm/"]');
-          if (links.length > 0) return res(links);
-          if (tries < 20) setTimeout(check, 500);
-          else res([]);
-        };
-        check();
-      });
-
-      const links = await waitForLinks();
-      console.log(`OKAZ EBAY INJECT: ${links.length} liens /itm/ trouvés`);
-
-      // Trouver le conteneur parent d'un lien (avec prix EUR)
-      function findContainer(link) {
-        let el = link.parentElement;
-        for (let i = 0; i < 6; i++) {
-          if (!el) break;
-          if ((el.textContent || '').match(/[\d,.]+\s*(?:EUR|€)/) && (el.textContent || '').length > 50) return el;
-          el = el.parentElement;
+      // Helper : extraire prix depuis texte
+      function extractPrice(text) {
+        const m = (text || '').match(/([\d\s]+(?:[.,]\d{2})?)\s*(?:EUR|€)/);
+        if (m) {
+          const v = parseFloat(m[1].replace(/\s/g, '').replace(',', '.'));
+          if (v > 0 && v < 50000) return Math.round(v);
         }
-        return link.parentElement?.parentElement?.parentElement || link.parentElement;
+        return 0;
       }
 
-      for (const link of links) {
-        if (results.length >= MAX) break;
-        try {
-          let url = link.href || '';
-          if (!url.includes('/itm/')) continue;
-          try { const u = new URL(url); url = `${u.origin}${u.pathname}`; } catch {}
-          if (seenUrls.has(url)) continue;
-          seenUrls.add(url);
-
-          let title = link.title || '';
-          if (!title) {
-            const h = link.querySelector('span[role="heading"], h3, span');
-            title = h?.textContent?.trim() || link.textContent?.trim() || '';
+      // Helper : chercher liens /itm/ récursivement dans le Shadow DOM
+      function findLinksInShadow(root) {
+        const found = [];
+        const links = root.querySelectorAll('a[href*="/itm/"]');
+        found.push(...links);
+        // Parcourir tous les éléments pour trouver des shadow roots
+        root.querySelectorAll('*').forEach(el => {
+          if (el.shadowRoot) {
+            found.push(...findLinksInShadow(el.shadowRoot));
           }
-          title = title.replace(/^(Neuf|D'occasion|Nouveau)\s*[–-]\s*/i, '').replace(/^Sponsorisé\s*/i, '').substring(0, 100);
-          if (!title || title.length < 5) continue;
-
-          const container = findContainer(link);
-          const priceMatch = (container?.textContent || '').match(/([\d\s]+(?:[.,]\d{2})?)\s*(?:EUR|€)/);
-          let price = 0;
-          if (priceMatch) {
-            const v = parseFloat(priceMatch[1].replace(/\s/g, '').replace(',', '.'));
-            if (v > 0 && v < 50000) price = Math.round(v);
-          }
-          if (price === 0) continue;
-
-          let image = null;
-          const imgEl = container?.querySelector('img[src*="ebayimg"]') || container?.querySelector('img:not([src*="ebaystatic"])');
-          if (imgEl) {
-            image = imgEl.src || imgEl.dataset?.src || null;
-            if (image && (image.includes('placeholder') || image.includes('data:image') || image.includes('blank'))) image = null;
-          }
-
-          results.push({
-            id: `ebay-${results.length}-${Date.now()}`,
-            title, price, site: 'eBay', siteColor: '#E53238',
-            image, url, location: '',
-            handDelivery: false, hasShipping: true, hasWarranty: false,
-            score: 70, redFlags: []
-          });
-        } catch (e) { console.error('OKAZ EBAY INJECT: parse error', e); }
+        });
+        return found;
       }
 
-      console.log(`OKAZ EBAY INJECT: ${results.length} résultats parsés`);
+      // ===== STRATÉGIE 1 : DOM classique + Shadow DOM =====
+      let links = document.querySelectorAll('a[href*="/itm/"]');
+      if (links.length === 0) {
+        // Chercher dans le Shadow DOM
+        links = findLinksInShadow(document);
+        if (links.length > 0) console.log(`OKAZ EBAY: ${links.length} liens trouvés via Shadow DOM`);
+      }
+
+      if (links.length > 0) {
+        console.log(`OKAZ EBAY INJECT: ${links.length} liens /itm/ trouvés (DOM)`);
+        for (const link of links) {
+          if (results.length >= MAX) break;
+          try {
+            let url = link.href || '';
+            if (!url.includes('/itm/')) continue;
+            const itemIdMatch = url.match(/\/itm\/(\d+)/);
+            const itemId = itemIdMatch ? itemIdMatch[1] : url;
+            if (seenIds.has(itemId)) continue;
+            seenIds.add(itemId);
+            try { const u = new URL(url); url = `${u.origin}${u.pathname}`; } catch {}
+
+            let title = link.title || '';
+            if (!title) {
+              const h = link.querySelector('span[role="heading"], h3, span');
+              title = h?.textContent?.trim() || link.textContent?.trim() || '';
+            }
+            title = title.replace(/^(Neuf|D'occasion|Nouveau)\s*[–-]\s*/i, '').replace(/^Sponsorisé\s*/i, '').substring(0, 100);
+            if (!title || title.length < 5) continue;
+
+            // Remonter le DOM pour trouver conteneur avec prix
+            let container = link.parentElement;
+            for (let i = 0; i < 6; i++) {
+              if (!container) break;
+              if ((container.textContent || '').match(/[\d,.]+\s*(?:EUR|€)/) && (container.textContent || '').length > 50) break;
+              container = container.parentElement;
+            }
+            if (!container) container = link.parentElement?.parentElement?.parentElement || link.parentElement;
+
+            const price = extractPrice(container?.textContent || '');
+            if (price === 0) continue;
+
+            let image = null;
+            const imgEl = container?.querySelector('img[src*="ebayimg"]') || container?.querySelector('img:not([src*="ebaystatic"])');
+            if (imgEl) {
+              image = imgEl.src || imgEl.dataset?.src || null;
+              if (image && (image.includes('placeholder') || image.includes('data:image') || image.includes('blank'))) image = null;
+            }
+
+            results.push({
+              id: `ebay-${results.length}-${Date.now()}`,
+              title, price, site: 'eBay', siteColor: '#E53238',
+              image, url, location: '',
+              handDelivery: false, hasShipping: true, hasWarranty: false,
+              score: 70, redFlags: []
+            });
+          } catch (e) {}
+        }
+      }
+
+      // ===== STRATÉGIE 2 : Extraction depuis le HTML brut (regex) =====
+      if (results.length === 0) {
+        console.log('OKAZ EBAY INJECT: DOM vide, extraction HTML brut...');
+        const html = document.documentElement.outerHTML;
+
+        // Diagnostics
+        const itmCount = (html.match(/\/itm\//g) || []).length;
+        const aCount = document.querySelectorAll('a').length;
+        let shadowCount = 0;
+        document.querySelectorAll('*').forEach(el => { if (el.shadowRoot) shadowCount++; });
+        console.log(`OKAZ EBAY DIAG: HTML=${(html.length/1024).toFixed(0)}KB, /itm/ dans HTML=${itmCount}, <a>=${aCount}, shadows=${shadowCount}, iframes=${document.querySelectorAll('iframe').length}`);
+
+        if (itmCount > 0) {
+          // Parser les items depuis le HTML brut
+          // Pattern : trouver chaque URL /itm/ID et le contexte autour
+          const itemRegex = /\/itm\/(\d{10,15})/g;
+          let match;
+          const itemIds = [];
+          while ((match = itemRegex.exec(html)) !== null) {
+            if (!seenIds.has(match[1])) {
+              seenIds.add(match[1]);
+              itemIds.push({ id: match[1], pos: match.index });
+            }
+          }
+          console.log(`OKAZ EBAY INJECT: ${itemIds.length} items uniques dans HTML brut`);
+
+          for (const item of itemIds.slice(0, MAX)) {
+            // Extraire contexte (2000 chars autour)
+            const start = Math.max(0, item.pos - 1000);
+            const end = Math.min(html.length, item.pos + 1000);
+            const ctx = html.substring(start, end);
+
+            // Titre : chercher title="..." ou aria-label="..." ou texte du lien
+            let title = '';
+            const titlePatterns = [
+              /title="([^"]{10,120})"/,
+              /aria-label="([^"]{10,120})"/,
+              /alt="([^"]{10,120})"/,
+              /role="heading"[^>]*>([^<]{10,120})</,
+              /<span[^>]*>([^<]{15,120})<\/span>/
+            ];
+            for (const pat of titlePatterns) {
+              const tm = ctx.match(pat);
+              if (tm && !tm[1].includes('<') && !tm[1].includes('http')) {
+                title = tm[1].trim();
+                break;
+              }
+            }
+            if (!title) continue;
+            title = title.replace(/^(Neuf|D&#39;occasion|D'occasion|Nouveau)\s*[–-]\s*/i, '')
+                         .replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+                         .substring(0, 100);
+            if (title.length < 5) continue;
+
+            // Prix
+            const price = extractPrice(ctx);
+            if (price === 0) continue;
+
+            // Image
+            let image = null;
+            const imgMatch = ctx.match(/src="(https?:\/\/i\.ebayimg\.com\/[^"]+)"/);
+            if (imgMatch) image = imgMatch[1];
+
+            results.push({
+              id: `ebay-${results.length}-${Date.now()}`,
+              title, price, site: 'eBay', siteColor: '#E53238',
+              image, url: `https://www.ebay.fr/itm/${item.id}`,
+              location: '',
+              handDelivery: false, hasShipping: true, hasWarranty: false,
+              score: 70, redFlags: []
+            });
+          }
+          console.log(`OKAZ EBAY INJECT: ${results.length} résultats via HTML brut`);
+        }
+      }
+
+      // ===== STRATÉGIE 3 : JSON embarqué dans les script tags =====
+      if (results.length === 0) {
+        console.log('OKAZ EBAY INJECT: Tentative extraction JSON...');
+        const scripts = document.querySelectorAll('script');
+        for (const script of scripts) {
+          const text = script.textContent || '';
+          if (!text.includes('itemId') && !text.includes('listingId')) continue;
+          try {
+            // Chercher des structures JSON avec des items
+            const patterns = [
+              /"itemId"\s*:\s*"(\d+)"[^}]*"title"\s*:\s*"([^"]+)"[^}]*?"price"\s*:\s*\{[^}]*"value"\s*:\s*"?([\d.]+)"?/g,
+              /"listingId"\s*:\s*"(\d+)"[^}]*"title"\s*:\s*"([^"]+)"[^}]*?"price"\s*:\s*"?([\d.]+)"?/g
+            ];
+            for (const pattern of patterns) {
+              let m;
+              while ((m = pattern.exec(text)) !== null && results.length < MAX) {
+                const id = m[1];
+                if (seenIds.has(id)) continue;
+                seenIds.add(id);
+                const price = Math.round(parseFloat(m[3]));
+                if (price <= 0 || price > 50000) continue;
+                results.push({
+                  id: `ebay-${results.length}-${Date.now()}`,
+                  title: m[2].substring(0, 100),
+                  price, site: 'eBay', siteColor: '#E53238',
+                  image: null, url: `https://www.ebay.fr/itm/${id}`,
+                  location: '',
+                  handDelivery: false, hasShipping: true, hasWarranty: false,
+                  score: 70, redFlags: []
+                });
+              }
+            }
+          } catch (e) {}
+          if (results.length > 0) break;
+        }
+        if (results.length > 0) console.log(`OKAZ EBAY INJECT: ${results.length} résultats via JSON`);
+      }
+
+      console.log(`OKAZ EBAY INJECT: TOTAL ${results.length} résultats`);
       return results;
     }
 
     try {
-      // eBay utilise du lazy rendering (IntersectionObserver/rAF) qui ne tourne
-      // pas dans un onglet background. On ouvre en background pour le chargement,
-      // puis on re-focus brièvement pour le rendu JS avant de parser.
-      let originalTabId = null;
-      try {
-        const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (activeTab) originalTabId = activeTab.id;
-      } catch (e) { /* ignore */ }
-
+      // eBay : ouvrir en background, attendre que la page soit chargée,
+      // puis parser en UNE seule tentative (multi-stratégie : DOM + Shadow DOM + HTML regex + JSON)
       tab = await chrome.tabs.create({
         url: searchUrl,
-        active: false  // Background — on re-focus quand la page est chargée
+        active: false
       });
 
       tabId = tab.id;
       trackTab(tabId);
-      console.log('OKAZ SW: Onglet eBay créé (background)', tabId);
+      console.log('OKAZ SW: Onglet eBay créé', tabId);
 
       pendingEbayResolvers.set(tabId, resolveWith);
 
-      // Timeout 50s (chargement + re-focus + rendu)
+      // Timeout 25s
       const timeoutId = setTimeout(() => {
         if (!resolved) {
-          console.log('OKAZ SW: Timeout eBay après 50s');
+          console.log('OKAZ SW: Timeout eBay après 25s');
           resolved = true;
           cleanup();
           resolve([]);
         }
-      }, 50000);
+      }, 25000);
 
-      // eBay affiche souvent une page de vérification/challenge avant les résultats.
-      // On doit attendre que l'URL contienne /sch/ (= page de résultats réelle).
-      let parseAttempts = 0;
-
-      const checkAndParse = async (attempts = 0) => {
+      // Attendre page complete puis parser UNE fois
+      const waitAndParse = async (attempts = 0) => {
         if (resolved) return;
-        if (attempts > 50) return;
+        if (attempts > 30) return;
 
         try {
           const tabInfo = await chrome.tabs.get(tabId);
           const tabUrl = tabInfo.url || '';
           const isSearchPage = tabUrl.includes('/sch/');
 
-          if (attempts % 5 === 0) {
-            console.log(`OKAZ SW: eBay tab [${attempts}] status=${tabInfo.status} isSearch=${isSearchPage} url=${tabUrl.substring(0, 80)}`);
+          if (attempts % 10 === 0) {
+            console.log(`OKAZ SW: eBay tab [${attempts}] status=${tabInfo.status} isSearch=${isSearchPage}`);
           }
 
-          // Si on n'est pas encore sur la page de résultats, attendre
-          if (!isSearchPage) {
-            setTimeout(() => checkAndParse(attempts + 1), 500);
+          // Attendre page de résultats complete
+          if (!isSearchPage || tabInfo.status !== 'complete') {
+            setTimeout(() => waitAndParse(attempts + 1), 500);
             return;
           }
 
-          // On est sur la page de résultats, attendre qu'elle soit "complete"
-          if (tabInfo.status !== 'complete') {
-            setTimeout(() => checkAndParse(attempts + 1), 500);
-            return;
-          }
-
-          // Page chargée ! Re-focus l'onglet eBay pour déclencher le rendu JS
-          // (eBay utilise IntersectionObserver/rAF qui ne tournent pas en background)
-          const renderWait = parseAttempts === 0 ? 5000 : 3000;
-          console.log(`OKAZ SW: eBay page chargée, re-focus ${renderWait/1000}s pour rendu JS (tentative ${parseAttempts + 1})...`);
-          try {
-            await chrome.tabs.update(tabId, { active: true });
-          } catch (e) {}
-          await new Promise(r => setTimeout(r, renderWait));
+          // Page chargée — attendre 2s puis parser directement
+          console.log('OKAZ SW: eBay page chargée, parsing unique...');
+          await new Promise(r => setTimeout(r, 2000));
           if (resolved) return;
-          parseAttempts++;
 
-          // Stratégie 1: PARSE_PAGE via content script (tab toujours active)
+          // Parser via executeScript (multi-stratégie intégrée)
           try {
-            console.log('OKAZ SW: Envoi PARSE_PAGE à eBay...');
-            const response = await chrome.tabs.sendMessage(tabId, { type: 'PARSE_PAGE' });
-            if (!resolved && response && response.success && response.results.length > 0) {
+            const injectionResults = await chrome.scripting.executeScript({
+              target: { tabId },
+              func: parseEbayPage
+            });
+
+            if (!resolved && injectionResults?.[0]?.result) {
+              const ebayResults = injectionResults[0].result;
               clearTimeout(timeoutId);
-              console.log(`OKAZ SW: ${response.results.length} résultats eBay via PARSE_PAGE`);
-              // Revenir à l'onglet original
-              if (originalTabId) {
-                try { await chrome.tabs.update(originalTabId, { active: true }); } catch (e) {}
-              }
-              resolveWith(response.results);
+              console.log(`OKAZ SW: ${ebayResults.length} résultats eBay (multi-stratégie)`);
+              resolveWith(ebayResults);
               return;
             }
-            console.log('OKAZ SW: PARSE_PAGE eBay → 0 résultats, fallback executeScript...');
           } catch (e) {
-            console.log('OKAZ SW: PARSE_PAGE eBay échoué:', e.message, '→ fallback executeScript...');
+            console.log('OKAZ SW: executeScript eBay échoué:', e.message);
           }
 
-          // Stratégie 2: Injection directe via chrome.scripting.executeScript
+          // Si 0 résultats, c'est fini — pas de retry
           if (!resolved) {
-            try {
-              console.log('OKAZ SW: Injection directe eBay via executeScript...');
-              const injectionResults = await chrome.scripting.executeScript({
-                target: { tabId },
-                func: parseEbayPage
-              });
-
-              if (!resolved && injectionResults && injectionResults[0]?.result) {
-                const results = injectionResults[0].result;
-                if (results.length > 0) {
-                  clearTimeout(timeoutId);
-                  console.log(`OKAZ SW: ${results.length} résultats eBay via executeScript`);
-                  if (originalTabId) {
-                    try { await chrome.tabs.update(originalTabId, { active: true }); } catch (e) {}
-                  }
-                  resolveWith(results);
-                  return;
-                }
-                console.log('OKAZ SW: executeScript eBay → 0 résultats');
-              }
-            } catch (e) {
-              console.log('OKAZ SW: executeScript eBay échoué:', e.message);
-            }
-          }
-
-          // Revenir à l'onglet original après tentative échouée
-          if (originalTabId) {
-            try { await chrome.tabs.update(originalTabId, { active: true }); } catch (e) {}
-          }
-
-          // Retry si rien n'a marché (max 4 tentatives de parsing)
-          if (!resolved && parseAttempts < 4) {
-            console.log(`OKAZ SW: Retry eBay parsing (${parseAttempts}/4) dans 2s...`);
-            setTimeout(() => checkAndParse(attempts + 1), 2000);
-          } else if (!resolved) {
-            console.log('OKAZ SW: eBay épuisé toutes les tentatives, 0 résultats');
+            clearTimeout(timeoutId);
+            console.log('OKAZ SW: eBay 0 résultats après parsing unique');
+            resolveWith([]);
           }
         } catch (e) {
-          console.error('OKAZ SW: Erreur checkAndParse eBay', e);
-          if (!resolved) setTimeout(() => checkAndParse(attempts + 1), 1000);
+          if (!resolved) setTimeout(() => waitAndParse(attempts + 1), 1000);
         }
       };
 
-      setTimeout(() => checkAndParse(), 1500);
+      setTimeout(() => waitAndParse(), 1000);
 
     } catch (error) {
       cleanup();
