@@ -443,7 +443,8 @@ function buildLeBonCoinUrl(query, criteria, localSearch = false) {
   if (criteria?.priceMax) {
     params.set('price_max', criteria.priceMax.toString());
   }
-  if (criteria?.shippable) {
+  // shippable uniquement sur la recherche NATIONALE — le local c'est la remise en main propre
+  if (criteria?.shippable && !localSearch) {
     params.set('shippable', '1');
   }
   if (criteria?.ownerType && criteria.ownerType !== 'all') {
