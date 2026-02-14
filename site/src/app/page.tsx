@@ -150,18 +150,28 @@ function ThemeToggleButton({ darkMode, onToggle }: { darkMode: boolean; onToggle
 }
 
 function ScoreBadge({ score }: { score: number }) {
+  const filled = Math.round(score / 10); // 0-10 bars
   const getColor = () => {
-    if (score >= 80) return "bg-emerald-500";
-    if (score >= 50) return "bg-amber-500";
-    return "bg-red-500";
+    if (score >= 80) return { bar: "bg-emerald-500", text: "text-emerald-600 dark:text-emerald-400" };
+    if (score >= 50) return { bar: "bg-amber-500", text: "text-amber-600 dark:text-amber-400" };
+    return { bar: "bg-red-500", text: "text-red-600 dark:text-red-400" };
   };
+  const colors = getColor();
 
   return (
-    <span
-      className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-white rounded-full shadow-sm ${getColor()}`}
-    >
-      {score}%
-    </span>
+    <div className="inline-flex items-center gap-1.5" title={`Score: ${score}%`}>
+      <div className="flex gap-[2px]">
+        {Array.from({ length: 10 }, (_, i) => (
+          <div
+            key={i}
+            className={`w-[3px] h-3 rounded-full ${i < filled ? colors.bar : 'bg-[var(--bg-tertiary)]'}`}
+          />
+        ))}
+      </div>
+      <span className={`text-xs font-semibold ${colors.text}`}>
+        {filled}/10
+      </span>
+    </div>
   );
 }
 
@@ -349,9 +359,6 @@ function ResultCard({ result, index = 0, showLocalBadge = false }: { result: Ana
                   {result.price > 0 ? `${result.price.toLocaleString('fr-FR')} €` : 'Prix non indiqué'}
                 </span>
                 <ScoreBadge score={result.score} />
-                {gemini?.confidence !== undefined && (
-                  <ConfidenceIndicator confidence={gemini.confidence} matchDetails={gemini.matchDetails} />
-                )}
               </div>
             </div>
           </div>
@@ -873,64 +880,27 @@ function SearchResults({ data, onBack }: { data: { query: string; categorized: C
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="p-4 rounded-[20px] bg-[var(--card-bg)] border border-[var(--separator)] shadow-[var(--card-shadow)] space-y-2"
+          className="px-4 py-3 rounded-[20px] bg-[var(--card-bg)] border border-[var(--separator)] shadow-[var(--card-shadow)]"
         >
-          <div>
-            <div className="text-sm text-[var(--text-secondary)]">Recherche :</div>
-            <div className="text-[var(--text-primary)] font-medium">{query}</div>
-          </div>
-
-          {wasOptimized && criteria && (
-            <div className="pt-2 border-t border-[var(--separator)]">
-              <div className="flex items-center gap-2 text-xs text-[var(--accent)]">
-                <Wand2 className="w-3 h-3" />
-                Optimise par IA
-              </div>
-              <div className="flex flex-wrap gap-2 mt-1">
-                <span className="text-xs bg-[var(--bg-tertiary)] px-2 py-0.5 rounded text-[var(--text-secondary)]">
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-[var(--text-primary)] font-medium">{query}</span>
+            {wasOptimized && criteria && (
+              <>
+                <span className="text-[var(--text-tertiary)]">&rarr;</span>
+                <div className="flex items-center gap-1.5 text-xs text-[var(--accent)]">
+                  <Wand2 className="w-3 h-3" />
                   {criteria.keywords}
-                </span>
-                {criteria.priceMax && (
-                  <span className="text-xs bg-[var(--score-high)]/10 px-2 py-0.5 rounded text-[var(--score-high)]">
-                    Max {criteria.priceMax}€
-                  </span>
-                )}
-                {criteria.priceMin && (
-                  <span className="text-xs bg-[var(--accent)]/10 px-2 py-0.5 rounded text-[var(--accent)]">
-                    Min {criteria.priceMin}€
-                  </span>
-                )}
-                {criteria.shippable && (
-                  <span className="text-xs bg-[var(--accent)]/10 px-2 py-0.5 rounded text-[var(--accent)]">
-                    Livrable
-                  </span>
-                )}
-                {criteria.ownerType === 'private' && (
-                  <span className="text-xs bg-[var(--score-medium)]/10 px-2 py-0.5 rounded text-[var(--score-medium)]">
-                    Particulier
-                  </span>
-                )}
+                </div>
                 {criteria.category && (
-                  <span className="text-xs bg-[var(--accent)]/10 px-2 py-0.5 rounded text-[var(--accent)]">
+                  <span className="text-[10px] bg-[var(--accent)]/10 px-1.5 py-0.5 rounded text-[var(--accent)]">
                     {criteria.category}
                   </span>
                 )}
-              </div>
-              {criteria.sites && criteria.sites.length < 3 && (
-                <div className="flex items-center gap-1 mt-2 text-[10px] text-[var(--text-tertiary)]">
-                  <span>Sites:</span>
-                  {criteria.sites.map(site => (
-                    <span key={site} className="px-1.5 py-0.5 bg-[var(--bg-tertiary)] rounded">
-                      {site === 'leboncoin' ? 'LBC' : site === 'vinted' ? 'Vinted' : 'BackMarket'}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="text-xs text-[var(--text-tertiary)]">
-            {totalResults} resultat{totalResults > 1 ? 's' : ''} en {(duration / 1000).toFixed(1)}s
+              </>
+            )}
+            <span className="text-xs text-[var(--text-tertiary)] ml-auto flex-shrink-0">
+              {totalResults} resultat{totalResults > 1 ? 's' : ''} &middot; {(duration / 1000).toFixed(1)}s
+            </span>
           </div>
         </motion.div>
 

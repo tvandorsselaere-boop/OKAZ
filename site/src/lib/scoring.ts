@@ -602,35 +602,12 @@ export function sortResults(
 
 /**
  * Trouve le meilleur résultat par score
- * Critères: confidence >= 70%, pas de red flags critiques, meilleur score
+ * Retourne simplement le résultat avec le score le plus élevé
+ * (le score intègre déjà confidence + dealScore via Gemini)
  */
 export function findBestScoreResult(results: AnalyzedResult[]): AnalyzedResult | null {
   if (!results.length) return null;
-
-  // Filtrer les résultats avec bonne confiance et sans red flags critiques
-  const eligible = results.filter(r => {
-    const confidence = r.geminiAnalysis?.confidence ?? 50;
-    const criticalFlags = r.geminiAnalysis?.redFlags?.filter(f =>
-      f.toLowerCase().includes('arnaque') ||
-      f.toLowerCase().includes('suspect') ||
-      f.toLowerCase().includes('paiement')
-    ) ?? [];
-    return confidence >= 70 && criticalFlags.length === 0;
-  });
-
-  if (!eligible.length) {
-    // Fallback: prendre le meilleur score parmi tous
-    return results.reduce((best, r) => r.score > best.score ? r : best, results[0]);
-  }
-
-  // Trier par score puis par confidence
-  return eligible.reduce((best, r) => {
-    const bestConf = best.geminiAnalysis?.confidence ?? 50;
-    const rConf = r.geminiAnalysis?.confidence ?? 50;
-    if (r.score > best.score) return r;
-    if (r.score === best.score && rConf > bestConf) return r;
-    return best;
-  }, eligible[0]);
+  return results.reduce((best, r) => r.score > best.score ? r : best, results[0]);
 }
 
 /**
