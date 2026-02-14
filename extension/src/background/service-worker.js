@@ -1085,13 +1085,13 @@ async function searchEbay(query, criteria) {
     };
 
     // Fonction de parsing injectée via chrome.scripting.executeScript
-    // Multi-stratégie : DOM classique → Shadow DOM → HTML brut regex → JSON embarqué
+    // Retourne { results, diag } pour que le SW puisse logger les diagnostics
     async function parseEbayPage() {
       const MAX = 10;
       const results = [];
       const seenIds = new Set();
+      const diag = { strategy: 'none', htmlKB: 0, itmInHtml: 0, aCount: 0, shadows: 0, iframes: 0, sample: '' };
 
-      // Helper : extraire prix depuis texte
       function extractPrice(text) {
         const m = (text || '').match(/([\d\s]+(?:[.,]\d{2})?)\s*(?:EUR|€)/);
         if (m) {
@@ -1101,30 +1101,49 @@ async function searchEbay(query, criteria) {
         return 0;
       }
 
-      // Helper : chercher liens /itm/ récursivement dans le Shadow DOM
       function findLinksInShadow(root) {
         const found = [];
-        const links = root.querySelectorAll('a[href*="/itm/"]');
-        found.push(...links);
-        // Parcourir tous les éléments pour trouver des shadow roots
-        root.querySelectorAll('*').forEach(el => {
-          if (el.shadowRoot) {
-            found.push(...findLinksInShadow(el.shadowRoot));
-          }
-        });
+        try {
+          const links = root.querySelectorAll('a[href*="/itm/"]');
+          found.push(...links);
+          root.querySelectorAll('*').forEach(el => {
+            if (el.shadowRoot) found.push(...findLinksInShadow(el.shadowRoot));
+          });
+        } catch (e) {}
         return found;
       }
+
+      // Diagnostics communs
+      const html = document.documentElement.outerHTML;
+      diag.htmlKB = Math.round(html.length / 1024);
+      diag.itmInHtml = (html.match(/\/itm\//g) || []).length;
+      diag.aCount = document.querySelectorAll('a').length;
+      diag.iframes = document.querySelectorAll('iframe').length;
+      let sc = 0;
+      document.querySelectorAll('*').forEach(el => { if (el.shadowRoot) sc++; });
+      diag.shadows = sc;
+      // Échantillon HTML autour du premier /itm/
+      const itmIdx = html.indexOf('/itm/');
+      if (itmIdx > -1) {
+        diag.sample = html.substring(Math.max(0, itmIdx - 200), itmIdx + 300).replace(/\n/g, ' ').substring(0, 400);
+      } else {
+        // Échantillon du body pour comprendre la structure
+        const bodyIdx = html.indexOf('<body');
+        if (bodyIdx > -1) {
+          diag.sample = html.substring(bodyIdx, bodyIdx + 500).replace(/\n/g, ' ').substring(0, 400);
+        }
+      }
+      diag.url = window.location.href;
+      diag.title = document.title;
 
       // ===== STRATÉGIE 1 : DOM classique + Shadow DOM =====
       let links = document.querySelectorAll('a[href*="/itm/"]');
       if (links.length === 0) {
-        // Chercher dans le Shadow DOM
         links = findLinksInShadow(document);
-        if (links.length > 0) console.log(`OKAZ EBAY: ${links.length} liens trouvés via Shadow DOM`);
       }
 
       if (links.length > 0) {
-        console.log(`OKAZ EBAY INJECT: ${links.length} liens /itm/ trouvés (DOM)`);
+        diag.strategy = links.length + ' liens DOM';
         for (const link of links) {
           if (results.length >= MAX) break;
           try {
@@ -1144,7 +1163,6 @@ async function searchEbay(query, criteria) {
             title = title.replace(/^(Neuf|D'occasion|Nouveau)\s*[–-]\s*/i, '').replace(/^Sponsorisé\s*/i, '').substring(0, 100);
             if (!title || title.length < 5) continue;
 
-            // Remonter le DOM pour trouver conteneur avec prix
             let container = link.parentElement;
             for (let i = 0; i < 6; i++) {
               if (!container) break;
@@ -1174,91 +1192,74 @@ async function searchEbay(query, criteria) {
         }
       }
 
-      // ===== STRATÉGIE 2 : Extraction depuis le HTML brut (regex) =====
-      if (results.length === 0) {
-        console.log('OKAZ EBAY INJECT: DOM vide, extraction HTML brut...');
-        const html = document.documentElement.outerHTML;
+      // ===== STRATÉGIE 2 : HTML brut regex =====
+      if (results.length === 0 && diag.itmInHtml > 0) {
+        diag.strategy = 'HTML regex (' + diag.itmInHtml + ' /itm/)';
+        const itemRegex = /\/itm\/(\d{10,15})/g;
+        let match;
+        const itemIds = [];
+        while ((match = itemRegex.exec(html)) !== null) {
+          if (!seenIds.has(match[1])) {
+            seenIds.add(match[1]);
+            itemIds.push({ id: match[1], pos: match.index });
+          }
+        }
+        diag.uniqueItems = itemIds.length;
 
-        // Diagnostics
-        const itmCount = (html.match(/\/itm\//g) || []).length;
-        const aCount = document.querySelectorAll('a').length;
-        let shadowCount = 0;
-        document.querySelectorAll('*').forEach(el => { if (el.shadowRoot) shadowCount++; });
-        console.log(`OKAZ EBAY DIAG: HTML=${(html.length/1024).toFixed(0)}KB, /itm/ dans HTML=${itmCount}, <a>=${aCount}, shadows=${shadowCount}, iframes=${document.querySelectorAll('iframe').length}`);
+        for (const item of itemIds.slice(0, MAX)) {
+          const start = Math.max(0, item.pos - 1000);
+          const end = Math.min(html.length, item.pos + 1000);
+          const ctx = html.substring(start, end);
 
-        if (itmCount > 0) {
-          // Parser les items depuis le HTML brut
-          // Pattern : trouver chaque URL /itm/ID et le contexte autour
-          const itemRegex = /\/itm\/(\d{10,15})/g;
-          let match;
-          const itemIds = [];
-          while ((match = itemRegex.exec(html)) !== null) {
-            if (!seenIds.has(match[1])) {
-              seenIds.add(match[1]);
-              itemIds.push({ id: match[1], pos: match.index });
+          let title = '';
+          const titlePatterns = [
+            /title="([^"]{10,120})"/,
+            /aria-label="([^"]{10,120})"/,
+            /alt="([^"]{10,120})"/,
+            /role="heading"[^>]*>([^<]{10,120})</,
+            /<span[^>]*>([^<]{15,120})<\/span>/
+          ];
+          for (const pat of titlePatterns) {
+            const tm = ctx.match(pat);
+            if (tm && !tm[1].includes('<') && !tm[1].includes('http')) {
+              title = tm[1].trim();
+              break;
             }
           }
-          console.log(`OKAZ EBAY INJECT: ${itemIds.length} items uniques dans HTML brut`);
+          if (!title) continue;
+          title = title.replace(/^(Neuf|D&#39;occasion|D'occasion|Nouveau)\s*[–-]\s*/i, '')
+                       .replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+                       .substring(0, 100);
+          if (title.length < 5) continue;
 
-          for (const item of itemIds.slice(0, MAX)) {
-            // Extraire contexte (2000 chars autour)
-            const start = Math.max(0, item.pos - 1000);
-            const end = Math.min(html.length, item.pos + 1000);
-            const ctx = html.substring(start, end);
+          const price = extractPrice(ctx);
+          if (price === 0) continue;
 
-            // Titre : chercher title="..." ou aria-label="..." ou texte du lien
-            let title = '';
-            const titlePatterns = [
-              /title="([^"]{10,120})"/,
-              /aria-label="([^"]{10,120})"/,
-              /alt="([^"]{10,120})"/,
-              /role="heading"[^>]*>([^<]{10,120})</,
-              /<span[^>]*>([^<]{15,120})<\/span>/
-            ];
-            for (const pat of titlePatterns) {
-              const tm = ctx.match(pat);
-              if (tm && !tm[1].includes('<') && !tm[1].includes('http')) {
-                title = tm[1].trim();
-                break;
-              }
-            }
-            if (!title) continue;
-            title = title.replace(/^(Neuf|D&#39;occasion|D'occasion|Nouveau)\s*[–-]\s*/i, '')
-                         .replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
-                         .substring(0, 100);
-            if (title.length < 5) continue;
+          let image = null;
+          const imgMatch = ctx.match(/src="(https?:\/\/i\.ebayimg\.com\/[^"]+)"/);
+          if (imgMatch) image = imgMatch[1];
 
-            // Prix
-            const price = extractPrice(ctx);
-            if (price === 0) continue;
-
-            // Image
-            let image = null;
-            const imgMatch = ctx.match(/src="(https?:\/\/i\.ebayimg\.com\/[^"]+)"/);
-            if (imgMatch) image = imgMatch[1];
-
-            results.push({
-              id: `ebay-${results.length}-${Date.now()}`,
-              title, price, site: 'eBay', siteColor: '#E53238',
-              image, url: `https://www.ebay.fr/itm/${item.id}`,
-              location: '',
-              handDelivery: false, hasShipping: true, hasWarranty: false,
-              score: 70, redFlags: []
-            });
-          }
-          console.log(`OKAZ EBAY INJECT: ${results.length} résultats via HTML brut`);
+          results.push({
+            id: `ebay-${results.length}-${Date.now()}`,
+            title, price, site: 'eBay', siteColor: '#E53238',
+            image, url: `https://www.ebay.fr/itm/${item.id}`,
+            location: '',
+            handDelivery: false, hasShipping: true, hasWarranty: false,
+            score: 70, redFlags: []
+          });
         }
       }
 
-      // ===== STRATÉGIE 3 : JSON embarqué dans les script tags =====
+      // ===== STRATÉGIE 3 : JSON embarqué =====
       if (results.length === 0) {
-        console.log('OKAZ EBAY INJECT: Tentative extraction JSON...');
+        diag.strategy = diag.strategy === 'none' ? 'JSON scan' : diag.strategy + ' + JSON';
         const scripts = document.querySelectorAll('script');
+        let jsonScriptCount = 0;
         for (const script of scripts) {
           const text = script.textContent || '';
           if (!text.includes('itemId') && !text.includes('listingId')) continue;
+          jsonScriptCount++;
           try {
-            // Chercher des structures JSON avec des items
             const patterns = [
               /"itemId"\s*:\s*"(\d+)"[^}]*"title"\s*:\s*"([^"]+)"[^}]*?"price"\s*:\s*\{[^}]*"value"\s*:\s*"?([\d.]+)"?/g,
               /"listingId"\s*:\s*"(\d+)"[^}]*"title"\s*:\s*"([^"]+)"[^}]*?"price"\s*:\s*"?([\d.]+)"?/g
@@ -1285,11 +1286,10 @@ async function searchEbay(query, criteria) {
           } catch (e) {}
           if (results.length > 0) break;
         }
-        if (results.length > 0) console.log(`OKAZ EBAY INJECT: ${results.length} résultats via JSON`);
+        diag.jsonScripts = jsonScriptCount;
       }
 
-      console.log(`OKAZ EBAY INJECT: TOTAL ${results.length} résultats`);
-      return results;
+      return { results, diag };
     }
 
     try {
@@ -1336,9 +1336,10 @@ async function searchEbay(query, criteria) {
             return;
           }
 
-          // Page chargée — attendre 2s puis parser directement
-          console.log('OKAZ SW: eBay page chargée, parsing unique...');
-          await new Promise(r => setTimeout(r, 2000));
+          // Page chargée — activer brièvement pour déclencher le rendu lazy
+          console.log('OKAZ SW: eBay page chargée, activation pour rendu...');
+          try { await chrome.tabs.update(tabId, { active: true }); } catch {}
+          await new Promise(r => setTimeout(r, 3000));
           if (resolved) return;
 
           // Parser via executeScript (multi-stratégie intégrée)
@@ -1349,7 +1350,11 @@ async function searchEbay(query, criteria) {
             });
 
             if (!resolved && injectionResults?.[0]?.result) {
-              const ebayResults = injectionResults[0].result;
+              const raw = injectionResults[0].result;
+              const ebayResults = raw.results || raw;
+              const diag = raw.diag || {};
+              console.log(`OKAZ SW: eBay DIAG: HTML=${diag.htmlSize}KB, /itm/=${diag.itmInHtml}, links=${diag.linksInDom}, shadows=${diag.shadowRoots}, strategy=${diag.strategy}`);
+              if (diag.htmlSample) console.log(`OKAZ SW: eBay HTML sample: ${diag.htmlSample}`);
               clearTimeout(timeoutId);
               console.log(`OKAZ SW: ${ebayResults.length} résultats eBay (multi-stratégie)`);
               resolveWith(ebayResults);
