@@ -1166,14 +1166,33 @@ async function searchEbay(query, criteria) {
     }
 
     try {
+      // eBay nécessite un onglet actif pour que le JS rende les résultats
+      // (Chrome throttle le JS des onglets background → 0 résultats)
+      // On sauvegarde l'onglet actif, on ouvre eBay en actif, puis on revient
+      let originalTabId = null;
+      try {
+        const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (activeTab) originalTabId = activeTab.id;
+      } catch (e) { /* ignore */ }
+
       tab = await chrome.tabs.create({
         url: searchUrl,
-        active: false
+        active: true  // eBay a besoin d'être actif pour le rendu JS
       });
 
       tabId = tab.id;
       trackTab(tabId);
-      console.log('OKAZ SW: Onglet eBay créé', tabId);
+      console.log('OKAZ SW: Onglet eBay créé (actif)', tabId);
+
+      // Revenir à l'onglet original après 1s (laisse eBay commencer le rendu)
+      if (originalTabId) {
+        setTimeout(async () => {
+          try {
+            await chrome.tabs.update(originalTabId, { active: true });
+            console.log('OKAZ SW: Retour à l\'onglet original', originalTabId);
+          } catch (e) { /* onglet peut avoir été fermé */ }
+        }, 1000);
+      }
 
       pendingEbayResolvers.set(tabId, resolveWith);
 
