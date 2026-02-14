@@ -888,23 +888,25 @@ function handleBackMarketResults(results, senderTabId) {
 // Construire l'URL Amazon Neuf
 function buildAmazonNewUrl(query, criteria) {
   const rawKeywords = criteria?.keywords || query;
-  const keywords = criteria?._searchVariant || rawKeywords.split(',')[0].trim();
+  const keywords = (criteria?._searchVariant || rawKeywords.split(',')[0]).trim();
   console.log('OKAZ SW: Amazon Neuf keywords =', keywords);
-  const params = new URLSearchParams();
-  params.set('k', keywords);
-  params.set('condition', 'new');
-  return `https://www.amazon.fr/s?${params.toString()}`;
+  // Utiliser encodeURIComponent au lieu de URLSearchParams (fix bug intermittent
+  // où URLSearchParams coupait le premier mot des keywords)
+  const encodedKw = encodeURIComponent(keywords).replace(/%20/g, '+');
+  const url = `https://www.amazon.fr/s?k=${encodedKw}&condition=new`;
+  console.log('OKAZ SW: Amazon Neuf URL =', url);
+  return url;
 }
 
 // Construire l'URL Amazon Seconde Main (Warehouse Deals)
 function buildAmazonUsedUrl(query, criteria) {
   const rawKeywords = criteria?.keywords || query;
-  const keywords = criteria?._searchVariant || rawKeywords.split(',')[0].trim();
+  const keywords = (criteria?._searchVariant || rawKeywords.split(',')[0]).trim();
   console.log('OKAZ SW: Amazon Seconde Main keywords =', keywords);
-  const params = new URLSearchParams();
-  params.set('k', keywords);
-  params.set('i', 'warehouse-deals');
-  return `https://www.amazon.fr/s?${params.toString()}`;
+  const encodedKw = encodeURIComponent(keywords).replace(/%20/g, '+');
+  const url = `https://www.amazon.fr/s?k=${encodedKw}&i=warehouse-deals`;
+  console.log('OKAZ SW: Amazon Seconde Main URL =', url);
+  return url;
 }
 
 // Fonction générique de recherche Amazon (réutilisée pour neuf et occasion)
@@ -968,6 +970,9 @@ function _searchAmazon(searchUrl, label, resolverMap, maxResults, tabType) {
             await new Promise(r => setTimeout(r, 2000));
             if (resolved) return;
 
+            // Si déjà résolu par auto-parse, ne pas envoyer PARSE_PAGE
+            if (resolved) return;
+
             try {
               const response = await chrome.tabs.sendMessage(tabId, { type: 'PARSE_PAGE', maxResults });
 
@@ -977,9 +982,12 @@ function _searchAmazon(searchUrl, label, resolverMap, maxResults, tabType) {
                 resolveWith(response.results);
               }
             } catch (e) {
-              console.log(`OKAZ SW: PARSE_PAGE Amazon ${label} échoué:`, e.message);
-              if (!resolved && attempts < 8) {
-                setTimeout(() => checkAndParse(attempts + 1), 1500);
+              // "message channel closed" = auto-parse a déjà résolu + fermé l'onglet (bénin)
+              if (!resolved) {
+                console.log(`OKAZ SW: PARSE_PAGE Amazon ${label} échoué:`, e.message);
+                if (attempts < 8) {
+                  setTimeout(() => checkAndParse(attempts + 1), 1500);
+                }
               }
             }
           } else {
@@ -1112,7 +1120,7 @@ async function searchEbay(query, criteria) {
         let el = link.parentElement;
         for (let i = 0; i < 6; i++) {
           if (!el) break;
-          if ((el.textContent || '').match(/[\d,.]+\s*EUR/) && (el.textContent || '').length > 50) return el;
+          if ((el.textContent || '').match(/[\d,.]+\s*(?:EUR|€)/) && (el.textContent || '').length > 50) return el;
           el = el.parentElement;
         }
         return link.parentElement?.parentElement?.parentElement || link.parentElement;
@@ -1136,7 +1144,7 @@ async function searchEbay(query, criteria) {
           if (!title || title.length < 5) continue;
 
           const container = findContainer(link);
-          const priceMatch = (container?.textContent || '').match(/([\d\s]+(?:[.,]\d{2})?)\s*EUR/);
+          const priceMatch = (container?.textContent || '').match(/([\d\s]+(?:[.,]\d{2})?)\s*(?:EUR|€)/);
           let price = 0;
           if (priceMatch) {
             const v = parseFloat(priceMatch[1].replace(/\s/g, '').replace(',', '.'));
@@ -1166,9 +1174,9 @@ async function searchEbay(query, criteria) {
     }
 
     try {
-      // eBay nécessite un onglet actif pour que le JS rende les résultats
-      // (Chrome throttle le JS des onglets background → 0 résultats)
-      // On sauvegarde l'onglet actif, on ouvre eBay en actif, puis on revient
+      // eBay utilise du lazy rendering (IntersectionObserver/rAF) qui ne tourne
+      // pas dans un onglet background. On ouvre en background pour le chargement,
+      // puis on re-focus brièvement pour le rendu JS avant de parser.
       let originalTabId = null;
       try {
         const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -1177,34 +1185,24 @@ async function searchEbay(query, criteria) {
 
       tab = await chrome.tabs.create({
         url: searchUrl,
-        active: true  // eBay a besoin d'être actif pour le rendu JS
+        active: false  // Background — on re-focus quand la page est chargée
       });
 
       tabId = tab.id;
       trackTab(tabId);
-      console.log('OKAZ SW: Onglet eBay créé (actif)', tabId);
-
-      // Revenir à l'onglet original après 1s (laisse eBay commencer le rendu)
-      if (originalTabId) {
-        setTimeout(async () => {
-          try {
-            await chrome.tabs.update(originalTabId, { active: true });
-            console.log('OKAZ SW: Retour à l\'onglet original', originalTabId);
-          } catch (e) { /* onglet peut avoir été fermé */ }
-        }, 1000);
-      }
+      console.log('OKAZ SW: Onglet eBay créé (background)', tabId);
 
       pendingEbayResolvers.set(tabId, resolveWith);
 
-      // Timeout 40s (eBay a une page de vérification qui prend du temps)
+      // Timeout 50s (chargement + re-focus + rendu)
       const timeoutId = setTimeout(() => {
         if (!resolved) {
-          console.log('OKAZ SW: Timeout eBay après 40s');
+          console.log('OKAZ SW: Timeout eBay après 50s');
           resolved = true;
           cleanup();
           resolve([]);
         }
-      }, 40000);
+      }, 50000);
 
       // eBay affiche souvent une page de vérification/challenge avant les résultats.
       // On doit attendre que l'URL contienne /sch/ (= page de résultats réelle).
@@ -1212,7 +1210,7 @@ async function searchEbay(query, criteria) {
 
       const checkAndParse = async (attempts = 0) => {
         if (resolved) return;
-        if (attempts > 40) return; // Plus de tentatives (vérification + chargement)
+        if (attempts > 50) return;
 
         try {
           const tabInfo = await chrome.tabs.get(tabId);
@@ -1225,7 +1223,6 @@ async function searchEbay(query, criteria) {
 
           // Si on n'est pas encore sur la page de résultats, attendre
           if (!isSearchPage) {
-            // Toujours sur la page de vérification/consent, réessayer
             setTimeout(() => checkAndParse(attempts + 1), 500);
             return;
           }
@@ -1236,23 +1233,28 @@ async function searchEbay(query, criteria) {
             return;
           }
 
-          // Page de résultats chargée ! Attendre le rendu JS
-          if (parseAttempts === 0) {
-            console.log('OKAZ SW: eBay page de résultats chargée, attente 3s pour le rendu JS...');
-            await new Promise(r => setTimeout(r, 3000));
-          } else {
-            await new Promise(r => setTimeout(r, 2000));
-          }
+          // Page chargée ! Re-focus l'onglet eBay pour déclencher le rendu JS
+          // (eBay utilise IntersectionObserver/rAF qui ne tournent pas en background)
+          const renderWait = parseAttempts === 0 ? 5000 : 3000;
+          console.log(`OKAZ SW: eBay page chargée, re-focus ${renderWait/1000}s pour rendu JS (tentative ${parseAttempts + 1})...`);
+          try {
+            await chrome.tabs.update(tabId, { active: true });
+          } catch (e) {}
+          await new Promise(r => setTimeout(r, renderWait));
           if (resolved) return;
           parseAttempts++;
 
-          // Stratégie 1: PARSE_PAGE via content script
+          // Stratégie 1: PARSE_PAGE via content script (tab toujours active)
           try {
             console.log('OKAZ SW: Envoi PARSE_PAGE à eBay...');
             const response = await chrome.tabs.sendMessage(tabId, { type: 'PARSE_PAGE' });
             if (!resolved && response && response.success && response.results.length > 0) {
               clearTimeout(timeoutId);
               console.log(`OKAZ SW: ${response.results.length} résultats eBay via PARSE_PAGE`);
+              // Revenir à l'onglet original
+              if (originalTabId) {
+                try { await chrome.tabs.update(originalTabId, { active: true }); } catch (e) {}
+              }
               resolveWith(response.results);
               return;
             }
@@ -1275,6 +1277,9 @@ async function searchEbay(query, criteria) {
                 if (results.length > 0) {
                   clearTimeout(timeoutId);
                   console.log(`OKAZ SW: ${results.length} résultats eBay via executeScript`);
+                  if (originalTabId) {
+                    try { await chrome.tabs.update(originalTabId, { active: true }); } catch (e) {}
+                  }
                   resolveWith(results);
                   return;
                 }
@@ -1283,6 +1288,11 @@ async function searchEbay(query, criteria) {
             } catch (e) {
               console.log('OKAZ SW: executeScript eBay échoué:', e.message);
             }
+          }
+
+          // Revenir à l'onglet original après tentative échouée
+          if (originalTabId) {
+            try { await chrome.tabs.update(originalTabId, { active: true }); } catch (e) {}
           }
 
           // Retry si rien n'a marché (max 4 tentatives de parsing)

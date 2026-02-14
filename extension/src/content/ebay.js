@@ -64,8 +64,8 @@
     for (let i = 0; i < 6; i++) {
       if (!el) break;
       const text = el.textContent || '';
-      // Un bon conteneur a le prix EUR et du texte substantiel
-      if (text.match(/[\d,.]+\s*EUR/) && text.length > 50) {
+      // Un bon conteneur a le prix EUR/€ et du texte substantiel
+      if (text.match(/[\d,.]+\s*(?:EUR|€)/) && text.length > 50) {
         return el;
       }
       el = el.parentElement;
@@ -77,7 +77,8 @@
   // Extraire le prix d'un texte
   function extractPrice(text) {
     // Prendre le PREMIER prix trouvé (prix principal, pas le "à X EUR" des enchères)
-    const match = text.match(/([\d\s]+(?:[.,]\d{2})?)\s*EUR/);
+    // Supporte EUR et € (eBay peut utiliser l'un ou l'autre)
+    const match = text.match(/([\d\s]+(?:[.,]\d{2})?)\s*(?:EUR|€)/);
     if (match) {
       const v = parseFloat(match[1].replace(/\s/g, '').replace(',', '.'));
       if (v > 0 && v < 50000) return Math.round(v);
