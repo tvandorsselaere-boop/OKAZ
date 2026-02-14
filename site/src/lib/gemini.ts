@@ -629,12 +629,12 @@ Pour CHAQUE annonce, évalue:
 - confidence (0-100): pertinence par rapport à la recherche. 90+: bon produit, 60-89: probable, 40-59: douteux, <40: hors-sujet
 - relevant: false seulement si accessoire/coque/câble ou produit totalement différent
 - matchDetails: court résumé (ex: "✓ MacBook M3 comme demandé" ou "✗ Housse, pas un ordinateur")
-- marketPrice: ${priceStats ? priceStats.median : 'estime le prix marché occasion'}
-- dealScore (1-10): moins cher que le marché = score plus haut. Prix < médiane = 7-10, prix ≈ médiane = 4-6, prix > médiane = 1-3
+- marketPrice: estime le prix marché occasion pour CE MODÈLE SPÉCIFIQUE (chaque génération/variante a son propre prix marché).${priceStats ? ` La médiane globale est ${priceStats.median}€ mais adapte par modèle.` : ''}
+- dealScore (1-10): rapport qualité/prix pour CE MODÈLE. Compare le prix au marché du MÊME modèle, pas à la médiane globale. Un produit au prix correct pour son modèle = 5-6, en dessous = 7-10, au-dessus = 1-4
 - dealType: excellent/good/fair/overpriced/suspicious
-- redFlags: ["Prix suspect"] si prix <60% du marché, sinon []
+- redFlags: ["Prix suspect"] si prix <60% du marché de CE modèle, sinon []
 
-Identifie aussi le topPick: meilleure annonce (confidence>=70, bon dealScore, pas de red flags).
+Identifie aussi le topPick: meilleure annonce parmi celles qui matchent EXACTEMENT la recherche (confidence>=80, bon dealScore, pas de red flags). Préfère le bon modèle à un prix correct plutôt qu'un mauvais modèle bradé.
 
 RÈGLES: Fais confiance aux annonces (les produits récents existent même si tu ne les connais pas). Ne pénalise pas les variations de formulation dans les titres.
 

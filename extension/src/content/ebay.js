@@ -211,10 +211,11 @@
 
   // Auto-parse si page de recherche
   if (window.location.href.includes('/sch/')) {
-    console.log('OKAZ EBAY: Page de recherche détectée, auto-parse dans 2.5s...');
+    console.log('OKAZ EBAY: Page de recherche détectée, auto-parse dans 4s...');
 
     setTimeout(async () => {
       try {
+        // Scroll pour déclencher le lazy loading
         for (let i = 0; i < 3; i++) {
           window.scrollBy(0, 400);
           await new Promise(r => setTimeout(r, 400));
@@ -224,20 +225,29 @@
 
         const results = await parseResults();
         console.log('OKAZ EBAY AUTO:', results.length, 'résultats');
-        chrome.runtime.sendMessage({
-          type: 'EBAY_RESULTS',
-          results,
-          url: window.location.href
-        });
+
+        // N'envoyer que si on a des résultats — sinon laisser le SW retenter via executeScript
+        if (results.length > 0) {
+          chrome.runtime.sendMessage({
+            type: 'EBAY_RESULTS',
+            results,
+            url: window.location.href
+          });
+        } else {
+          console.log('OKAZ EBAY AUTO: 0 résultats, pas d\'envoi (le SW retentera)');
+          // Debug: lister tous les éléments sur la page
+          console.log('OKAZ EBAY AUTO DEBUG:', {
+            sItems: document.querySelectorAll('.s-item').length,
+            srpResults: document.querySelectorAll('.srp-results').length,
+            itmLinks: document.querySelectorAll('a[href*="/itm/"]').length,
+            allLinks: document.querySelectorAll('a').length,
+            bodyLen: document.body?.innerHTML?.length || 0,
+          });
+        }
       } catch (error) {
         console.error('OKAZ EBAY AUTO: Erreur', error);
-        chrome.runtime.sendMessage({
-          type: 'EBAY_RESULTS',
-          results: [],
-          url: window.location.href
-        });
       }
-    }, 2500);
+    }, 4000);
   }
 
 })();

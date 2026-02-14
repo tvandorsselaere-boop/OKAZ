@@ -1323,17 +1323,24 @@ function handleEbayResults(results, senderTabId) {
   console.log('OKAZ SW: Traitement résultats eBay auto:', results?.length, 'from tab:', senderTabId);
   searchResults.set('ebay', results || []);
 
+  // Ne résoudre auto que si on a des résultats réels
+  // Sinon laisser checkAndParse retenter avec executeScript
+  if (!results || results.length === 0) {
+    console.log('OKAZ SW: eBay auto 0 résultats, on laisse checkAndParse retenter');
+    return;
+  }
+
   if (senderTabId && pendingEbayResolvers.has(senderTabId)) {
     const resolver = pendingEbayResolvers.get(senderTabId);
     console.log('OKAZ SW: Résolution eBay pour tab', senderTabId);
-    resolver(results || []);
+    resolver(results);
   } else {
     chrome.tabs.query({ url: '*://www.ebay.fr/*' }, (tabs) => {
       tabs.forEach(tab => {
         const resolver = pendingEbayResolvers.get(tab.id);
         if (resolver) {
           console.log('OKAZ SW: Résolution eBay fallback pour tab', tab.id);
-          resolver(results || []);
+          resolver(results);
         }
       });
     });

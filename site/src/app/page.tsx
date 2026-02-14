@@ -2090,17 +2090,18 @@ export default function Home() {
             // Filtrer : confidence < 30% = hors-sujet, on masque
             const isRelevant = confidence >= MIN_CONFIDENCE;
 
-            // Score basé sur le dealScore Gemini (1-10 → 10-100)
+            // Score combiné : confidence (pertinence) domine, dealScore en tiebreaker
+            // Le bon produit au bon prix > un mauvais produit bradé
             let finalScore: number;
             if (analysis?.dealScore) {
-              finalScore = analysis.dealScore * 10;
+              // 80% confidence + 20% dealScore
+              // M4 conf=95 deal=3 → 76+6=82 | vieux mini conf=50 deal=9 → 40+18=58
+              const confidencePart = (confidence / 100) * 80;
+              const dealPart = (analysis.dealScore / 10) * 20;
+              finalScore = Math.round(confidencePart + dealPart);
             } else {
               finalScore = r.score || 50;
             }
-
-            // Bonus/malus léger basé sur la confidence (±10 pts max)
-            if (confidence >= 90) finalScore = Math.min(100, finalScore + 5);
-            else if (confidence < 50) finalScore = Math.max(10, finalScore - 10);
 
             console.log(`[OKAZ] Résultat ${r.id}: confidence=${confidence}%, dealScore=${analysis?.dealScore || '-'}, finalScore=${finalScore} → ${isRelevant ? 'GARDÉ' : 'FILTRÉ'}`);
 
