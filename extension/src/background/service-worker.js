@@ -1205,7 +1205,8 @@ async function searchEbay(query, criteria) {
           }
         }
         diag.uniqueItems = itemIds.length;
-        let noTitle = 0, noPrice = 0;
+        diag.noTitle = 0;
+        diag.noPrice = 0;
 
         for (const item of itemIds.slice(0, MAX)) {
           const start = Math.max(0, item.pos - 1000);
@@ -1232,14 +1233,14 @@ async function searchEbay(query, criteria) {
               break;
             }
           }
-          if (!title) { noTitle++; continue; }
+          if (!title) { diag.noTitle++; continue; }
           title = title.replace(/^(Neuf|D&#39;occasion|D'occasion|Nouveau)\s*[–-]\s*/i, '')
                        .replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
                        .substring(0, 100);
-          if (title.length < 5) { noTitle++; continue; }
+          if (title.length < 5) { diag.noTitle++; continue; }
 
           const price = extractPrice(ctx);
-          if (price === 0) { noPrice++; continue; }
+          if (price === 0) { diag.noPrice++; continue; }
 
           let image = null;
           const imgMatch = ctx.match(/src="(https?:\/\/i\.ebayimg\.com\/[^"]+)"/);
@@ -1255,9 +1256,6 @@ async function searchEbay(query, criteria) {
           });
         }
       }
-
-      diag.noTitle = noTitle || 0;
-      diag.noPrice = noPrice || 0;
 
       // ===== STRATÉGIE 3 : JSON embarqué =====
       if (results.length === 0) {
@@ -1358,10 +1356,10 @@ async function searchEbay(query, criteria) {
               func: parseEbayPage
             });
 
-            if (!resolved && injectionResults?.[0]?.result) {
-              const raw = injectionResults[0].result;
-              const ebayResults = raw.results || raw;
-              const diag = raw.diag || {};
+            const rawResult = injectionResults?.[0]?.result;
+            if (!resolved && rawResult) {
+              const ebayResults = rawResult.results || rawResult;
+              const diag = rawResult.diag || {};
               console.log(`OKAZ SW: eBay DIAG: HTML=${diag.htmlKB}KB, /itm/=${diag.itmInHtml}, <a>=${diag.aCount}, shadows=${diag.shadows}, iframes=${diag.iframes}, strategy=${diag.strategy}`);
               console.log(`OKAZ SW: eBay DIAG2: uniqueItems=${diag.uniqueItems}, noTitle=${diag.noTitle}, noPrice=${diag.noPrice}, jsonScripts=${diag.jsonScripts}, title="${diag.title}"`);
               if (diag.sample) console.log(`OKAZ SW: eBay SAMPLE: ${diag.sample}`);
@@ -1370,6 +1368,9 @@ async function searchEbay(query, criteria) {
               console.log(`OKAZ SW: ${ebayResults.length} résultats eBay (multi-stratégie)`);
               resolveWith(ebayResults);
               return;
+            } else if (!resolved) {
+              console.log('OKAZ SW: eBay executeScript result is NULL/undefined — function crashed inside tab');
+              console.log('OKAZ SW: eBay raw injectionResults:', JSON.stringify(injectionResults?.map(r => ({ result: r.result === undefined ? 'UNDEFINED' : typeof r.result, frameId: r.frameId }))));
             }
           } catch (e) {
             console.log('OKAZ SW: executeScript eBay échoué:', e.message);
