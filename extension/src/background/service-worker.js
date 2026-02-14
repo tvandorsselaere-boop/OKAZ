@@ -898,14 +898,14 @@ function buildAmazonNewUrl(query, criteria) {
   return url;
 }
 
-// Construire l'URL Amazon Seconde Main (filtre Occasion)
+// Construire l'URL Amazon Seconde Main (Warehouse Deals)
 function buildAmazonUsedUrl(query, criteria) {
   const rawKeywords = criteria?.keywords || query;
   const keywords = (criteria?._searchVariant || rawKeywords.split(',')[0]).trim();
   console.log('OKAZ SW: Amazon Seconde Main keywords =', keywords);
   const encodedKw = encodeURIComponent(keywords).replace(/%20/g, '+');
-  // Filtre "Occasion" Amazon.fr (plus large que warehouse-deals qui ne montre que les retours Amazon)
-  const url = `https://www.amazon.fr/s?k=${encodedKw}&rh=p_n_condition-type%3A12937713031`;
+  // __mk_fr_FR nécessaire pour obtenir les résultats en français
+  const url = `https://www.amazon.fr/s?k=${encodedKw}&i=warehouse-deals&__mk_fr_FR=%C3%85M%C3%85%C5%BD%C3%95%C3%91`;
   console.log('OKAZ SW: Amazon Seconde Main URL =', url);
   return url;
 }
