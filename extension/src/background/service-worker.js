@@ -1089,28 +1089,33 @@ async function searchEbay(query, criteria) {
     async function parseEbayPage() {
       const MAX = 10;
       const results = [];
-      const seenIds = new Set();
+      const seenUrls = new Set();
       const diag = { strategy: 'none', htmlKB: 0, itmInHtml: 0, aCount: 0, shadows: 0, iframes: 0, sample: '' };
 
       function extractPrice(text) {
-        const m = (text || '').match(/([\d\s]+(?:[.,]\d{2})?)\s*(?:EUR|€)/);
-        if (m) {
-          const v = parseFloat(m[1].replace(/\s/g, '').replace(',', '.'));
-          if (v > 0 && v < 50000) return Math.round(v);
+        // Support: "149,99 €", "149,99 EUR", "EUR 149,99", "1 079,00 €"
+        const patterns = [
+          /([\d\s]+(?:[.,]\d{2})?)\s*(?:EUR|€)/,
+          /(?:EUR|€)\s*([\d\s]+(?:[.,]\d{2})?)/
+        ];
+        for (const pat of patterns) {
+          const m = (text || '').match(pat);
+          if (m) {
+            const v = parseFloat(m[1].replace(/\s/g, '').replace(',', '.'));
+            if (v > 0 && v < 50000) return Math.round(v);
+          }
         }
         return 0;
       }
 
-      function findLinksInShadow(root) {
-        const found = [];
-        try {
-          const links = root.querySelectorAll('a[href*="/itm/"]');
-          found.push(...links);
-          root.querySelectorAll('*').forEach(el => {
-            if (el.shadowRoot) found.push(...findLinksInShadow(el.shadowRoot));
-          });
-        } catch (e) {}
-        return found;
+      function makeResult(title, price, url, image) {
+        results.push({
+          id: `ebay-${results.length}-${Date.now()}`,
+          title: title.substring(0, 100), price, site: 'eBay', siteColor: '#E53238',
+          image, url, location: '',
+          handDelivery: false, hasShipping: true, hasWarranty: false,
+          score: 70, redFlags: []
+        });
       }
 
       // Diagnostics communs
@@ -1122,85 +1127,134 @@ async function searchEbay(query, criteria) {
       let sc = 0;
       document.querySelectorAll('*').forEach(el => { if (el.shadowRoot) sc++; });
       diag.shadows = sc;
-      // Échantillon HTML autour du premier /itm/
       const itmIdx = html.indexOf('/itm/');
       if (itmIdx > -1) {
-        diag.sample = html.substring(Math.max(0, itmIdx - 200), itmIdx + 300).replace(/\n/g, ' ').substring(0, 400);
-      } else {
-        // Échantillon du body pour comprendre la structure
-        const bodyIdx = html.indexOf('<body');
-        if (bodyIdx > -1) {
-          diag.sample = html.substring(bodyIdx, bodyIdx + 500).replace(/\n/g, ' ').substring(0, 400);
-        }
+        diag.sample = html.substring(Math.max(0, itmIdx - 200), itmIdx + 300).replace(/\n/g, ' ').substring(0, 500);
       }
       diag.url = window.location.href;
       diag.title = document.title;
 
-      // ===== STRATÉGIE 1 : DOM classique + Shadow DOM =====
-      let links = document.querySelectorAll('a[href*="/itm/"]');
-      if (links.length === 0) {
-        links = findLinksInShadow(document);
-      }
+      // ===== STRATÉGIE 1 : s-card DOM (eBay 2025) =====
+      // eBay utilise des éléments .s-card avec .s-card__link pour les résultats
+      const cards = document.querySelectorAll('.s-card');
+      diag.sCards = cards.length;
 
-      if (links.length > 0) {
-        diag.strategy = links.length + ' liens DOM';
-        for (const link of links) {
+      if (cards.length > 0) {
+        diag.strategy = cards.length + ' s-cards DOM';
+        for (const card of cards) {
           if (results.length >= MAX) break;
           try {
+            // Trouver le lien principal
+            const link = card.querySelector('a.s-card__link, a[href*="/itm/"], a[href*="ebay"]');
+            if (!link) continue;
             let url = link.href || '';
-            if (!url.includes('/itm/')) continue;
-            const itemIdMatch = url.match(/\/itm\/(\d+)/);
-            const itemId = itemIdMatch ? itemIdMatch[1] : url;
-            if (seenIds.has(itemId)) continue;
-            seenIds.add(itemId);
-            try { const u = new URL(url); url = `${u.origin}${u.pathname}`; } catch {}
+            if (seenUrls.has(url)) continue;
+            seenUrls.add(url);
 
-            let title = link.title || '';
-            if (!title) {
-              const h = link.querySelector('span[role="heading"], h3, span');
-              title = h?.textContent?.trim() || link.textContent?.trim() || '';
-            }
-            title = title.replace(/^(Neuf|D'occasion|Nouveau)\s*[–-]\s*/i, '').replace(/^Sponsorisé\s*/i, '').substring(0, 100);
+            // Titre: chercher dans le texte de la card
+            let title = '';
+            const titleEl = card.querySelector('[class*="title"], [role="heading"], h3, .s-card__title');
+            if (titleEl) title = titleEl.textContent?.trim() || '';
+            if (!title) title = link.textContent?.trim() || '';
+            if (!title) title = link.title || '';
+            title = title.replace(/^(Neuf|D'occasion|Nouveau)\s*[–-]\s*/i, '').replace(/^Sponsorisé\s*/i, '').trim();
             if (!title || title.length < 5) continue;
 
-            let container = link.parentElement;
-            for (let i = 0; i < 6; i++) {
-              if (!container) break;
-              if ((container.textContent || '').match(/[\d,.]+\s*(?:EUR|€)/) && (container.textContent || '').length > 50) break;
-              container = container.parentElement;
-            }
-            if (!container) container = link.parentElement?.parentElement?.parentElement || link.parentElement;
-
-            const price = extractPrice(container?.textContent || '');
+            // Prix
+            const cardText = card.textContent || '';
+            const price = extractPrice(cardText);
             if (price === 0) continue;
 
+            // Image
             let image = null;
-            const imgEl = container?.querySelector('img[src*="ebayimg"]') || container?.querySelector('img:not([src*="ebaystatic"])');
+            const imgEl = card.querySelector('img[src*="ebayimg"], img[src*="ebay"]');
             if (imgEl) {
               image = imgEl.src || imgEl.dataset?.src || null;
-              if (image && (image.includes('placeholder') || image.includes('data:image') || image.includes('blank'))) image = null;
+              if (image && (image.includes('placeholder') || image.includes('data:image'))) image = null;
             }
 
-            results.push({
-              id: `ebay-${results.length}-${Date.now()}`,
-              title, price, site: 'eBay', siteColor: '#E53238',
-              image, url, location: '',
-              handDelivery: false, hasShipping: true, hasWarranty: false,
-              score: 70, redFlags: []
-            });
+            // Normaliser l'URL
+            if (!url.includes('ebay.fr') && url.includes('ebay.com')) {
+              url = url.replace('ebay.com', 'ebay.fr');
+            }
+            try { const u = new URL(url); url = `${u.origin}${u.pathname}`; } catch {}
+
+            makeResult(title, price, url, image);
           } catch (e) {}
         }
       }
 
-      // ===== STRATÉGIE 2 : HTML brut regex =====
+      // ===== STRATÉGIE 2 : Tous les liens /itm/ dans le DOM =====
+      if (results.length === 0) {
+        // Essayer plusieurs sélecteurs pour trouver les liens
+        let links = document.querySelectorAll('a[href*="/itm/"]');
+        if (links.length === 0) {
+          // Fallback: chercher tous les <a> et filtrer manuellement
+          const allLinks = document.querySelectorAll('a');
+          const itmLinks = [];
+          allLinks.forEach(a => {
+            const href = a.href || a.getAttribute('href') || '';
+            if (href.includes('/itm/')) itmLinks.push(a);
+          });
+          links = itmLinks;
+        }
+        diag.linksItm = links.length;
+
+        if (links.length > 0) {
+          diag.strategy = (diag.strategy === 'none' ? '' : diag.strategy + ' + ') + links.length + ' liens /itm/';
+          for (const link of links) {
+            if (results.length >= MAX) break;
+            try {
+              let url = link.href || link.getAttribute('href') || '';
+              if (!url.includes('/itm/')) continue;
+              if (seenUrls.has(url)) continue;
+              seenUrls.add(url);
+
+              // Remonter au container card
+              let container = link.closest('.s-card') || link.closest('[class*="card"]');
+              if (!container) {
+                container = link.parentElement;
+                for (let i = 0; i < 6 && container; i++) {
+                  if ((container.textContent || '').match(/[\d,.]+\s*(?:EUR|€)/) && (container.textContent || '').length > 50) break;
+                  container = container.parentElement;
+                }
+              }
+              if (!container) container = link.parentElement;
+
+              let title = link.title || '';
+              if (!title) {
+                const h = container?.querySelector('[role="heading"], h3, [class*="title"]');
+                title = h?.textContent?.trim() || link.textContent?.trim() || '';
+              }
+              title = title.replace(/^(Neuf|D'occasion|Nouveau)\s*[–-]\s*/i, '').replace(/^Sponsorisé\s*/i, '').trim();
+              if (!title || title.length < 5) continue;
+
+              const price = extractPrice(container?.textContent || '');
+              if (price === 0) continue;
+
+              let image = null;
+              const imgEl = container?.querySelector('img[src*="ebayimg"]');
+              if (imgEl) image = imgEl.src || null;
+
+              if (!url.includes('ebay.fr') && url.includes('ebay.com')) url = url.replace('ebay.com', 'ebay.fr');
+              try { const u = new URL(url); url = `${u.origin}${u.pathname}`; } catch {}
+
+              makeResult(title, price, url, image);
+            } catch (e) {}
+          }
+        }
+      }
+
+      // ===== STRATÉGIE 3 : HTML brut regex (IDs 5+ chiffres) =====
       if (results.length === 0 && diag.itmInHtml > 0) {
-        diag.strategy = 'HTML regex (' + diag.itmInHtml + ' /itm/)';
-        const itemRegex = /\/itm\/(\d{10,15})/g;
+        diag.strategy = (diag.strategy === 'none' ? '' : diag.strategy + ' + ') + 'HTML regex';
+        // Match /itm/ suivi de chiffres (5-15) OU d'un slug puis chiffres
+        const itemRegex = /\/itm\/(?:[a-zA-Z0-9-]+\/)?(\d{5,15})/g;
         let match;
         const itemIds = [];
         while ((match = itemRegex.exec(html)) !== null) {
-          if (!seenIds.has(match[1])) {
-            seenIds.add(match[1]);
+          if (!seenUrls.has(match[1])) {
+            seenUrls.add(match[1]);
             itemIds.push({ id: match[1], pos: match.index });
           }
         }
@@ -1209,11 +1263,10 @@ async function searchEbay(query, criteria) {
         diag.noPrice = 0;
 
         for (const item of itemIds.slice(0, MAX)) {
-          const start = Math.max(0, item.pos - 1000);
-          const end = Math.min(html.length, item.pos + 1000);
+          const start = Math.max(0, item.pos - 1500);
+          const end = Math.min(html.length, item.pos + 1500);
           const ctx = html.substring(start, end);
 
-          // Diag: montrer le contexte du premier item pour comprendre la structure
           if (item === itemIds[0]) {
             diag.firstCtx = ctx.substring(0, 500).replace(/\n/g, ' ');
           }
@@ -1224,11 +1277,13 @@ async function searchEbay(query, criteria) {
             /aria-label="([^"]{10,120})"/,
             /alt="([^"]{10,120})"/,
             /role="heading"[^>]*>([^<]{10,120})</,
-            /<span[^>]*>([^<]{15,120})<\/span>/
+            /<span[^>]*class="[^"]*title[^"]*"[^>]*>([^<]{10,120})<\/span>/,
+            /<span[^>]*>([^<]{15,120})<\/span>/,
+            /<h3[^>]*>([^<]{10,120})<\/h3>/
           ];
           for (const pat of titlePatterns) {
             const tm = ctx.match(pat);
-            if (tm && !tm[1].includes('<') && !tm[1].includes('http')) {
+            if (tm && !tm[1].includes('<') && !tm[1].includes('http') && !tm[1].includes('function')) {
               title = tm[1].trim();
               break;
             }
@@ -1246,48 +1301,49 @@ async function searchEbay(query, criteria) {
           const imgMatch = ctx.match(/src="(https?:\/\/i\.ebayimg\.com\/[^"]+)"/);
           if (imgMatch) image = imgMatch[1];
 
-          results.push({
-            id: `ebay-${results.length}-${Date.now()}`,
-            title, price, site: 'eBay', siteColor: '#E53238',
-            image, url: `https://www.ebay.fr/itm/${item.id}`,
-            location: '',
-            handDelivery: false, hasShipping: true, hasWarranty: false,
-            score: 70, redFlags: []
-          });
+          makeResult(title, price, `https://www.ebay.fr/itm/${item.id}`, image);
         }
       }
 
-      // ===== STRATÉGIE 3 : JSON embarqué =====
+      // ===== STRATÉGIE 4 : JSON embarqué (plus flexible) =====
       if (results.length === 0) {
-        diag.strategy = diag.strategy === 'none' ? 'JSON scan' : diag.strategy + ' + JSON';
+        diag.strategy = (diag.strategy === 'none' ? '' : diag.strategy + ' + ') + 'JSON';
         const scripts = document.querySelectorAll('script');
         let jsonScriptCount = 0;
         for (const script of scripts) {
           const text = script.textContent || '';
-          if (!text.includes('itemId') && !text.includes('listingId')) continue;
+          if (text.length < 100) continue;
+          // Chercher des patterns JSON avec itemId/listingId
+          const hasItemData = text.includes('itemId') || text.includes('listingId') || text.includes('"title"');
+          if (!hasItemData) continue;
           jsonScriptCount++;
           try {
-            const patterns = [
-              /"itemId"\s*:\s*"(\d+)"[^}]*"title"\s*:\s*"([^"]+)"[^}]*?"price"\s*:\s*\{[^}]*"value"\s*:\s*"?([\d.]+)"?/g,
-              /"listingId"\s*:\s*"(\d+)"[^}]*"title"\s*:\s*"([^"]+)"[^}]*?"price"\s*:\s*"?([\d.]+)"?/g
-            ];
-            for (const pattern of patterns) {
-              let m;
-              while ((m = pattern.exec(text)) !== null && results.length < MAX) {
-                const id = m[1];
-                if (seenIds.has(id)) continue;
-                seenIds.add(id);
-                const price = Math.round(parseFloat(m[3]));
-                if (price <= 0 || price > 50000) continue;
-                results.push({
-                  id: `ebay-${results.length}-${Date.now()}`,
-                  title: m[2].substring(0, 100),
-                  price, site: 'eBay', siteColor: '#E53238',
-                  image: null, url: `https://www.ebay.fr/itm/${id}`,
-                  location: '',
-                  handDelivery: false, hasShipping: true, hasWarranty: false,
-                  score: 70, redFlags: []
-                });
+            // Pattern 1: {"itemId":"123","title":"...","price":{"value":"99.99"}}
+            const p1 = /"(?:itemId|listingId)"\s*:\s*"(\d+)"[\s\S]*?"title"\s*:\s*"([^"]{10,150})"[\s\S]*?"(?:price|convertedFromValue)"\s*:\s*(?:\{[^}]*"value"\s*:\s*)?"?([\d.]+)"?/g;
+            let m;
+            while ((m = p1.exec(text)) !== null && results.length < MAX) {
+              if (seenUrls.has(m[1])) continue;
+              seenUrls.add(m[1]);
+              const price = Math.round(parseFloat(m[3]));
+              if (price <= 0 || price > 50000) continue;
+              makeResult(m[2], price, `https://www.ebay.fr/itm/${m[1]}`, null);
+            }
+            // Pattern 2: chercher les objets un par un
+            if (results.length === 0) {
+              const idMatches = [...text.matchAll(/"(?:itemId|listingId)"\s*:\s*"(\d+)"/g)];
+              for (const idM of idMatches.slice(0, MAX)) {
+                if (seenUrls.has(idM[1])) continue;
+                const pos = idM.index;
+                const chunk = text.substring(Math.max(0, pos - 500), Math.min(text.length, pos + 2000));
+                const titleM = chunk.match(/"title"\s*:\s*"([^"]{10,150})"/);
+                const priceM = chunk.match(/"value"\s*:\s*"?([\d.]+)"?/);
+                if (titleM && priceM) {
+                  seenUrls.add(idM[1]);
+                  const price = Math.round(parseFloat(priceM[1]));
+                  if (price > 0 && price < 50000) {
+                    makeResult(titleM[1], price, `https://www.ebay.fr/itm/${idM[1]}`, null);
+                  }
+                }
               }
             }
           } catch (e) {}
