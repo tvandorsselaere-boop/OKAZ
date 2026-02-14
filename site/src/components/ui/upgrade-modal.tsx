@@ -40,16 +40,16 @@ export function UpgradeModal({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-lg"
           onClick={onClose}
         >
           <motion.div
             initial={{ scale: 0.95, opacity: 0, y: 8 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.95, opacity: 0, y: 8 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-lg bg-[var(--card-bg)] rounded-3xl shadow-2xl border border-[var(--separator)] p-8 relative"
+            className="w-full max-w-lg bg-[var(--card-bg)] backdrop-blur-2xl rounded-3xl shadow-2xl border border-[var(--separator)] p-8 relative"
           >
             {/* Bouton fermer */}
             <button
@@ -61,8 +61,8 @@ export function UpgradeModal({
 
             {/* Header */}
             <div className="text-center mb-6">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-[var(--accent)]/10 flex items-center justify-center">
-                <Zap className="w-8 h-8 text-[var(--accent)]" />
+              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[var(--accent)] to-[var(--accent-secondary,#8B5CF6)] flex items-center justify-center shadow-lg shadow-[var(--accent)]/20">
+                <Zap className="w-8 h-8 text-white" />
               </div>
               <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">
                 Quota epuise
@@ -78,7 +78,7 @@ export function UpgradeModal({
               <button
                 onClick={onBuyBoost}
                 disabled={isLoading}
-                className="w-full p-4 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--separator)] hover:border-[var(--accent)]/30 transition-all text-left group disabled:opacity-50"
+                className="w-full p-4 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--separator)] hover:border-[var(--accent)]/30 hover:scale-[1.01] transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] text-left group disabled:opacity-50"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
@@ -100,7 +100,7 @@ export function UpgradeModal({
               <button
                 onClick={() => onBuyPlan('pro')}
                 disabled={isLoading}
-                className="w-full p-4 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--separator)] hover:border-[var(--accent)]/30 transition-all text-left group disabled:opacity-50"
+                className="w-full p-4 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--separator)] hover:border-[var(--accent)]/30 hover:scale-[1.01] transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] text-left group disabled:opacity-50"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
@@ -136,16 +136,16 @@ export function UpgradeModal({
               <button
                 onClick={() => onBuyPlan('premium')}
                 disabled={isLoading}
-                className="w-full p-4 rounded-2xl bg-[var(--bg-secondary)] border-2 border-[var(--accent)]/30 hover:border-[var(--accent)]/50 transition-all text-left group disabled:opacity-50 relative overflow-hidden"
+                className="w-full p-4 rounded-2xl bg-[var(--bg-secondary)] border-2 border-[var(--accent)]/30 hover:border-[var(--accent)]/50 hover:scale-[1.01] transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] text-left group disabled:opacity-50 relative overflow-hidden"
               >
-                {/* Badge recommandé */}
-                <div className="absolute top-0 right-0 bg-[var(--accent)] text-white text-[10px] font-bold px-3 py-1 rounded-bl-lg">
+                {/* Badge recommandé — gradient avec pulse */}
+                <div className="absolute top-0 right-0 bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary,#8B5CF6)] text-white text-[10px] font-bold px-3 py-1 rounded-bl-lg animate-pulse">
                   RECOMMANDE
                 </div>
 
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-[var(--accent)]/10 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[var(--accent)]/15 to-[var(--accent-secondary,#8B5CF6)]/15 flex items-center justify-center">
                       <Crown className="w-5 h-5 text-[var(--accent)]" />
                     </div>
                     <div>

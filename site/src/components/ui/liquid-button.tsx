@@ -27,8 +27,9 @@ const LiquidButton = forwardRef<HTMLButtonElement, LiquidButtonProps>(
 
     const variantClasses = {
       primary: `
-        bg-[var(--accent)] text-white font-semibold
-        hover:bg-[var(--accent-hover)]
+        bg-gradient-to-br from-[var(--accent)] to-[var(--accent-secondary,#8B5CF6)] text-white font-semibold
+        shadow-lg shadow-[var(--accent)]/25
+        hover:shadow-xl hover:shadow-[var(--accent)]/30 hover:scale-[1.02] hover:-translate-y-0.5
         active:scale-[0.98]
       `,
       secondary: `
@@ -48,9 +49,9 @@ const LiquidButton = forwardRef<HTMLButtonElement, LiquidButtonProps>(
       <button
         ref={ref}
         className={`
-          rounded-xl font-medium
-          transition-all duration-200
-          focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/30
+          rounded-2xl font-medium
+          transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
+          focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40 focus:ring-offset-2
           disabled:opacity-50 disabled:cursor-not-allowed
           ${sizeClasses[size]}
           ${variantClasses[variant]}

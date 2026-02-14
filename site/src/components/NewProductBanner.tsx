@@ -21,12 +21,12 @@ export function NewProductBanner({ productName, estimatedPrice, reason, searchQu
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2, delay: 0.2 }}
-      className="mt-6 p-4 rounded-2xl bg-[var(--card-bg)] border border-[var(--separator)] shadow-[var(--card-shadow)]"
+      transition={{ duration: 0.3, delay: 0.2, ease: [0.4, 0, 0.2, 1] }}
+      className="mt-6 p-4 rounded-[20px] bg-[var(--card-bg)] border border-[var(--accent)]/15 shadow-[var(--card-shadow)]"
     >
       <div className="flex items-start gap-3">
-        <div className="w-8 h-8 rounded-full bg-[var(--accent)]/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-          <Lightbulb className="w-4 h-4 text-[var(--accent)]" />
+        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-secondary,#8B5CF6)] flex items-center justify-center flex-shrink-0 mt-0.5 shadow-sm shadow-[var(--accent)]/20">
+          <Lightbulb className="w-4 h-4 text-white" />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-[var(--accent)]">
@@ -48,7 +48,7 @@ export function NewProductBanner({ productName, estimatedPrice, reason, searchQu
           href={amazonLink}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#FF9900] text-white text-xs font-medium hover:bg-[#E68A00] transition-colors"
+          className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#FF9900] text-white text-xs font-medium hover:bg-[#E68A00] hover:scale-105 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
         >
           Voir sur Amazon
           <ExternalLink className="w-3 h-3" />

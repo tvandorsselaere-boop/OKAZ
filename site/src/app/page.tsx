@@ -151,14 +151,14 @@ function ThemeToggleButton({ darkMode, onToggle }: { darkMode: boolean; onToggle
 
 function ScoreBadge({ score }: { score: number }) {
   const getColor = () => {
-    if (score >= 80) return "bg-[var(--score-high)]";
-    if (score >= 50) return "bg-[var(--score-medium)]";
-    return "bg-[var(--score-low)]";
+    if (score >= 80) return "bg-emerald-500";
+    if (score >= 50) return "bg-amber-500";
+    return "bg-red-500";
   };
 
   return (
     <span
-      className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-bold text-white rounded-full ${getColor()}`}
+      className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-white rounded-full shadow-sm ${getColor()}`}
     >
       {score}%
     </span>
@@ -168,10 +168,10 @@ function ScoreBadge({ score }: { score: number }) {
 // Indicateur de confiance du match (Gemini)
 function ConfidenceIndicator({ confidence, matchDetails }: { confidence: number; matchDetails?: string }) {
   const getConfidenceStyle = () => {
-    if (confidence >= 90) return { bg: 'bg-[var(--score-high)]/10', text: 'text-[var(--score-high)]', label: 'Excellent' };
+    if (confidence >= 90) return { bg: 'bg-emerald-500/10', text: 'text-emerald-600 dark:text-emerald-400', label: 'Excellent' };
     if (confidence >= 70) return { bg: 'bg-[var(--accent)]/10', text: 'text-[var(--accent)]', label: 'Bon' };
-    if (confidence >= 50) return { bg: 'bg-[var(--score-medium)]/10', text: 'text-[var(--score-medium)]', label: 'Moyen' };
-    return { bg: 'bg-[var(--score-low)]/10', text: 'text-[var(--score-low)]', label: 'Faible' };
+    if (confidence >= 50) return { bg: 'bg-amber-500/10', text: 'text-amber-600 dark:text-amber-400', label: 'Moyen' };
+    return { bg: 'bg-red-500/10', text: 'text-red-600 dark:text-red-400', label: 'Faible' };
   };
 
   const style = getConfidenceStyle();
@@ -187,19 +187,21 @@ function ConfidenceIndicator({ confidence, matchDetails }: { confidence: number;
 function TopRecommendation({ result, topPick }: { result: AnalyzedResult; topPick: TopPick }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2 }}
+      transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
       className="mb-6"
     >
+      {/* Gradient border wrapper */}
+      <div className="relative rounded-[22px] p-[2px] bg-gradient-to-br from-[var(--accent)] via-[var(--accent-secondary,#8B5CF6)] to-[var(--accent)] shadow-lg shadow-[var(--accent)]/10">
       <a
         href={result.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="block p-5 rounded-2xl bg-[var(--card-bg)] border-2 border-[var(--accent)]/30 shadow-[var(--card-shadow)] hover:shadow-[var(--card-shadow-hover)] transition-all duration-200 group relative overflow-hidden"
+        className="block p-5 rounded-[20px] bg-[var(--card-bg)] hover:shadow-[var(--card-shadow-hover)] transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] group relative overflow-hidden"
       >
-        {/* Badge "Mon choix" */}
-        <div className="absolute top-0 right-0 bg-[var(--accent)] text-white text-xs font-bold px-4 py-1.5 rounded-bl-xl">
+        {/* Badge "Mon choix" with pulse */}
+        <div className="absolute top-0 right-0 bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary,#8B5CF6)] text-white text-xs font-bold px-4 py-1.5 rounded-bl-xl animate-pulse">
           Mon choix
         </div>
 
@@ -275,6 +277,7 @@ function TopRecommendation({ result, topPick }: { result: AnalyzedResult; topPic
           <ExternalLink className="w-4 h-4 ml-1 group-hover:translate-x-0.5 transition-transform" />
         </div>
       </a>
+      </div>
     </motion.div>
   );
 }
@@ -304,9 +307,9 @@ function ResultCard({ result, index = 0, showLocalBadge = false }: { result: Ana
         rel="noopener noreferrer"
         className="block"
       >
-        <div className="p-4 rounded-2xl bg-[var(--card-bg)] border border-[var(--separator)] shadow-[var(--card-shadow)] hover:shadow-[var(--card-shadow-hover)] transition-shadow duration-200 group cursor-pointer">
+        <div className="p-4 rounded-[20px] bg-[var(--card-bg)] border border-[var(--separator)] shadow-[var(--card-shadow)] hover:shadow-[var(--card-shadow-hover)] hover:scale-[1.02] hover:-translate-y-0.5 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] group cursor-pointer">
           <div className="flex gap-4">
-            <div className="relative w-20 h-20 rounded-xl overflow-hidden flex-shrink-0 bg-[var(--bg-secondary)]">
+            <div className="relative w-24 h-24 rounded-xl overflow-hidden flex-shrink-0 bg-[var(--bg-secondary)]">
               {result.image ? (
                 <img
                   src={result.image}
@@ -341,8 +344,8 @@ function ResultCard({ result, index = 0, showLocalBadge = false }: { result: Ana
                 </h3>
                 <ExternalLink className="w-4 h-4 text-[var(--text-tertiary)] group-hover:text-[var(--accent)] transition-all flex-shrink-0" />
               </div>
-              <div className="flex items-center gap-2 mt-1 flex-wrap">
-                <span className="text-lg font-bold text-[var(--text-primary)]">
+              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                <span className="text-2xl font-bold text-[var(--text-primary)]">
                   {result.price > 0 ? `${result.price.toLocaleString('fr-FR')} €` : 'Prix non indiqué'}
                 </span>
                 <ScoreBadge score={result.score} />
@@ -431,7 +434,7 @@ function TopChoiceCard({
         href={result.url}
         target="_blank"
         rel="noopener noreferrer"
-        className={`block p-4 rounded-2xl bg-[var(--card-bg)] border-2 ${borderColor} shadow-[var(--card-shadow)] hover:shadow-[var(--card-shadow-hover)] transition-all group h-full`}
+        className={`block p-4 rounded-[20px] bg-[var(--card-bg)] border-2 ${borderColor} shadow-[var(--card-shadow)] hover:shadow-[var(--card-shadow-hover)] hover:scale-[1.02] hover:-translate-y-0.5 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] group h-full`}
       >
         <div className={`flex items-center gap-2 mb-3 ${accentText}`}>
           {type === 'score' ? <Award className="w-4 h-4" /> : <Handshake className="w-4 h-4" />}
@@ -439,7 +442,7 @@ function TopChoiceCard({
         </div>
 
         <div className="flex gap-3">
-          <div className="relative w-20 h-20 rounded-xl overflow-hidden flex-shrink-0 bg-[var(--bg-secondary)]">
+          <div className="relative w-24 h-24 rounded-xl overflow-hidden flex-shrink-0 bg-[var(--bg-secondary)]">
             {result.image ? (
               <img
                 src={result.image}
@@ -622,7 +625,7 @@ function MoreResultsSection({
       {/* Header cliquable */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full flex items-center justify-between p-3 rounded-2xl bg-[var(--card-bg)] border border-[var(--separator)] shadow-[var(--card-shadow)] hover:shadow-[var(--card-shadow-hover)] transition-all"
+        className="w-full flex items-center justify-between p-3 rounded-[20px] bg-[var(--card-bg)] border border-[var(--separator)] shadow-[var(--card-shadow)] hover:shadow-[var(--card-shadow-hover)] transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
       >
         <div className="flex items-center gap-2">
           <ListFilter className="w-4 h-4 text-[var(--text-secondary)]" />
@@ -737,7 +740,7 @@ function HandDeliverySection({ results, userLocation }: { results: AnalyzedResul
             href={bestDeal.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="block p-4 rounded-2xl bg-[var(--card-bg)] border-2 border-[var(--score-high)]/30 hover:border-[var(--score-high)]/50 shadow-[var(--card-shadow)] hover:shadow-[var(--card-shadow-hover)] transition-all group relative overflow-hidden"
+            className="block p-4 rounded-[20px] bg-[var(--card-bg)] border-2 border-[var(--score-high)]/30 hover:border-[var(--score-high)]/50 shadow-[var(--card-shadow)] hover:shadow-[var(--card-shadow-hover)] hover:scale-[1.02] hover:-translate-y-0.5 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] group relative overflow-hidden"
           >
             {/* Badge "Meilleur deal" */}
             <div className="absolute top-0 right-0 bg-[var(--score-high)] text-white text-[10px] font-bold px-3 py-1 rounded-bl-lg">
@@ -870,7 +873,7 @@ function SearchResults({ data, onBack }: { data: { query: string; categorized: C
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="p-4 rounded-2xl bg-[var(--card-bg)] border border-[var(--separator)] shadow-[var(--card-shadow)] space-y-2"
+          className="p-4 rounded-[20px] bg-[var(--card-bg)] border border-[var(--separator)] shadow-[var(--card-shadow)] space-y-2"
         >
           <div>
             <div className="text-sm text-[var(--text-secondary)]">Recherche :</div>
@@ -1285,9 +1288,8 @@ function MobileLanding() {
   };
 
   return (
-    <main className="min-h-screen bg-[var(--bg-primary)] glow-container">
-      <div className="glow-orb glow-orb-1" />
-      <div className="glow-orb glow-orb-2" />
+    <main className="min-h-screen bg-[var(--bg-primary)]">
+      <div className="gradient-mesh" />
       <div className="relative z-10 container mx-auto px-6 py-12 max-w-md">
         <motion.div
           initial={{ opacity: 0, y: 8 }}
@@ -2382,10 +2384,8 @@ export default function Home() {
   // Show results screen
   if (searchData) {
     return (
-      <main className="min-h-screen bg-[var(--bg-primary)] glow-container">
-        <div className="glow-orb glow-orb-1" />
-        <div className="glow-orb glow-orb-2" />
-        <div className="glow-orb glow-orb-3" />
+      <main className="min-h-screen bg-[var(--bg-primary)]">
+        <div className="gradient-mesh" />
         <ThemeToggleButton darkMode={darkMode} onToggle={toggleTheme} />
         <div className="relative z-10 container mx-auto px-4 py-8 max-w-2xl">
           <SearchResults data={searchData} onBack={handleBack} />
@@ -2397,9 +2397,8 @@ export default function Home() {
   // Show setup screen
   if (showSetup) {
     return (
-      <main className="min-h-screen bg-[var(--bg-primary)] glow-container">
-        <div className="glow-orb glow-orb-1" />
-        <div className="glow-orb glow-orb-2" />
+      <main className="min-h-screen bg-[var(--bg-primary)]">
+        <div className="gradient-mesh" />
         <ThemeToggleButton darkMode={darkMode} onToggle={toggleTheme} />
         <div className="relative z-10 container mx-auto px-4 py-16 max-w-md">
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
@@ -2415,10 +2414,8 @@ export default function Home() {
 
   // Show home/search screen
   return (
-    <main className="min-h-screen bg-[var(--bg-primary)] glow-container">
-      <div className="glow-orb glow-orb-1" />
-      <div className="glow-orb glow-orb-2" />
-      <div className="glow-orb glow-orb-3" />
+    <main className="min-h-screen bg-[var(--bg-primary)]">
+      <div className="gradient-mesh" />
       <ThemeToggleButton darkMode={darkMode} onToggle={toggleTheme} />
 
       <div className="relative z-10 container mx-auto px-4 py-16 lg:py-24">
@@ -2447,7 +2444,7 @@ export default function Home() {
               transition={{ delay: 0.1 }}
               className="flex-1 min-w-0"
             >
-              <div className="bg-[var(--card-bg)]/80 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-[var(--card-shadow)] hover:shadow-[var(--card-shadow-hover)] transition-shadow p-6 rounded-2xl">
+              <div className="bg-[var(--card-bg)]/80 backdrop-blur-2xl border border-white/15 dark:border-white/8 shadow-[var(--card-shadow)] hover:shadow-[var(--card-shadow-hover)] transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] p-6 rounded-[20px]">
               {isSearching ? (
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -2487,7 +2484,7 @@ export default function Home() {
 Ex: MacBook Pro M2 a moins de 800€ pour coder,
 main propre Paris ou livraison si garantie"
                     rows={3}
-                    className="input-clean w-full px-5 py-4 pl-14 pr-20 text-base rounded-xl text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none resize-none"
+                    className="input-clean w-full px-5 py-4 pl-14 pr-20 text-base rounded-xl text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none resize-none shadow-inner"
                     onKeyDown={(e) => {
                       // Cmd/Ctrl + Enter pour lancer la recherche
                       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
@@ -2520,7 +2517,7 @@ main propre Paris ou livraison si garantie"
                   <button
                     type="submit"
                     disabled={!query.trim()}
-                    className="absolute right-3 bottom-3 z-10 p-3 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="absolute right-3 bottom-3 z-10 p-3 rounded-xl bg-gradient-to-br from-[var(--accent)] to-[var(--accent-secondary,#8B5CF6)] hover:shadow-lg hover:shadow-[var(--accent)]/25 hover:scale-105 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Search className="w-5 h-5 text-white" />
                   </button>
