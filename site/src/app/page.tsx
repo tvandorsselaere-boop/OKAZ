@@ -2159,12 +2159,32 @@ export default function Home() {
             }
           }
 
+          // Post-adjustment filter: retirer les résultats dont le score a chuté après MatchCriteria
+          const MIN_FINAL_SCORE = 30;
+          const beforeFilter = correctedResults.length;
+          const filteredResults = correctedResults.filter((r: { score: number; id: string }) => {
+            if (r.score < MIN_FINAL_SCORE) {
+              console.log(`[OKAZ] PostFilter: ${r.id} score=${r.score} < ${MIN_FINAL_SCORE} → retiré`);
+              return false;
+            }
+            return true;
+          });
+          if (filteredResults.length < beforeFilter) {
+            console.log(`[OKAZ] 5f. PostFilter: ${beforeFilter - filteredResults.length} résultats retirés (score < ${MIN_FINAL_SCORE})`);
+          }
+
+          // Dépromotion TopPick si filtré par PostFilter
+          if (topPick && !filteredResults.some((r: { id: string }) => r.id === topPick!.id)) {
+            console.log(`[OKAZ] PostFilter: TopPick ${topPick.id} retiré par PostFilter → dépromu`);
+            topPick = undefined;
+          }
+
           // Garder uniquement les 30 meilleurs résultats (triés par score final)
           const MAX_DISPLAY = 30;
-          const sortedResults = correctedResults.sort((a: { score: number }, b: { score: number }) => b.score - a.score);
+          const sortedResults = filteredResults.sort((a: { score: number }, b: { score: number }) => b.score - a.score);
           const topResults30 = sortedResults.slice(0, MAX_DISPLAY);
-          if (correctedResults.length > MAX_DISPLAY) {
-            console.log(`[OKAZ] 5d. Top ${MAX_DISPLAY} résultats gardés sur ${correctedResults.length} pertinents`);
+          if (filteredResults.length > MAX_DISPLAY) {
+            console.log(`[OKAZ] 5d. Top ${MAX_DISPLAY} résultats gardés sur ${filteredResults.length} pertinents`);
           }
 
           const duration = Date.now() - startTime;
