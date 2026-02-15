@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Sparkles, Shield, ArrowLeft, ExternalLink, AlertTriangle, Settings, Check, Wand2, TrendingDown, Lightbulb, BadgeCheck, ShoppingBag, X, MapPin, Navigation, Camera, MessageCircle, Monitor, Mail, Copy, CheckCircle, Sun, Moon, Award, Handshake, Target, Package, ListFilter, ChevronDown } from "lucide-react";
+import { Search, Sparkles, Shield, ArrowLeft, ExternalLink, AlertTriangle, Settings, Check, Wand2, TrendingDown, Lightbulb, BadgeCheck, ShoppingBag, X, MapPin, Navigation, Camera, MessageCircle, Monitor, Mail, CheckCircle, Sun, Moon, Award, Handshake, Target, Package, ListFilter, ChevronDown, Loader2 } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 
 import { UpgradeModal, SearchCounter } from "@/components/ui/upgrade-modal";
@@ -1235,26 +1235,24 @@ function useIsMobile() {
 
 // Page mobile : explique le produit + redirige vers desktop
 function MobileLanding() {
-  const [copied, setCopied] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [email, setEmail] = useState('');
+  const [sending, setSending] = useState(false);
 
-  const siteUrl = typeof window !== 'undefined' ? window.location.origin : 'https://okaz-ia.fr';
-
-  const handleCopy = async () => {
+  const handleSendEmail = async () => {
+    if (!email || !email.includes('@') || sending) return;
+    setSending(true);
     try {
-      await navigator.clipboard.writeText(siteUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch { /* fallback silencieux */ }
-  };
-
-  const handleSendEmail = () => {
-    if (!email || !email.includes('@')) return;
-    const subject = encodeURIComponent('OKAZ - Lien pour ton ordinateur');
-    const body = encodeURIComponent(`Ouvre ce lien sur ton PC pour utiliser OKAZ :\n\n${siteUrl}\n\nTu auras besoin de l'extension Chrome pour commencer.`);
-    window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
-    setEmailSent(true);
+      const res = await fetch('/api/send-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      if (res.ok) {
+        setEmailSent(true);
+      }
+    } catch { /* silencieux */ }
+    setSending(false);
   };
 
   return (
@@ -1287,15 +1285,15 @@ function MobileLanding() {
             </div>
 
             <p className="text-sm text-[var(--text-secondary)] leading-relaxed mb-5">
-              OKAZ utilise une extension Chrome pour comparer les prix sur LeBonCoin, Vinted, Back Market et Amazon en temps reel. Cette technologie necessite un navigateur desktop.
+              OKAZ utilise une extension Chrome pour comparer les prix sur LeBonCoin, Vinted, Back Market, Amazon et eBay en temps réel. Cette technologie nécessite un navigateur desktop.
             </p>
 
             {/* Comment ca marche */}
             <div className="space-y-3 mb-5">
               {[
                 { icon: '1', text: 'Installe l\'extension Chrome sur ton PC' },
-                { icon: '2', text: 'Decris ce que tu cherches ou uploade une photo' },
-                { icon: '3', text: 'L\'IA compare les prix et te trouve la meilleure affaire' },
+                { icon: '2', text: 'Décris ce que tu cherches ou uploade une photo' },
+                { icon: '3', text: 'L\'IA compare 5 sites et te trouve la meilleure affaire' },
               ].map((step, i) => (
                 <div key={i} className="flex items-start gap-3">
                   <span className="w-6 h-6 rounded-full bg-[var(--accent)]/10 text-[var(--accent)] text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -1313,6 +1311,7 @@ function MobileLanding() {
                 { name: "Vinted", color: "#09B1BA" },
                 { name: "Back Market", color: "#4D3DF7" },
                 { name: "Amazon", color: "#DAA520" },
+                { name: "eBay", color: "#E53238" },
               ].map((site) => (
                 <span key={site.name} className="text-xs font-semibold opacity-70" style={{ color: site.color }}>
                   {site.name}
@@ -1323,41 +1322,38 @@ function MobileLanding() {
 
           {/* Actions */}
           <GlassCard variant="bordered" className="p-5 mb-6">
-            <p className="text-xs text-[var(--text-secondary)] mb-4">Envoie-toi le lien pour ouvrir sur ton PC</p>
-
-            <button
-              onClick={handleCopy}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium transition-all mb-3"
-            >
-              {copied ? (
-                <>
-                  <CheckCircle className="w-4 h-4" />
-                  Lien copie !
-                </>
-              ) : (
-                <>
-                  <Copy className="w-4 h-4" />
-                  Copier le lien
-                </>
-              )}
-            </button>
-
-            <div className="flex gap-2">
-              <input
-                type="email"
-                placeholder="ton@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="flex-1 px-3 py-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--separator)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--accent)]"
-              />
-              <button
-                onClick={handleSendEmail}
-                disabled={!email || emailSent}
-                className="px-4 py-2.5 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] border border-[var(--separator)] text-[var(--text-primary)] text-sm transition-all disabled:opacity-40"
-              >
-                {emailSent ? <Check className="w-4 h-4 text-[var(--score-high)]" /> : <Mail className="w-4 h-4" />}
-              </button>
-            </div>
+            {emailSent ? (
+              <div className="text-center py-2">
+                <CheckCircle className="w-8 h-8 text-[var(--score-high)] mx-auto mb-2" />
+                <p className="text-sm font-medium text-[var(--text-primary)]">Email envoyé !</p>
+                <p className="text-xs text-[var(--text-secondary)] mt-1">Ouvre-le sur ton ordinateur</p>
+              </div>
+            ) : (
+              <>
+                <p className="text-xs text-[var(--text-secondary)] mb-4">Reçois le lien par email pour ouvrir sur ton PC</p>
+                <div className="flex gap-2">
+                  <input
+                    type="email"
+                    placeholder="ton@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSendEmail()}
+                    className="flex-1 px-3 py-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--separator)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--accent)]"
+                  />
+                  <button
+                    onClick={handleSendEmail}
+                    disabled={!email || sending}
+                    className="px-4 py-2.5 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium transition-all disabled:opacity-40"
+                  >
+                    {sending ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Mail className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
           </GlassCard>
 
           {/* Footer */}
