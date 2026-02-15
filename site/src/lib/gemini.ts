@@ -1,7 +1,7 @@
 // OKAZ - Service Gemini pour optimisation des requêtes
 // Transforme une requête en langage naturel en critères structurés pour LeBonCoin
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, SchemaType, type Schema } from '@google/generative-ai';
 
 // Sites disponibles pour la recherche
 export type SearchSite = 'leboncoin' | 'vinted' | 'backmarket' | 'amazon' | 'ebay';
@@ -211,46 +211,12 @@ EXEMPLES DE MAUVAISES CLARIFICATIONS (NE FAIS JAMAIS ÇA):
 - "Quelle taille d'écran préférez-vous ?" → NON, recommande le meilleur
 - "Combien de RAM ?" → NON, recommande le minimum pour l'usage
 
-RÉPONDS EN JSON UNIQUEMENT (pas de markdown):
-{
-  "keywords": "string (mots-clés optimisés pour LeBonCoin/Vinted)",
-  "keywordsBM": "string | null (mots-clés simplifiés pour Back Market, si catégorie tech)",
-  "category": "tech" | "mode" | "auto" | "immo" | "maison" | "loisirs" | "autre",
-  "priceMin": number | null,
-  "priceMax": number | null,
-  "shippable": boolean | null,
-  "ownerType": "private" | "pro" | null,
-  "excludeAccessories": boolean (true si l'utilisateur cherche le produit principal, pas les accessoires),
-  "needsClarification": boolean,
-  "clarificationQuestion": "string | null (question COURTE, 1 phrase max)",
-  "clarificationOptions": ["string", "string", "..."] | null (2-4 options cliquables, CONCRÈTES),
-  "matchCriteria": {
-    "mainProduct": "string (OBLIGATOIRE - le produit principal que l'utilisateur veut ACHETER)",
-    "requiredInTitle": ["string"] (OBLIGATOIRE - mots dont AU MOINS UN doit apparaître dans le titre),
-    "boostIfPresent": ["string"] (mots qui AUGMENTENT la pertinence si présents),
-    "excludeIfPresent": ["string"] (mots qui indiquent un MAUVAIS résultat: pièce détachée, accessoire)
-  },
-  "detectedSpecs": {
-    "size": "string | null (taille détectée: 42, M, L...)",
-    "capacity": "string | null (capacité: 128Go, 256Go...)",
-    "condition": "string | null (neuf, comme neuf, bon état...)",
-    "color": "string | null (couleur principale: rose, bleu, noir, blanc...)",
-    "extras": ["string"] (accessoires mentionnés: manette, chargeur...),
-    "minRAM": "string | null (RAM minimale: 8Go, 16Go...)",
-    "acceptedModels": ["string"] (modèles acceptés si multi-produits: ["MacBook Pro", "Mac mini"])
-  },
-  "briefing": {
-    "warningPrice": number,
-    "tips": ["string", "string", "string"],
-    "refurbishedPrice": number | null
-  }
-}
+Le format de sortie est forcé par le schéma JSON. Remplis TOUS les champs.
 
-EXEMPLES matchCriteria (OBLIGATOIRE, toujours remplir):
+EXEMPLES matchCriteria:
 - "Fender Stratocaster micros doubles" → mainProduct: "Fender Stratocaster", requiredInTitle: ["stratocaster", "strat"], boostIfPresent: ["humbucker", "hh", "hss", "double"], excludeIfPresent: ["micro seul", "pickup", "pickguard", "plaque", "mécanique", "ampli"]
 - "Nike Dunk Low bleu 42" → mainProduct: "Nike Dunk Low", requiredInTitle: ["dunk"], boostIfPresent: ["bleu", "blue", "42"], excludeIfPresent: ["coque", "lacet", "semelle", "chaussette"]
-- "MacBook M4 24Go" → mainProduct: "MacBook M4", requiredInTitle: ["macbook"], boostIfPresent: ["m4", "24go", "24gb"], excludeIfPresent: ["coque", "housse", "chargeur", "adaptateur"]
-- "collier Vanrycke" → mainProduct: "collier Vanrycke", requiredInTitle: ["collier", "vanrycke"], boostIfPresent: ["or", "diamant"], excludeIfPresent: ["bague", "bracelet", "boucle"]`;
+- "MacBook M4 24Go" → mainProduct: "MacBook M4", requiredInTitle: ["macbook"], boostIfPresent: ["m4", "24go", "24gb"], excludeIfPresent: ["coque", "housse", "chargeur", "adaptateur"]`;
 }
 
 // Interface pour la réponse parsée incluant le briefing
@@ -383,6 +349,96 @@ function buildBackMarketUrl(query: string): string {
 const GEMINI_MODEL = 'gemini-2.5-flash-lite';
 const GEMINI_MODEL_FAST = 'gemini-2.5-flash-lite';
 
+// Structured Output schema pour l'optimisation (force tous les champs requis)
+const OPTIMIZE_SCHEMA: Schema = {
+  type: SchemaType.OBJECT,
+  properties: {
+    keywords: { type: SchemaType.STRING, description: 'Mots-clés optimisés pour LeBonCoin/Vinted' },
+    keywordsBM: { type: SchemaType.STRING, description: 'Mots-clés simplifiés pour Back Market (tech)', nullable: true },
+    category: { type: SchemaType.STRING, format: 'enum', description: 'Catégorie détectée', enum: ['tech', 'mode', 'auto', 'immo', 'maison', 'loisirs', 'autre'] },
+    priceMin: { type: SchemaType.NUMBER, nullable: true },
+    priceMax: { type: SchemaType.NUMBER, nullable: true },
+    shippable: { type: SchemaType.BOOLEAN, nullable: true },
+    ownerType: { type: SchemaType.STRING, format: 'enum', nullable: true, enum: ['private', 'pro'] },
+    excludeAccessories: { type: SchemaType.BOOLEAN },
+    needsClarification: { type: SchemaType.BOOLEAN },
+    clarificationQuestion: { type: SchemaType.STRING, nullable: true },
+    clarificationOptions: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING }, nullable: true },
+    matchCriteria: {
+      type: SchemaType.OBJECT,
+      properties: {
+        mainProduct: { type: SchemaType.STRING, description: 'Le produit principal recherché' },
+        requiredInTitle: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING }, description: 'Au moins un de ces mots doit apparaître dans le titre' },
+        boostIfPresent: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING }, description: 'Mots qui augmentent la pertinence' },
+        excludeIfPresent: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING }, description: 'Mots indiquant un mauvais résultat' },
+      },
+      required: ['mainProduct', 'requiredInTitle', 'boostIfPresent', 'excludeIfPresent'],
+    },
+    detectedSpecs: {
+      type: SchemaType.OBJECT,
+      properties: {
+        size: { type: SchemaType.STRING, nullable: true },
+        capacity: { type: SchemaType.STRING, nullable: true },
+        condition: { type: SchemaType.STRING, nullable: true },
+        color: { type: SchemaType.STRING, nullable: true },
+        extras: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+        minRAM: { type: SchemaType.STRING, nullable: true },
+        acceptedModels: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+      },
+      nullable: true,
+    },
+    briefing: {
+      type: SchemaType.OBJECT,
+      properties: {
+        warningPrice: { type: SchemaType.NUMBER },
+        tips: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+        refurbishedPrice: { type: SchemaType.NUMBER, nullable: true },
+      },
+      required: ['warningPrice', 'tips'],
+    },
+  },
+  required: ['keywords', 'category', 'excludeAccessories', 'needsClarification', 'matchCriteria', 'briefing'],
+};
+
+// Structured Output schema pour l'analyse
+const ANALYZE_SCHEMA: Schema = {
+  type: SchemaType.OBJECT,
+  properties: {
+    analyzed: {
+      type: SchemaType.ARRAY,
+      items: {
+        type: SchemaType.OBJECT,
+        properties: {
+          id: { type: SchemaType.STRING },
+          relevant: { type: SchemaType.BOOLEAN },
+          confidence: { type: SchemaType.INTEGER, description: '0-100: pertinence par rapport à la recherche' },
+          matchDetails: { type: SchemaType.STRING },
+          correctedPrice: { type: SchemaType.NUMBER },
+          marketPrice: { type: SchemaType.NUMBER },
+          dealScore: { type: SchemaType.INTEGER, description: '1-10, rapport qualité-prix' },
+          dealType: { type: SchemaType.STRING, format: 'enum', enum: ['excellent', 'good', 'fair', 'overpriced', 'suspicious'] },
+          explanation: { type: SchemaType.STRING },
+          redFlags: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+        },
+        required: ['id', 'relevant', 'confidence', 'matchDetails', 'correctedPrice', 'marketPrice', 'dealScore', 'dealType', 'explanation', 'redFlags'],
+      },
+    },
+    topPick: {
+      type: SchemaType.OBJECT,
+      properties: {
+        id: { type: SchemaType.STRING },
+        confidence: { type: SchemaType.STRING, format: 'enum', enum: ['high', 'medium', 'low'] },
+        headline: { type: SchemaType.STRING },
+        reason: { type: SchemaType.STRING },
+        highlights: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+      },
+      required: ['id', 'confidence', 'headline', 'reason', 'highlights'],
+      nullable: true,
+    },
+  },
+  required: ['analyzed'],
+};
+
 // Réponse de l'optimisation incluant le briefing
 export interface OptimizeResult {
   criteria: SearchCriteria;
@@ -479,9 +535,13 @@ export async function optimizeQuery(options: OptimizeOptions | string): Promise<
     const genAI = getGeminiClient();
     const model = genAI.getGenerativeModel({
       model: GEMINI_MODEL,
-      generationConfig: { temperature: 0.2 },
+      generationConfig: {
+        temperature: 0.2,
+        responseMimeType: 'application/json',
+        responseSchema: OPTIMIZE_SCHEMA,
+      },
     });
-    console.log('[Gemini] ✓ Client initialisé (temperature: 0.2)');
+    console.log('[Gemini] ✓ Client initialisé (structured output, temperature: 0.2)');
 
     // v0.5.0 - Build prompt with context (image + URL)
     const prompt = buildPromptWithContext(query, !!imageBase64, referenceUrl, clarifications);
@@ -650,12 +710,17 @@ export async function analyzeResultsWithGemini(
     const genAI = getGeminiClient();
     const model = genAI.getGenerativeModel({
       model: GEMINI_MODEL_FAST,
-      generationConfig: { temperature: 0.2, maxOutputTokens: 16384 },
+      generationConfig: {
+        temperature: 0.2,
+        maxOutputTokens: 16384,
+        responseMimeType: 'application/json',
+        responseSchema: ANALYZE_SCHEMA,
+      },
     });
 
     // Passer le contexte visuel + prix réels + matchCriteria
     const prompt = buildAnalysisPrompt(results, searchQuery, visualContext, priceStats, matchCriteria);
-    console.log('[Gemini] Envoi analyse...');
+    console.log('[Gemini] Envoi analyse (structured output)...');
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
@@ -734,9 +799,9 @@ Pour CHAQUE annonce, évalue:
 Identifie aussi le topPick: meilleure annonce parmi celles qui matchent EXACTEMENT la recherche (confidence>=80, bon dealScore, pas de red flags). Préfère le bon modèle à un prix correct plutôt qu'un mauvais modèle bradé.
 
 RÈGLES: Fais confiance aux annonces (les produits récents existent même si tu ne les connais pas). Ne pénalise pas les variations de formulation dans les titres.
+COHÉRENCE: Si matchDetails dit "✗ pas le bon produit", confidence DOIT être <40. Si matchDetails dit "✓ bon produit", confidence DOIT être >=70.
 
-JSON UNIQUEMENT:
-{"analyzed":[{"id":"string","relevant":true,"confidence":90,"matchDetails":"string","correctedPrice":0,"marketPrice":0,"dealScore":5,"dealType":"fair","explanation":"string","redFlags":[]}],"topPick":{"id":"string","confidence":"high","headline":"string","reason":"string","highlights":["string"]}}`;
+Le format de sortie est forcé par le schéma JSON. Remplis TOUS les champs pour CHAQUE annonce.`;
 }
 
 // Parser la réponse d'analyse
@@ -771,7 +836,7 @@ function parseAnalysisResponse(text: string, originalResults: RawResult[]): Anal
       // Confidence = pertinence du résultat (0-100%)
       // Le filtrage et la pondération du score sont faits dans page.tsx
       const confidence = Math.min(100, Math.max(0, Number(item.confidence) || 50));
-      const relevant = confidence >= 30; // Seuil minimum de pertinence
+      const relevant = confidence >= 50; // Seuil minimum de pertinence
 
       return {
         id: String(item.id || original?.id || index),

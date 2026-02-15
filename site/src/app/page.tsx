@@ -2045,9 +2045,9 @@ export default function Home() {
           console.log(`[OKAZ] ⏱ ANALYZE: ${((t4 - t3) / 1000).toFixed(1)}s`);
 
           // Appliquer les corrections Gemini
-          // 1. Filtrer si confidence < 30% (vraiment hors-sujet)
+          // 1. Filtrer si confidence < 50% (hors-sujet ou très douteux)
           // 2. Pondérer le score par la pertinence : scoreFinal = score × (confidence/100)
-          const MIN_CONFIDENCE = 30; // Seuil minimum pour afficher
+          const MIN_CONFIDENCE = 50; // Seuil minimum pour afficher
 
           // Debug: lister les IDs pour vérifier le matching
           console.log('[OKAZ] IDs extension:', uniqueResults.map((r: { id: string }) => r.id));
