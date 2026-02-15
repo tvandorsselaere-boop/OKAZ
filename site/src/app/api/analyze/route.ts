@@ -3,7 +3,7 @@
 // Retourne: { analyzed: [...], topPick?: {...} }
 
 import { NextRequest, NextResponse } from 'next/server';
-import { analyzeResultsWithGemini, RawResult, VisualContext, RealPriceStats } from '@/lib/gemini';
+import { analyzeResultsWithGemini, RawResult, VisualContext, RealPriceStats, MatchCriteria } from '@/lib/gemini';
 import { checkRateLimit, getClientIP } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { results, query, visualContext, priceStats } = body;
+    const { results, query, visualContext, priceStats, matchCriteria } = body;
 
     if (!results || !Array.isArray(results)) {
       return NextResponse.json(
@@ -57,7 +57,15 @@ export async function POST(request: NextRequest) {
       count: Number(priceStats.count) || 0,
     } : undefined;
 
-    const { analyzed, topPick } = await analyzeResultsWithGemini(rawResults, query || '', typedVisualContext, typedPriceStats);
+    // Typer matchCriteria si fourni
+    const typedMatchCriteria: MatchCriteria | undefined = matchCriteria ? {
+      mainProduct: String(matchCriteria.mainProduct || ''),
+      requiredInTitle: Array.isArray(matchCriteria.requiredInTitle) ? matchCriteria.requiredInTitle.map(String) : [],
+      boostIfPresent: Array.isArray(matchCriteria.boostIfPresent) ? matchCriteria.boostIfPresent.map(String) : [],
+      excludeIfPresent: Array.isArray(matchCriteria.excludeIfPresent) ? matchCriteria.excludeIfPresent.map(String) : [],
+    } : undefined;
+
+    const { analyzed, topPick } = await analyzeResultsWithGemini(rawResults, query || '', typedVisualContext, typedPriceStats, typedMatchCriteria);
 
     console.log('[OKAZ API] Analyse terminée:', analyzed.length, 'résultats');
     if (topPick) {

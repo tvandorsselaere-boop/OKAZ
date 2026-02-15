@@ -2015,7 +2015,7 @@ export default function Home() {
             const analyzeRes = await fetch('/api/analyze', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ results: resultsForAnalysis, query: q, visualContext, priceStats }),
+              body: JSON.stringify({ results: resultsForAnalysis, query: q, visualContext, priceStats, matchCriteria: criteria.matchCriteria }),
             });
             const analyzeData: AnalyzeResponse = await analyzeRes.json();
 

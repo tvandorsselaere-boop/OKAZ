@@ -225,10 +225,10 @@ RÉPONDS EN JSON UNIQUEMENT (pas de markdown):
   "clarificationQuestion": "string | null (question COURTE, 1 phrase max)",
   "clarificationOptions": ["string", "string", "..."] | null (2-4 options cliquables, CONCRÈTES),
   "matchCriteria": {
-    "mainProduct": "string (le produit principal, ex: 'Fender Stratocaster', 'Nike Dunk Low')",
-    "requiredInTitle": ["string"] (mots dont AU MOINS UN doit apparaître dans le titre pour être pertinent, ex: ["stratocaster", "strat"] ou ["dunk"]),
-    "boostIfPresent": ["string"] (mots qui AUGMENTENT la pertinence si présents dans le titre, ex: ["bleu", "blue", "42", "humbucker"]),
-    "excludeIfPresent": ["string"] (mots qui indiquent un MAUVAIS résultat: pièce détachée, accessoire, ex: ["coque", "housse", "câble", "lacet"])
+    "mainProduct": "string (OBLIGATOIRE - le produit principal que l'utilisateur veut ACHETER)",
+    "requiredInTitle": ["string"] (OBLIGATOIRE - mots dont AU MOINS UN doit apparaître dans le titre),
+    "boostIfPresent": ["string"] (mots qui AUGMENTENT la pertinence si présents),
+    "excludeIfPresent": ["string"] (mots qui indiquent un MAUVAIS résultat: pièce détachée, accessoire)
   },
   "detectedSpecs": {
     "size": "string | null (taille détectée: 42, M, L...)",
@@ -244,7 +244,13 @@ RÉPONDS EN JSON UNIQUEMENT (pas de markdown):
     "tips": ["string", "string", "string"],
     "refurbishedPrice": number | null
   }
-}`;
+}
+
+EXEMPLES matchCriteria (OBLIGATOIRE, toujours remplir):
+- "Fender Stratocaster micros doubles" → mainProduct: "Fender Stratocaster", requiredInTitle: ["stratocaster", "strat"], boostIfPresent: ["humbucker", "hh", "hss", "double"], excludeIfPresent: ["micro seul", "pickup", "pickguard", "plaque", "mécanique", "ampli"]
+- "Nike Dunk Low bleu 42" → mainProduct: "Nike Dunk Low", requiredInTitle: ["dunk"], boostIfPresent: ["bleu", "blue", "42"], excludeIfPresent: ["coque", "lacet", "semelle", "chaussette"]
+- "MacBook M4 24Go" → mainProduct: "MacBook M4", requiredInTitle: ["macbook"], boostIfPresent: ["m4", "24go", "24gb"], excludeIfPresent: ["coque", "housse", "chargeur", "adaptateur"]
+- "collier Vanrycke" → mainProduct: "collier Vanrycke", requiredInTitle: ["collier", "vanrycke"], boostIfPresent: ["or", "diamant"], excludeIfPresent: ["bague", "bracelet", "boucle"]`;
 }
 
 // Interface pour la réponse parsée incluant le briefing
@@ -505,6 +511,23 @@ export async function optimizeQuery(options: OptimizeOptions | string): Promise<
 
     const { criteria, briefing, visualContext, needsClarification, clarificationQuestion, clarificationOptions } = parseGeminiResponse(text, query);
 
+    // Fallback code-side pour matchCriteria si Gemini ne l'a pas retourné
+    let matchCriteria = criteria.matchCriteria;
+    if (!matchCriteria) {
+      const kw = (criteria.keywords || query).trim();
+      const words = kw.split(/\s+/).filter(w => w.length > 1);
+      // Premiers mots = produit principal, on prend les 2-3 premiers comme required
+      const required = words.slice(0, Math.min(2, words.length)).map(w => w.toLowerCase());
+      const boost = words.slice(2).map(w => w.toLowerCase());
+      matchCriteria = {
+        mainProduct: words.slice(0, Math.min(3, words.length)).join(' '),
+        requiredInTitle: required,
+        boostIfPresent: boost,
+        excludeIfPresent: [],
+      };
+      console.log('[Gemini] MatchCriteria fallback (code-side):', matchCriteria);
+    }
+
     const finalCriteria: SearchCriteria = {
       keywords: criteria.keywords || query,
       keywordsBM: criteria.keywordsBM,
@@ -516,6 +539,7 @@ export async function optimizeQuery(options: OptimizeOptions | string): Promise<
       sites: criteria.sites,
       excludeAccessories: criteria.excludeAccessories,
       acceptedModels: criteria.acceptedModels,
+      matchCriteria,
       originalQuery: query,
     };
 
@@ -601,12 +625,16 @@ export async function analyzeResultsWithGemini(
   results: RawResult[],
   searchQuery: string,
   visualContext?: VisualContext,  // v0.5.0 - Contexte visuel pour ajuster le scoring
-  priceStats?: RealPriceStats    // Prix réels calculés des résultats scrapés
+  priceStats?: RealPriceStats,   // Prix réels calculés des résultats scrapés
+  matchCriteria?: MatchCriteria  // Critères de matching pour validation cohérence
 ): Promise<AnalysisResult> {
   console.log('[Gemini] ====== ANALYSE DES RÉSULTATS ======');
   console.log('[Gemini] Nombre de résultats à analyser:', results.length);
   if (visualContext) {
     console.log('[Gemini] Contexte visuel:', JSON.stringify(visualContext));
+  }
+  if (matchCriteria) {
+    console.log('[Gemini] MatchCriteria reçu:', JSON.stringify(matchCriteria));
   }
 
   if (!process.env.GEMINI_API_KEY || results.length === 0) {
@@ -625,9 +653,9 @@ export async function analyzeResultsWithGemini(
       generationConfig: { temperature: 0.2, maxOutputTokens: 16384 },
     });
 
-    // v0.5.0 - Passer le contexte visuel au prompt + prix réels
-    const prompt = buildAnalysisPrompt(results, searchQuery, visualContext, priceStats);
-    console.log('[Gemini] Envoi analyse (gemini-2.0-flash)...');
+    // Passer le contexte visuel + prix réels + matchCriteria
+    const prompt = buildAnalysisPrompt(results, searchQuery, visualContext, priceStats, matchCriteria);
+    console.log('[Gemini] Envoi analyse...');
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
@@ -644,7 +672,7 @@ export async function analyzeResultsWithGemini(
 }
 
 // Prompt pour l'analyse des résultats
-function buildAnalysisPrompt(results: RawResult[], query: string, visualContext?: VisualContext, priceStats?: RealPriceStats): string {
+function buildAnalysisPrompt(results: RawResult[], query: string, visualContext?: VisualContext, priceStats?: RealPriceStats, matchCriteria?: MatchCriteria): string {
   const resultsJson = results.map(r => ({
     id: r.id,
     title: r.title,
@@ -670,7 +698,25 @@ RÈGLE CRITIQUE POUR LA COULEUR:
 `;
   }
 
-  return `Analyse ces annonces pour "${query}".${visualContextSection}
+  // Section matchCriteria pour validation cohérence
+  let matchCriteriaSection = '';
+  if (matchCriteria) {
+    matchCriteriaSection = `
+
+=== CRITÈRES DE MATCHING (VÉRIFIE LA COHÉRENCE) ===
+Notre système a compris que l'utilisateur cherche : "${matchCriteria.mainProduct}"
+- Mots attendus dans le titre (au moins un) : [${matchCriteria.requiredInTitle.join(', ')}]
+${matchCriteria.boostIfPresent.length > 0 ? `- Critères bonus si présents : [${matchCriteria.boostIfPresent.join(', ')}]` : ''}
+${matchCriteria.excludeIfPresent.length > 0 ? `- Mots qui indiquent un MAUVAIS résultat (pièce détachée, accessoire) : [${matchCriteria.excludeIfPresent.join(', ')}]` : ''}
+
+IMPORTANT: Vérifie que cette compréhension est COHÉRENTE avec les résultats que tu vois.
+- Si la majorité des résultats correspondent au produit "${matchCriteria.mainProduct}" → les critères sont bons, score normalement
+- Si beaucoup de résultats sont des PIÈCES DÉTACHÉES ou ACCESSOIRES au lieu du produit complet → baisse leur confidence fortement (<40%)
+- Un MICRO isolé ou un PICKGUARD n'est PAS une guitare. Une COQUE n'est PAS un téléphone. Un LACET n'est PAS une chaussure.
+`;
+  }
+
+  return `Analyse ces annonces pour "${query}".${visualContextSection}${matchCriteriaSection}
 ${priceStats ? `Prix marché: médiane ${priceStats.median}€ (${priceStats.count} annonces, ${priceStats.min}-${priceStats.max}€). Utilise cette médiane comme marketPrice.` : ''}
 
 ANNONCES:
