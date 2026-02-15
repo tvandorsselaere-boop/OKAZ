@@ -16,21 +16,48 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "OKAZ - La bonne affaire en 8 secondes",
   description:
-    "Comparez LeBonCoin, Vinted et Back Market en une seule recherche. Notre IA detecte les arnaques et trouve les pepites.",
+    "Comparez LeBonCoin, Vinted, Back Market, Amazon et eBay en une seule recherche. Notre IA analyse chaque annonce et trouve les meilleures affaires.",
   keywords: [
     "okaz",
     "comparateur petites annonces",
     "leboncoin",
     "vinted",
     "back market",
+    "amazon",
+    "ebay",
     "occasion",
     "bonne affaire",
+    "comparateur occasion",
   ],
+  applicationName: "OKAZ",
+  authors: [{ name: "Facile-IA", url: "https://facile-ia.fr" }],
+  creator: "Facile-IA",
+  metadataBase: new URL("https://okaz-ia.fr"),
+  alternates: {
+    canonical: "/",
+  },
+  icons: {
+    icon: "/favicon.ico",
+    apple: "/apple-touch-icon.png",
+  },
   openGraph: {
     title: "OKAZ - La bonne affaire en 8 secondes",
     description:
-      "Comparez LeBonCoin, Vinted et Back Market. Notre IA detecte les arnaques.",
+      "Comparez LeBonCoin, Vinted, Back Market, Amazon et eBay en une recherche. L'IA analyse chaque annonce.",
     type: "website",
+    url: "https://okaz-ia.fr",
+    siteName: "OKAZ",
+    locale: "fr_FR",
+  },
+  twitter: {
+    card: "summary",
+    title: "OKAZ - La bonne affaire en 8 secondes",
+    description:
+      "Comparez 5 sites d'occasion en une recherche. L'IA trouve la meilleure affaire.",
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
 };
 
