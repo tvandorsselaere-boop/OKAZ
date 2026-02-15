@@ -323,8 +323,10 @@ function buildBackMarketUrl(query: string): string {
 
 // Modèle Gemini à utiliser
 // Voir: https://ai.google.dev/gemini-api/docs/models
-const GEMINI_MODEL = 'gemini-2.5-flash';
-const GEMINI_MODEL_FAST = 'gemini-2.0-flash';  // Pour analyse JSON (pas de thinking, plus rapide)
+// Migration fev 2026: gemini-2.0-flash deprecated 31 mars 2026
+// gemini-2.5-flash-lite: ultra-rapide, optimisé extraction/classification JSON, pas de thinking
+const GEMINI_MODEL = 'gemini-2.5-flash-lite';
+const GEMINI_MODEL_FAST = 'gemini-2.5-flash-lite';
 
 // Réponse de l'optimisation incluant le briefing
 export interface OptimizeResult {
