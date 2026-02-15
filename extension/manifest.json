@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "OKAZ - Comparateur d'annonces",
-  "version": "0.5.0",
+  "version": "1.0.0",
   "description": "Comparez LeBonCoin, Vinted, Back Market, Amazon et eBay en une recherche",
   "author": "Facile-IA",
   "homepage_url": "https://okaz-ia.fr",

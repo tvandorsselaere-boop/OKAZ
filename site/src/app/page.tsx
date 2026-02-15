@@ -2820,22 +2820,34 @@ main propre Paris ou livraison si garantie"
           </motion.div>
 
           {/* Footer */}
-          <motion.div
+          <motion.footer
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.4 }}
-            className="mt-16 text-center text-xs text-[var(--text-tertiary)]"
+            className="mt-16 pt-8 border-t border-[var(--separator)] text-center text-xs text-[var(--text-tertiary)]"
           >
-            Un projet{" "}
-            <a
-              href="https://facile-ia.fr"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[var(--accent)] hover:underline transition-colors font-medium"
-            >
-              Facile-IA
-            </a>
-          </motion.div>
+            <div className="flex flex-wrap justify-center gap-4 mb-4">
+              <a href="/privacy" className="hover:text-[var(--accent)] transition-colors">Confidentialit\u00e9</a>
+              <span className="opacity-30">|</span>
+              <a href="/mentions-legales" className="hover:text-[var(--accent)] transition-colors">Mentions l\u00e9gales</a>
+              <span className="opacity-30">|</span>
+              <a href="/cgu" className="hover:text-[var(--accent)] transition-colors">CGU</a>
+            </div>
+            <p className="mb-3 opacity-60">
+              Liens affili\u00e9s Amazon, Back Market, Rakuten. Le classement n&apos;est pas influenc\u00e9 par l&apos;affiliation.
+            </p>
+            <p>
+              Un projet{" "}
+              <a
+                href="https://facile-ia.fr"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[var(--accent)] hover:underline transition-colors font-medium"
+              >
+                Facile-IA
+              </a>
+            </p>
+          </motion.footer>
         </div>
       </div>
 
