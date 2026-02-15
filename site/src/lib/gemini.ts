@@ -728,7 +728,25 @@ export async function analyzeResultsWithGemini(
 
     console.log('[Gemini] Réponse analyse brute:', text.substring(0, 2000));
 
-    return parseAnalysisResponse(text, results);
+    const analysisResult = parseAnalysisResponse(text, results);
+
+    // Retry si Gemini retourne 0 résultats (rate limit ou erreur transitoire)
+    if (analysisResult.analyzed.length === 0 && results.length > 0) {
+      console.warn('[Gemini] ⚠ Analyse vide, retry dans 2s...');
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      const retryResult = await model.generateContent(prompt);
+      const retryResponse = await retryResult.response;
+      const retryText = retryResponse.text();
+      console.log('[Gemini] Réponse retry brute:', retryText.substring(0, 2000));
+      const retryAnalysis = parseAnalysisResponse(retryText, results);
+      if (retryAnalysis.analyzed.length > 0) {
+        console.log('[Gemini] ✓ Retry réussi:', retryAnalysis.analyzed.length, 'résultats');
+        return retryAnalysis;
+      }
+      console.error('[Gemini] ✗ Retry échoué, retour vide');
+    }
+
+    return analysisResult;
 
   } catch (error) {
     console.error('[Gemini] Erreur analyse:', error);
