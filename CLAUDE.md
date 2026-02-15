@@ -20,7 +20,7 @@ SOLUTION: L'extension Chrome fait le scraping dans le navigateur de l'utilisateu
 - Pas de blocage IP
 ```
 
-### Architecture Actuelle (v0.8.0)
+### Architecture Actuelle (v1.0.0)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -28,8 +28,9 @@ SOLUTION: L'extension Chrome fait le scraping dans le navigateur de l'utilisateu
 │                                                             │
 │  1. Utilisateur tape ou uploade une photo                   │
 │  2. POST /api/optimize → Gemini optimise + detecte categorie│
+│     + extrait matchCriteria (Structured Output)             │
 │  3. Si ambigu → questions de clarification (chips)          │
-│  4. Recoit: {keywords, priceMax, shippable, category, ...}  │
+│  4. Recoit: {keywords, priceMax, category, matchCriteria}   │
 │  5. Verifie quota (Supabase) avant envoi                    │
 │  6. Envoie criteres a l'extension                           │
 └─────────────────────────┬───────────────────────────────────┘
@@ -37,7 +38,7 @@ SOLUTION: L'extension Chrome fait le scraping dans le navigateur de l'utilisateu
                           │ (via externally_connectable)
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                   EXTENSION CHROME v0.5.0                   │
+│                   EXTENSION CHROME v1.0.0                   │
 │                   Le moteur de scraping                     │
 │                                                             │
 │  1. Recoit les criteres structures                          │
@@ -50,14 +51,17 @@ SOLUTION: L'extension Chrome fait le scraping dans le navigateur de l'utilisateu
                           │
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                   ANALYSE IA (Gemini 2.5 Flash)            │
+│              ANALYSE IA (Gemini 2.5 Flash Lite)            │
 │                                                             │
 │  1. POST /api/analyze → Gemini analyse CHAQUE resultat     │
+│     (Structured Output = JSON garanti, matchCriteria valid) │
 │  2. Score confidence 0-100% + dealScore + topPick          │
-│  3. Filtrage: confidence < 30% = resultat masque           │
-│  4. Ponderation: scoreFinal = score × (confidence / 100)   │
-│  5. TopPick: LA recommandation mise en avant (carte doree) │
-│  6. Prix neuf = Amazon scrape (fallback: /api/recommend-new)│
+│  3. Filtrage: confidence < 50% = resultat masque           │
+│  4. Score: finalScore = 80% confidence + 20% dealScore     │
+│  5. Code-side: MatchCriteria ajustements post-Gemini       │
+│  6. PostFilter: score < 30 apres ajustements = masque      │
+│  7. TopPick: LA recommandation mise en avant (carte doree) │
+│  8. Prix neuf = Amazon scrape (fallback: /api/recommend-new)│
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -82,28 +86,38 @@ SOLUTION: L'extension Chrome fait le scraping dans le navigateur de l'utilisateu
 
 ## Integration Gemini
 
-### Modele: gemini-2.5-flash
+### Modele: gemini-2.5-flash-lite (toutes phases)
 
 Gemini gere 4 fonctions principales :
 
 | Fonction | API Route | Description |
 |----------|-----------|-------------|
-| Optimisation requete | POST /api/optimize | Langage naturel → criteres structures + categorie + questions |
-| Analyse resultats | POST /api/analyze | Confidence 0-100%, dealScore, topPick par resultat |
+| Optimisation requete | POST /api/optimize | Langage naturel → criteres + categorie + matchCriteria + questions |
+| Analyse resultats | POST /api/analyze | Confidence 0-100%, dealScore, matchDetails, topPick (Structured Output) |
 | Recommandation neuf | POST /api/recommend-new | Prix neuf officiel + bandeau "Et en neuf ?" (Amazon affilie) |
 | Vision (image) | Via /api/optimize | Extraction contexte visuel (couleur, taille, modele) |
+
+### Structured Output (v1.0.0)
+
+Les phases optimize et analyze utilisent `responseMimeType: 'application/json'` + `responseSchema` :
+- Force Gemini a retourner du JSON valide conforme au schema
+- Garantit tous les champs requis (matchCriteria, confidence, matchDetails)
+- Elimine les problemes de parsing JSON
+- Schemas definis dans `gemini.ts` : `OPTIMIZE_SCHEMA` et `ANALYZE_SCHEMA`
 
 ### Flux Gemini complet
 
 ```
 ENTREE: "iPhone 13 pas cher livrable" + [photo optionnelle]
-        ↓ Gemini (optimisation)
+        ↓ Gemini (optimisation + Structured Output)
         Si ambigu → { needsClarification: true, questions: [...] }
         ↓ Utilisateur repond
-SORTIE: { keywords: "iPhone 13", priceMax: 450, shippable: true, category: "tech" }
+SORTIE: { keywords, priceMax, category, matchCriteria: {mainProduct, requiredInTitle, ...} }
         ↓ Extension scrape
-        ↓ Gemini (analyse)
-SORTIE: { results: [...], topPick: { index, headline, reason }, filteredCount: N }
+        ↓ Gemini (analyse + Structured Output + matchCriteria validation)
+SORTIE: { results: [{confidence, dealScore, matchDetails}...], topPick }
+        ↓ Code-side: MatchCriteria ajustements + price sanity
+        ↓ PostFilter: score < 30 → masque
         ↓ Prix marché = médiane des prix scrapés (pas Gemini)
         ↓ Gemini (recommandation neuf, async)
 SORTIE: { productName, estimatedPrice, reason, searchUrl (Amazon affilie) }
@@ -177,20 +191,22 @@ Gemini identifie LE meilleur resultat parmi tous les sites :
 
 ## Filtrage Pertinence IA
 
-### Principe: 100% IA, Zero Donnee en Dur
+### Principe: IA + Validation Code-Side
 
 ```
-⚠️ REGLE ABSOLUE: PAS DE FILTRAGE HARDCODE ⚠️
-Le filtrage est ENTIEREMENT gere par Gemini. Aucune regex, aucune regle en dur.
-
 ⚠️ REGLE ABSOLUE: ANALYSER TOUS LES RESULTATS ⚠️
 Gemini DOIT analyser 100% des resultats, sans limite.
 
 ⚠️ REGLE ABSOLUE: JAMAIS DE DONNEES EN DUR ⚠️
 Pas de table de prix, pas de liste de produits, pas de references statiques.
-Gemini estime tout dynamiquement. Les resultats reels des sites corrigent
-ses estimations si elles sont obsoletes. Zero hardcode.
+Gemini estime tout dynamiquement. Zero hardcode.
 ```
+
+### Pipeline de filtrage (3 etapes)
+
+1. **Gemini confidence** : `MIN_CONFIDENCE = 50` → confidence < 50% = masque
+2. **MatchCriteria code-side** : ajustements deterministes post-Gemini
+3. **PostFilter** : `MIN_FINAL_SCORE = 30` → score < 30 apres ajustements = masque
 
 ### Score de Confidence (0-100%)
 
@@ -199,15 +215,40 @@ ses estimations si elles sont obsoletes. Zero hardcode.
 | 90-100 | Match parfait | Affiche, score eleve |
 | 70-89 | Match probable | Affiche |
 | 50-69 | Match partiel | Affiche, score reduit |
-| 30-49 | Match incertain | Affiche, score bas |
-| 0-29 | Hors-sujet | **FILTRE (masque)** |
+| 0-49 | Hors-sujet | **FILTRE (masque)** |
+
+### MatchCriteria (v1.0.0 — Validation Hybride)
+
+Gemini extrait les criteres de matching dans la phase optimize :
+
+```typescript
+interface MatchCriteria {
+  mainProduct: string;        // "Fender Stratocaster"
+  requiredInTitle: string[];  // ["fender", "stratocaster"]
+  boostIfPresent: string[];   // ["hss", "24go", "m4"]
+  excludeIfPresent: string[]; // ["ampli", "housse", "coque"]
+}
+```
+
+**Phase optimize** : Gemini extrait matchCriteria (comprend le contexte/intention)
+**Phase analyze** : Gemini valide la coherence matchCriteria vs resultats
+**Code-side** : Ajustements deterministes apres Gemini :
+- `requiredInTitle` : au moins 1 terme requis, sinon score -20
+- `boostIfPresent` : +3 par terme present dans le titre
+- `excludeIfPresent` : -15 par terme exclu present dans le titre
+- Price sanity : prix < 30% mediane → redFlag, TopPick prix < 40% → depromu
+
+Fallback code-side : si Gemini ne retourne pas matchCriteria, extraction depuis keywords.
 
 ### Ponderation du Score
 
 ```typescript
-const MIN_CONFIDENCE = 30;
-const isRelevant = confidence >= MIN_CONFIDENCE;
-const weightedScore = Math.round(originalScore * (confidence / 100));
+const MIN_CONFIDENCE = 50;
+const MIN_FINAL_SCORE = 30;
+
+// Score combine : confidence domine, dealScore en tiebreaker
+const finalScore = Math.round((confidence / 100) * 80 + (dealScore / 10) * 20);
+// Ex: M4 conf=95 deal=7 → 76+14=90 | vieux mini conf=20 deal=9 → 16+18=34 → FILTRE
 ```
 
 ---
@@ -353,7 +394,7 @@ NEXT_PUBLIC_ADSENSE_SLOT_RECTANGLE=1234...
 **OKAZ** est un comparateur de petites annonces avec:
 - Site web Next.js 16 (App Router) + React 19 + Tailwind CSS 4 + TypeScript
 - Extension Chrome Manifest V3 (moteur de scraping)
-- IA Gemini 2.5 Flash (optimisation, analyse, vision, recommandations)
+- IA Gemini 2.5 Flash Lite (optimisation, analyse, vision, recommandations) + Structured Output
 - Supabase (auth, quotas, users)
 - Stripe (paiements boost/premium)
 - Resend (emails magic link)
@@ -403,7 +444,7 @@ OKAZ est un **projet Lab** de l'écosystème Facile-IA.
 
 | Fichier | Role |
 |---------|------|
-| `site/src/lib/gemini.ts` | Service Gemini (optimisation, analyse, vision, recommandation) |
+| `site/src/lib/gemini.ts` | Service Gemini + Structured Output schemas (OPTIMIZE_SCHEMA, ANALYZE_SCHEMA) + MatchCriteria |
 | `site/src/lib/scoring.ts` | Scoring multi-criteres + categorisation |
 | `site/src/lib/affiliate.ts` | Wrapping liens affilies (Awin + Amazon) |
 | `site/src/lib/geo.ts` | Geolocation, geocoding (ville + code postal + dept), calcul distance |
@@ -471,8 +512,9 @@ Extension Chrome:
 - externally_connectable
 
 IA:
-- Gemini 2.5 Flash
+- Gemini 2.5 Flash Lite (toutes phases: optimize, analyze, recommend)
 - @google/generative-ai SDK v0.24
+- Structured Output (responseMimeType + responseSchema)
 - Vision (analyse d'images)
 ```
 
@@ -565,7 +607,7 @@ cd site && npm run test:relevance
 ### Phase 3.5: Filtrage IA Avance ✅
 - [x] API /api/analyze pour analyse Gemini
 - [x] Score confidence 0-100% par resultat
-- [x] Ponderation score + seuil minimum 30%
+- [x] Ponderation score + seuil minimum 50% (etait 30%)
 - [x] Double recherche LeBonCoin (locale + nationale)
 - [x] Tests automatises pertinence + fixtures
 
@@ -623,6 +665,14 @@ cd site && npm run test:relevance
 - [x] Fix best score = vrai meilleur score (plus de filtre red flags)
 - [x] Résumé recherche condensé sur 1 ligne
 - [x] Score jauge visuelle 10 barres (remplace double pourcentage)
+- [x] Migration gemini-2.5-flash-lite (toutes phases: optimize, analyze, recommend)
+- [x] Structured Output (responseSchema) pour optimize et analyze
+- [x] MatchCriteria: extraction optimize + validation analyze + ajustements code-side
+- [x] MIN_CONFIDENCE releve de 30 a 50 (filtre plus strict)
+- [x] PostFilter MIN_FINAL_SCORE=30 (filtre post-ajustements MatchCriteria)
+- [x] Price sanity: redFlag < 30% mediane, TopPick depromu < 40% mediane
+- [x] Spinner timeline fix (inline styles pour Tailwind CSS 4 specificite)
+- [x] Message "Pas de resultats a proximite" quand geoloc active sans resultats locaux
 
 ### Phase 4.5: Lancement (EN COURS — objectif 15 fev 2026)
 
@@ -769,4 +819,4 @@ Plan : Finir desktop → Prototype RN → Tester stores → Fallback PWA si reje
 
 ---
 
-*Mis a jour le 15 fevrier 2026 - v1.0.0-rc2 (CWS + Legal + SEO + FAQ + Mobile)*
+*Mis a jour le 15 fevrier 2026 - v1.0.0-rc3 (Structured Output + MatchCriteria + Flash Lite + Scoring Quality)*
