@@ -2827,14 +2827,14 @@ main propre Paris ou livraison si garantie"
             className="mt-16 pt-8 border-t border-[var(--separator)] text-center text-xs text-[var(--text-tertiary)]"
           >
             <div className="flex flex-wrap justify-center gap-4 mb-4">
-              <a href="/privacy" className="hover:text-[var(--accent)] transition-colors">Confidentialit\u00e9</a>
+              <a href="/privacy" className="hover:text-[var(--accent)] transition-colors">Confidentialité</a>
               <span className="opacity-30">|</span>
-              <a href="/mentions-legales" className="hover:text-[var(--accent)] transition-colors">Mentions l\u00e9gales</a>
+              <a href="/mentions-legales" className="hover:text-[var(--accent)] transition-colors">Mentions légales</a>
               <span className="opacity-30">|</span>
               <a href="/cgu" className="hover:text-[var(--accent)] transition-colors">CGU</a>
             </div>
             <p className="mb-3 opacity-60">
-              Liens affili\u00e9s Amazon, Back Market, Rakuten. Le classement n&apos;est pas influenc\u00e9 par l&apos;affiliation.
+              Liens affiliés Amazon, Back Market, Rakuten. Le classement n&apos;est pas influencé par l&apos;affiliation.
             </p>
             <p>
               Un projet{" "}
