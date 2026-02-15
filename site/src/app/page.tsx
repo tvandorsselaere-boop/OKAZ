@@ -2141,7 +2141,37 @@ export default function Home() {
             });
           }
 
-          // 2. Price sanity check
+          // 2. Color check: si l'utilisateur a demandé une couleur, pénaliser les résultats sans cette couleur
+          if (visualContext?.color) {
+            const colorVariants = [visualContext.color.toLowerCase()];
+            // Ajouter variantes courantes FR/EN
+            const colorMap: Record<string, string[]> = {
+              'bleu': ['bleu', 'bleue', 'blue', 'navy', 'azur'],
+              'rouge': ['rouge', 'red'],
+              'vert': ['vert', 'verte', 'green'],
+              'noir': ['noir', 'noire', 'black'],
+              'blanc': ['blanc', 'blanche', 'white'],
+              'rose': ['rose', 'pink'],
+              'jaune': ['jaune', 'yellow'],
+              'gris': ['gris', 'grise', 'grey', 'gray'],
+              'orange': ['orange'],
+              'violet': ['violet', 'violette', 'purple'],
+              'marron': ['marron', 'brown'],
+              'beige': ['beige', 'cream'],
+            };
+            const variants = colorMap[visualContext.color.toLowerCase()] || colorVariants;
+            correctedResults.forEach((r: { title: string; score: number; id: string }) => {
+              const titleLower = (r.title || '').toLowerCase();
+              const hasColor = variants.some(v => titleLower.includes(v));
+              if (!hasColor) {
+                const oldScore = r.score;
+                r.score = Math.max(10, r.score - 10);
+                console.log(`[OKAZ] ColorCheck: ${r.id} pas de couleur "${visualContext!.color}" dans titre → score ${oldScore}→${r.score}`);
+              }
+            });
+          }
+
+          // 3. Price sanity check
           if (priceStats && priceStats.median > 0) {
             correctedResults.forEach((r: { price: number; score: number; id: string; geminiAnalysis?: { redFlags?: string[] } }) => {
               // Prix < 30% de la médiane → ajouter redFlag

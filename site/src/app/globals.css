@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/* Spinner animation (Tailwind CSS 4 fallback) */
+@keyframes okaz-spin {
+  to { transform: rotate(360deg); }
+}
+.animate-spin {
+  animation: okaz-spin 1s linear infinite;
+}
+
 /* ========================================
    MODERN DESIGN TOKENS — V0 Style
    ======================================== */
