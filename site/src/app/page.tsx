@@ -547,6 +547,12 @@ function TopChoices({
         {bestLocal && !isSameResult && (
           <TopChoiceCard result={bestLocal} type="local" userLocation={userLocation} />
         )}
+        {!bestLocal && userLocation && (
+          <div className="flex items-center gap-2 p-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--separator)]">
+            <MapPin className="w-4 h-4 text-[var(--text-tertiary)]" />
+            <span className="text-sm text-[var(--text-secondary)]">Pas de résultats à proximité pour cette recherche</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -2651,7 +2657,7 @@ main propre Paris ou livraison si garantie"
                               isOptimizing ? 'bg-[var(--accent)]/15' : 'bg-[var(--score-high)]/15'
                             }`}>
                               {isOptimizing ? (
-                                <div className="w-2.5 h-2.5 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
+                                <div className="w-2.5 h-2.5 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
                               ) : (
                                 <Check className="w-2.5 h-2.5 text-[var(--score-high)]" />
                               )}
@@ -2671,7 +2677,7 @@ main propre Paris ou livraison si garantie"
                               {isOptimizing ? (
                                 <Search className="w-2.5 h-2.5 text-[var(--text-tertiary)]" />
                               ) : searchPhase === 'searching' ? (
-                                <div className="w-2.5 h-2.5 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
+                                <div className="w-2.5 h-2.5 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
                               ) : (
                                 <Check className="w-2.5 h-2.5 text-[var(--score-high)]" />
                               )}
@@ -2691,7 +2697,7 @@ main propre Paris ou livraison si garantie"
                               searchPhase === 'analyzing' ? 'bg-[var(--accent)]/15' : 'bg-[var(--bg-tertiary)]'
                             }`}>
                               {searchPhase === 'analyzing' ? (
-                                <div className="w-2.5 h-2.5 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
+                                <div className="w-2.5 h-2.5 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
                               ) : (
                                 <Sparkles className="w-2.5 h-2.5 text-[var(--text-tertiary)]" />
                               )}
