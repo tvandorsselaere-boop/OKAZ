@@ -2832,6 +2832,8 @@ main propre Paris ou livraison si garantie"
               <a href="/mentions-legales" className="hover:text-[var(--accent)] transition-colors">Mentions légales</a>
               <span className="opacity-30">|</span>
               <a href="/cgu" className="hover:text-[var(--accent)] transition-colors">CGU</a>
+              <span className="opacity-30">|</span>
+              <a href="/faq" className="hover:text-[var(--accent)] transition-colors">FAQ</a>
             </div>
             <p className="mb-3 opacity-60">
               Liens affiliés Amazon, Back Market, Rakuten. Le classement n&apos;est pas influencé par l&apos;affiliation.
