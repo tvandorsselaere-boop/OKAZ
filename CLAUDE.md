@@ -254,6 +254,7 @@ const weightedScore = Math.round(originalScore * (confidence / 100));
 | POST /api/checkout/premium | Cree session Stripe (premium) |
 | POST /api/checkout/portal | Stripe Billing Portal (gestion abo) |
 | POST /api/webhooks/stripe | Webhook Stripe (checkout, sub update/delete, payment_failed) |
+| POST /api/send-link | Envoi lien OKAZ par email (Resend, page mobile) |
 
 ### Emails (Resend)
 - Domaine: `okaz-ia.fr` (verifie dans Resend via DNS OVH)
@@ -625,43 +626,47 @@ cd site && npm run test:relevance
 
 ### Phase 4.5: Lancement (EN COURS — objectif 15 fev 2026)
 
-#### Chrome Web Store (PRIORITE 1)
+#### Chrome Web Store (EN ATTENTE — compte dev en validation)
+- [x] Icone extension 128x128 PNG (existe)
+- [x] Manifest v1.0.0
+- [x] Description courte + longue Chrome Web Store (textes prets)
+- [x] Categorie (Shopping) + tags
+- [x] Politique de confidentialite (okaz-ia.fr/privacy)
+- [x] Justification permissions (textes prets pour formulaire CWS)
+- [x] Zip extension pret (okaz-extension-v1.0.0.zip)
+- [x] Compte dev Chrome cree (5$, en attente validation ~2-3j)
 - [ ] Screenshots extension (1280x800 ou 640x400)
-- [ ] Icone extension 128x128 PNG
-- [ ] Description courte + longue Chrome Web Store
-- [ ] Categorie + tags
-- [ ] Politique de confidentialite (URL okaz-ia.fr/privacy)
-- [ ] Justification permissions (tabs, scripting, externally_connectable)
-- [ ] Soumettre pour review (compte dev Chrome: 5$ one-time)
+- [ ] Soumettre pour review (des que compte valide)
 - [ ] Mettre a jour `externally_connectable` avec l'ID publie
 
-#### RGPD / Legal (PRIORITE 1)
+#### RGPD / Legal ✅
+- [x] Page /privacy (RGPD, Gemini, Supabase, Stripe, eBay, light/dark)
+- [x] Page /mentions-legales (editeur Facile-IA, hebergeur Vercel, OVH)
+- [x] Page /cgu (freemium, Stripe, affiliation, droit francais)
+- [x] Footer avec liens: Confidentialite | Mentions legales | CGU | FAQ
+- [x] Mention affiliation dans le footer
 - [ ] Bandeau cookies (consentement avant Gemini/Supabase/Stripe/AdSense)
-- [ ] Page /privacy : mise a jour avec cookies, Gemini, Supabase, Stripe
-- [ ] Page /mentions-legales (obligatoire loi francaise: editeur, hebergeur, contact)
-- [ ] Page /cgu (conditions generales d'utilisation — pour freemium/Stripe)
-- [ ] Footer avec liens: Confidentialite | Mentions legales | CGU | FAQ
-- [ ] Mention affiliation dans le footer ("Liens affilies Amazon, Back Market")
 
-#### FAQ (PRIORITE 2)
-- [ ] Page /faq avec questions courantes :
-  - Comment installer l'extension ?
-  - Pourquoi faut-il une extension ?
-  - Quels sites sont compares ?
-  - Comment fonctionne le score ?
-  - Mes donnees sont-elles en securite ?
-  - C'est quoi les plans Pro/Premium ?
-  - Comment annuler mon abonnement ?
+#### FAQ ✅
+- [x] Page /faq (12 questions, accordeon details/summary, design V0)
 
-#### SEO & Meta (PRIORITE 2)
-- [ ] Favicon (ico + apple-touch-icon)
-- [ ] Meta OG (titre, description, image)
-- [ ] robots.txt
-- [ ] sitemap.xml
-- [ ] Structured data (JSON-LD WebApplication)
+#### SEO & Meta ✅
+- [x] Favicon (ico existant + apple-touch-icon 180x180)
+- [x] Meta OG (titre, description, locale fr_FR, siteName)
+- [x] Twitter Card (summary)
+- [x] Canonical URL + metadataBase
+- [x] robots.txt (avec lien sitemap)
+- [x] sitemap.xml dynamique (/, /privacy, /mentions-legales, /cgu, /faq)
+- [ ] OG Image 1200x630 (pour previews social)
+- [ ] Structured data JSON-LD WebApplication
+
+#### Mobile ✅
+- [x] Page mobile MobileLanding (desktop-only explainer)
+- [x] 5 sites affiches (LBC, Vinted, Back Market, Amazon, eBay)
+- [x] Envoi lien par email via Resend (noreply@okaz-ia.fr)
+- [x] API /api/send-link (email HTML brande)
 
 #### Nice-to-have (post-lancement)
-- [ ] UI responsive mobile
 - [ ] S'inscrire Amazon Partenaires
 - [ ] S'inscrire Awin editeur + postuler programmes
 - [ ] S'inscrire AdSense
@@ -764,4 +769,4 @@ Plan : Finir desktop → Prototype RN → Tester stores → Fallback PWA si reje
 
 ---
 
-*Mis a jour le 14 fevrier 2026 - v1.0.0-rc1 (Release Candidate)*
+*Mis a jour le 15 fevrier 2026 - v1.0.0-rc2 (CWS + Legal + SEO + FAQ + Mobile)*
