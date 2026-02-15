@@ -6,6 +6,14 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 // Sites disponibles pour la recherche
 export type SearchSite = 'leboncoin' | 'vinted' | 'backmarket' | 'amazon' | 'ebay';
 
+// Critères de matching extraits par Gemini pour vérification code-side
+export interface MatchCriteria {
+  mainProduct: string;          // Produit principal (ex: "Fender Stratocaster")
+  requiredInTitle: string[];    // Mots qui DOIVENT apparaître (au moins 1) pour être pertinent
+  boostIfPresent: string[];     // Mots qui AUGMENTENT la pertinence si présents
+  excludeIfPresent: string[];   // Mots qui indiquent un mauvais résultat (accessoire, pièce détachée)
+}
+
 // Types pour les critères de recherche
 export interface SearchCriteria {
   keywords: string;           // Mots-clés nettoyés pour LeBonCoin/Vinted
@@ -18,6 +26,7 @@ export interface SearchCriteria {
   sites?: SearchSite[];       // Sites à interroger (si vide = tous)
   excludeAccessories?: boolean; // Exclure les accessoires (coques, câbles...)
   acceptedModels?: string[];  // Modèles acceptés si multi-produits
+  matchCriteria?: MatchCriteria; // Critères de matching pour vérification post-Gemini
   originalQuery: string;      // Requête originale pour debug
 }
 
@@ -141,6 +150,21 @@ PARTIE 1 - ANALYSE DE LA REQUÊTE:
 
 PARTIE 2 - MOTS-CLÉS INTELLIGENTS:
 
+RÈGLE LINGUISTIQUE - ORDRE DES MOTS (CRITIQUE):
+En français, l'ordre des mots dans la requête indique la hiérarchie d'importance:
+- Le PREMIER nom significatif = le PRODUIT PRINCIPAL que l'utilisateur veut ACHETER
+- Les mots qui suivent = CRITÈRES/SPÉCIFICATIONS du produit principal
+- Les qualificatifs FILTRENT les résultats, ils ne CHANGENT PAS le produit cherché
+
+Exemples:
+- "Stratocaster micros doubles" = une GUITARE Stratocaster équipée de micros doubles (humbuckers), PAS des micros/pickups à acheter séparément
+- "Nike Dunk Low bleu 42" = une CHAUSSURE Nike Dunk Low, couleur bleue, taille 42
+- "MacBook M4 16Go" = un ORDINATEUR MacBook avec puce M4 et 16Go de RAM
+- "collier Vanrycke" = un COLLIER de la marque Vanrycke
+- "canapé cuir angle" = un CANAPÉ en cuir d'angle, PAS du cuir pour canapé
+
+Le produit principal est TOUJOURS ce qu'on veut ACHETER. Les qualificatifs après le nom filtrent les résultats.
+
 Génère des mots-clés OPTIMISÉS pour la recherche:
 - Inclus le MODÈLE EXACT (iPhone 13, pas juste iPhone)
 - Ajoute des SYNONYMES utiles entre parenthèses si pertinent
@@ -200,6 +224,12 @@ RÉPONDS EN JSON UNIQUEMENT (pas de markdown):
   "needsClarification": boolean,
   "clarificationQuestion": "string | null (question COURTE, 1 phrase max)",
   "clarificationOptions": ["string", "string", "..."] | null (2-4 options cliquables, CONCRÈTES),
+  "matchCriteria": {
+    "mainProduct": "string (le produit principal, ex: 'Fender Stratocaster', 'Nike Dunk Low')",
+    "requiredInTitle": ["string"] (mots dont AU MOINS UN doit apparaître dans le titre pour être pertinent, ex: ["stratocaster", "strat"] ou ["dunk"]),
+    "boostIfPresent": ["string"] (mots qui AUGMENTENT la pertinence si présents dans le titre, ex: ["bleu", "blue", "42", "humbucker"]),
+    "excludeIfPresent": ["string"] (mots qui indiquent un MAUVAIS résultat: pièce détachée, accessoire, ex: ["coque", "housse", "câble", "lacet"])
+  },
   "detectedSpecs": {
     "size": "string | null (taille détectée: 42, M, L...)",
     "capacity": "string | null (capacité: 128Go, 256Go...)",
@@ -289,6 +319,24 @@ function parseGeminiResponse(text: string, query: string): ParsedGeminiResponse 
       }
     }
 
+    // Extraire matchCriteria pour vérification code-side post-Gemini
+    let matchCriteria: MatchCriteria | undefined;
+    if (parsed.matchCriteria && parsed.matchCriteria.mainProduct) {
+      matchCriteria = {
+        mainProduct: String(parsed.matchCriteria.mainProduct),
+        requiredInTitle: Array.isArray(parsed.matchCriteria.requiredInTitle)
+          ? parsed.matchCriteria.requiredInTitle.map(String)
+          : [],
+        boostIfPresent: Array.isArray(parsed.matchCriteria.boostIfPresent)
+          ? parsed.matchCriteria.boostIfPresent.map(String)
+          : [],
+        excludeIfPresent: Array.isArray(parsed.matchCriteria.excludeIfPresent)
+          ? parsed.matchCriteria.excludeIfPresent.map(String)
+          : [],
+      };
+      console.log(`[Gemini] MatchCriteria:`, matchCriteria);
+    }
+
     return {
       criteria: {
         keywords: parsed.keywords || '',
@@ -301,6 +349,7 @@ function parseGeminiResponse(text: string, query: string): ParsedGeminiResponse 
         sites,
         excludeAccessories: parsed.excludeAccessories ?? true,
         acceptedModels: parsed.detectedSpecs?.acceptedModels || undefined,
+        matchCriteria,
       },
       briefing,
       visualContext,

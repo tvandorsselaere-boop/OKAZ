@@ -42,6 +42,13 @@ interface ExtensionResponse {
 
 type SearchSite = 'leboncoin' | 'vinted' | 'backmarket' | 'amazon';
 
+interface MatchCriteria {
+  mainProduct: string;
+  requiredInTitle: string[];
+  boostIfPresent: string[];
+  excludeIfPresent: string[];
+}
+
 interface SearchCriteria {
   keywords: string;
   keywordsBM?: string;
@@ -53,6 +60,7 @@ interface SearchCriteria {
   sites?: SearchSite[];
   excludeAccessories?: boolean;
   acceptedModels?: string[];
+  matchCriteria?: MatchCriteria;
   originalQuery: string;
 }
 
@@ -2083,9 +2091,77 @@ export default function Home() {
             };
           }).filter(r => r.relevant);
 
+          // === AJUSTEMENTS CODE-SIDE POST-GEMINI ===
+          // Vérifications déterministes en parallèle de Gemini (ne remplace pas, complète)
+
+          // 1. Title matching contre matchCriteria (si disponible)
+          if (criteria.matchCriteria) {
+            const mc = criteria.matchCriteria;
+            console.log('[OKAZ] 5e. MatchCriteria actif:', mc.mainProduct);
+            correctedResults.forEach((r: { title: string; score: number; id: string }) => {
+              const titleLower = (r.title || '').toLowerCase();
+
+              // Check required terms (au moins 1 doit être présent)
+              if (mc.requiredInTitle.length > 0) {
+                const hasRequired = mc.requiredInTitle.some((term: string) =>
+                  titleLower.includes(term.toLowerCase())
+                );
+                if (!hasRequired) {
+                  const oldScore = r.score;
+                  r.score = Math.max(10, r.score - 20);
+                  console.log(`[OKAZ] MatchCriteria: ${r.id} manque required [${mc.requiredInTitle.join(',')}] → score ${oldScore}→${r.score}`);
+                }
+              }
+
+              // Boost if criteria present
+              const matchedBoost = mc.boostIfPresent.filter((term: string) =>
+                titleLower.includes(term.toLowerCase())
+              );
+              if (matchedBoost.length > 0 && mc.boostIfPresent.length > 0) {
+                const oldScore = r.score;
+                r.score = Math.min(100, r.score + matchedBoost.length * 3);
+                console.log(`[OKAZ] MatchCriteria: ${r.id} boost [${matchedBoost.join(',')}] → score ${oldScore}→${r.score}`);
+              }
+
+              // Penalize if exclude terms present
+              const matchedExclude = mc.excludeIfPresent.filter((term: string) =>
+                titleLower.includes(term.toLowerCase())
+              );
+              if (matchedExclude.length > 0) {
+                const oldScore = r.score;
+                r.score = Math.max(10, r.score - matchedExclude.length * 15);
+                console.log(`[OKAZ] MatchCriteria: ${r.id} exclude [${matchedExclude.join(',')}] → score ${oldScore}→${r.score}`);
+              }
+            });
+          }
+
+          // 2. Price sanity check
+          if (priceStats && priceStats.median > 0) {
+            correctedResults.forEach((r: { price: number; score: number; id: string; geminiAnalysis?: { redFlags?: string[] } }) => {
+              // Prix < 30% de la médiane → ajouter redFlag
+              if (r.price > 0 && r.price < priceStats!.median * 0.3) {
+                if (!r.geminiAnalysis?.redFlags?.includes('Prix suspect')) {
+                  if (r.geminiAnalysis) {
+                    r.geminiAnalysis.redFlags = [...(r.geminiAnalysis.redFlags || []), 'Prix suspect (très en dessous du marché)'];
+                  }
+                  console.log(`[OKAZ] PriceSanity: ${r.id} prix ${r.price}€ < 30% médiane ${priceStats!.median}€ → redFlag ajouté`);
+                }
+              }
+            });
+
+            // TopPick price sanity: si prix < 40% médiane → dépromotion
+            if (topPick) {
+              const topPickResult = correctedResults.find((r: { id: string }) => r.id === topPick!.id);
+              if (topPickResult && topPickResult.price > 0 && topPickResult.price < priceStats.median * 0.4) {
+                console.log(`[OKAZ] PriceSanity: TopPick ${topPick.id} prix ${topPickResult.price}€ < 40% médiane ${priceStats.median}€ → dépromu`);
+                topPick = undefined;
+              }
+            }
+          }
+
           // Garder uniquement les 30 meilleurs résultats (triés par score final)
           const MAX_DISPLAY = 30;
-          const sortedResults = correctedResults.sort((a, b) => b.score - a.score);
+          const sortedResults = correctedResults.sort((a: { score: number }, b: { score: number }) => b.score - a.score);
           const topResults30 = sortedResults.slice(0, MAX_DISPLAY);
           if (correctedResults.length > MAX_DISPLAY) {
             console.log(`[OKAZ] 5d. Top ${MAX_DISPLAY} résultats gardés sur ${correctedResults.length} pertinents`);
