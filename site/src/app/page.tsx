@@ -126,6 +126,7 @@ interface NewRecommendation {
   searchQuery: string;
   amazonUrl?: string;
   isRealPrice?: boolean;
+  imageUrl?: string;
 }
 
 interface AnalyzeResponse {
@@ -970,14 +971,7 @@ function SearchResults({ data, onBack }: { data: { query: string; categorized: C
           />
         )}
 
-        {/* v0.5.0 - Section "Plus de résultats" repliable */}
-        <MoreResultsSection
-          results={results}
-          excludeIds={excludeIds}
-          userLocation={userLocation}
-        />
-
-        {/* Bandeau "Et en neuf ?" - Recommandation Gemini */}
+        {/* Bandeau "Et en neuf ?" - Recommandation Amazon */}
         {newRecommendation && (
           <NewProductBanner
             productName={newRecommendation.productName}
@@ -986,8 +980,16 @@ function SearchResults({ data, onBack }: { data: { query: string; categorized: C
             searchQuery={newRecommendation.searchQuery}
             amazonUrl={newRecommendation.amazonUrl}
             isRealPrice={newRecommendation.isRealPrice}
+            imageUrl={newRecommendation.imageUrl}
           />
         )}
+
+        {/* v0.5.0 - Section "Plus de résultats" repliable */}
+        <MoreResultsSection
+          results={results}
+          excludeIds={excludeIds}
+          userLocation={userLocation}
+        />
 
         {/* Mention légale affiliation */}
         {totalResults > 0 && (
@@ -2415,6 +2417,7 @@ export default function Home() {
                 searchQuery: matchQuery,
                 amazonUrl: cheapestNew.url,
                 isRealPrice: true,
+                imageUrl: cheapestNew.image || undefined,
               };
 
               // Intégrer le prix neuf dans le briefing
