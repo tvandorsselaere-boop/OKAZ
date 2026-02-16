@@ -1832,6 +1832,7 @@ export default function Home() {
 
   const handleSearch = async (searchQuery?: string, _unused?: undefined, clarificationHistory?: Array<{ question: string; answer: string }>) => {
     const q = searchQuery || query;
+    let currentSearchToken: string | null = null;
 
     // Si recherche en cours, annuler
     if (isSearching) {
@@ -1935,8 +1936,10 @@ export default function Home() {
         console.log('[OKAZ] 1c. Données:', optimizeData);
 
         // Capturer le searchToken pour analyze et recommend-new
-        if (optimizeData.searchToken) {
-          setSearchToken(optimizeData.searchToken);
+        // IMPORTANT: utiliser une variable locale, pas le state React (closure async)
+        currentSearchToken = optimizeData.searchToken || null;
+        if (currentSearchToken) {
+          setSearchToken(currentSearchToken);
         }
 
         if (optimizeData.success && optimizeData.criteria) {
@@ -2108,7 +2111,7 @@ export default function Home() {
             const analyzeRes = await fetch('/api/analyze', {
               method: 'POST',
               headers: analyzeHeaders,
-              body: JSON.stringify({ results: resultsForAnalysis, query: q, visualContext, priceStats, matchCriteria: criteria.matchCriteria, searchToken }),
+              body: JSON.stringify({ results: resultsForAnalysis, query: q, visualContext, priceStats, matchCriteria: criteria.matchCriteria, searchToken: currentSearchToken }),
             });
             const analyzeData: AnalyzeResponse = await analyzeRes.json();
 
@@ -2447,7 +2450,7 @@ export default function Home() {
               const recRes = await fetch('/api/recommend-new', {
                 method: 'POST',
                 headers: recHeaders,
-                body: JSON.stringify({ query: criteria.keywords || q, priceMin, priceMax, topResults, searchToken }),
+                body: JSON.stringify({ query: criteria.keywords || q, priceMin, priceMax, topResults, searchToken: currentSearchToken }),
               });
               const recData = await recRes.json();
               if (recData.success && recData.recommendation?.hasRecommendation) {
