@@ -2,21 +2,13 @@
 // Vérifie JWT + gère quota côté serveur + search tokens
 
 import { NextRequest } from 'next/server';
+import { createHmac } from 'crypto';
 import { verifyToken, type TokenPayload } from './jwt';
 import { createServiceClient } from '@/lib/supabase/server';
-import { v4 as uuidv4 } from 'uuid';
 
-// Search tokens : validité 5 minutes, stockés en mémoire
-// optimize émet un token, analyze/recommend-new le vérifient
-const searchTokens = new Map<string, { userId: string; expiresAt: number }>();
-
-// Nettoyage périodique des tokens expirés
-setInterval(() => {
-  const now = Date.now();
-  for (const [token, data] of searchTokens) {
-    if (data.expiresAt < now) searchTokens.delete(token);
-  }
-}, 60_000);
+// Search tokens : signés HMAC (stateless, compatible serverless)
+const SEARCH_TOKEN_SECRET = process.env.JWT_SECRET || 'okaz-search-token-fallback';
+const SEARCH_TOKEN_TTL = 5 * 60 * 1000; // 5 minutes
 
 export interface AuthResult {
   user: TokenPayload;
@@ -57,30 +49,35 @@ export async function verifyRequestAuth(
 }
 
 /**
- * Génère un search token temporaire (5 min) après consommation du quota.
- * Ce token est vérifié par analyze et recommend-new.
+ * Génère un search token signé HMAC (stateless, compatible serverless).
+ * Format : userId:expiresAt:signature
  */
 export function generateSearchToken(userId: string): string {
-  const token = uuidv4();
-  searchTokens.set(token, {
-    userId,
-    expiresAt: Date.now() + 5 * 60 * 1000, // 5 minutes
-  });
-  return token;
+  const expiresAt = Date.now() + SEARCH_TOKEN_TTL;
+  const payload = `${userId}:${expiresAt}`;
+  const signature = createHmac('sha256', SEARCH_TOKEN_SECRET)
+    .update(payload)
+    .digest('hex')
+    .substring(0, 16);
+  return `${payload}:${signature}`;
 }
 
 /**
- * Vérifie un search token (émis par optimize).
+ * Vérifie un search token signé HMAC.
  */
 export function verifySearchToken(token: string, userId: string): boolean {
-  const data = searchTokens.get(token);
-  if (!data) return false;
-  if (data.expiresAt < Date.now()) {
-    searchTokens.delete(token);
-    return false;
-  }
-  if (data.userId !== userId) return false;
-  return true;
+  const parts = token.split(':');
+  if (parts.length !== 3) return false;
+  const [tokenUserId, expiresAtStr, signature] = parts;
+  if (tokenUserId !== userId) return false;
+  const expiresAt = parseInt(expiresAtStr, 10);
+  if (isNaN(expiresAt) || expiresAt < Date.now()) return false;
+  const payload = `${tokenUserId}:${expiresAtStr}`;
+  const expected = createHmac('sha256', SEARCH_TOKEN_SECRET)
+    .update(payload)
+    .digest('hex')
+    .substring(0, 16);
+  return signature === expected;
 }
 
 const DAILY_LIMIT = 5;
