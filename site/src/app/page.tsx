@@ -1366,7 +1366,7 @@ function MobileLanding() {
                     className="px-4 py-2.5 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium transition-all disabled:opacity-40"
                   >
                     {sending ? (
-                      <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}>
+                      <motion.div initial={{ rotate: 0 }} animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}>
                         <Loader2 className="w-4 h-4" />
                       </motion.div>
                     ) : (
@@ -2817,6 +2817,7 @@ main propre Paris ou livraison si garantie"
                       <motion.div
                         className="w-3.5 h-3.5 border-2 rounded-full"
                         style={{ borderColor: 'currentColor', borderTopColor: 'transparent' }}
+                        initial={{ rotate: 0 }}
                         animate={{ rotate: 360 }}
                         transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
                       />
@@ -2860,6 +2861,7 @@ main propre Paris ou livraison si garantie"
                                 <motion.div
                                   className="w-2.5 h-2.5 border-2 rounded-full"
                                   style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}
+                                  initial={{ rotate: 0 }}
                                   animate={{ rotate: 360 }}
                                   transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
                                 />
@@ -2885,6 +2887,7 @@ main propre Paris ou livraison si garantie"
                                 <motion.div
                                   className="w-2.5 h-2.5 border-2 rounded-full"
                                   style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}
+                                  initial={{ rotate: 0 }}
                                   animate={{ rotate: 360 }}
                                   transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
                                 />
@@ -2910,6 +2913,7 @@ main propre Paris ou livraison si garantie"
                                 <motion.div
                                   className="w-2.5 h-2.5 border-2 rounded-full"
                                   style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}
+                                  initial={{ rotate: 0 }}
                                   animate={{ rotate: 360 }}
                                   transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
                                 />
