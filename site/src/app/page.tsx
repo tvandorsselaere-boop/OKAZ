@@ -1366,7 +1366,9 @@ function MobileLanding() {
                     className="px-4 py-2.5 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium transition-all disabled:opacity-40"
                   >
                     {sending ? (
-                      <Loader2 className="w-4 h-4" style={{ animation: 'okaz-rotate 1s linear infinite' }} />
+                      <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}>
+                        <Loader2 className="w-4 h-4" />
+                      </motion.div>
                     ) : (
                       <Mail className="w-4 h-4" />
                     )}
@@ -2812,7 +2814,12 @@ main propre Paris ou livraison si garantie"
                     }`}
                   >
                     {geoLoading ? (
-                      <div className="w-3.5 h-3.5 border-2 rounded-full" style={{ borderColor: 'currentColor', borderTopColor: 'transparent', animation: 'okaz-rotate 1s linear infinite' }} />
+                      <motion.div
+                        className="w-3.5 h-3.5 border-2 rounded-full"
+                        style={{ borderColor: 'currentColor', borderTopColor: 'transparent' }}
+                        animate={{ rotate: 360 }}
+                        transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
+                      />
                     ) : (
                       <MapPin className="w-3.5 h-3.5" />
                     )}
@@ -2850,7 +2857,12 @@ main propre Paris ou livraison si garantie"
                               isOptimizing ? 'bg-[var(--accent)]/15' : 'bg-[var(--score-high)]/15'
                             }`}>
                               {isOptimizing ? (
-                                <div className="w-2.5 h-2.5 border-2 rounded-full" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent', animation: 'okaz-rotate 1s linear infinite' }} />
+                                <motion.div
+                                  className="w-2.5 h-2.5 border-2 rounded-full"
+                                  style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}
+                                  animate={{ rotate: 360 }}
+                                  transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
+                                />
                               ) : (
                                 <Check className="w-2.5 h-2.5 text-[var(--score-high)]" />
                               )}
@@ -2870,7 +2882,12 @@ main propre Paris ou livraison si garantie"
                               {isOptimizing ? (
                                 <Search className="w-2.5 h-2.5 text-[var(--text-tertiary)]" />
                               ) : searchPhase === 'searching' ? (
-                                <div className="w-2.5 h-2.5 border-2 rounded-full" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent', animation: 'okaz-rotate 1s linear infinite' }} />
+                                <motion.div
+                                  className="w-2.5 h-2.5 border-2 rounded-full"
+                                  style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}
+                                  animate={{ rotate: 360 }}
+                                  transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
+                                />
                               ) : (
                                 <Check className="w-2.5 h-2.5 text-[var(--score-high)]" />
                               )}
@@ -2890,7 +2907,12 @@ main propre Paris ou livraison si garantie"
                               searchPhase === 'analyzing' ? 'bg-[var(--accent)]/15' : 'bg-[var(--bg-tertiary)]'
                             }`}>
                               {searchPhase === 'analyzing' ? (
-                                <div className="w-2.5 h-2.5 border-2 rounded-full" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent', animation: 'okaz-rotate 1s linear infinite' }} />
+                                <motion.div
+                                  className="w-2.5 h-2.5 border-2 rounded-full"
+                                  style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}
+                                  animate={{ rotate: 360 }}
+                                  transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
+                                />
                               ) : (
                                 <Sparkles className="w-2.5 h-2.5 text-[var(--text-tertiary)]" />
                               )}
