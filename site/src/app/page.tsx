@@ -1454,6 +1454,9 @@ export default function Home() {
   // Auth token (JWT récupéré de l'extension)
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [searchToken, setSearchToken] = useState<string | null>(null);
+  const [authEmail, setAuthEmail] = useState('');
+  const [authSending, setAuthSending] = useState(false);
+  const [authMessage, setAuthMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   // Récupérer le quota depuis l'extension
   const fetchQuotaFromExtension = useCallback(() => {
@@ -1799,6 +1802,32 @@ export default function Home() {
     if (imageInputRef.current) {
       imageInputRef.current.value = '';
     }
+  };
+
+  // Envoyer magic link depuis le site
+  const handleSendMagicLink = async () => {
+    if (!authEmail.trim() || !authEmail.includes('@')) {
+      setAuthMessage({ text: 'Entre une adresse email valide', type: 'error' });
+      return;
+    }
+    setAuthSending(true);
+    setAuthMessage(null);
+    try {
+      const res = await fetch('/api/auth/magic-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: authEmail.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok && data.sent) {
+        setAuthMessage({ text: 'Email envoyé ! Clique sur le lien dans ton email.', type: 'success' });
+      } else {
+        setAuthMessage({ text: data.error || 'Erreur lors de l\'envoi', type: 'error' });
+      }
+    } catch {
+      setAuthMessage({ text: 'Erreur de connexion au serveur', type: 'error' });
+    }
+    setAuthSending(false);
   };
 
   const handleSearch = async (searchQuery?: string, _unused?: undefined, clarificationHistory?: Array<{ question: string; answer: string }>) => {
@@ -2596,8 +2625,53 @@ export default function Home() {
             </p>
           </motion.div>
 
+          {/* Auth gate — email requis avant de rechercher */}
+          {extensionConnected && !authToken && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+              className="mb-8"
+            >
+              <div className="bg-[var(--card-bg)]/80 backdrop-blur-2xl border border-white/15 dark:border-white/8 shadow-[var(--card-shadow)] p-6 rounded-[20px] max-w-md mx-auto">
+                <p className="text-sm text-[var(--text-secondary)] text-center mb-4">
+                  Entre ton email pour commencer tes recherches
+                </p>
+                {authMessage && (
+                  <div className={`mb-3 p-3 rounded-xl text-sm text-center ${
+                    authMessage.type === 'success'
+                      ? 'bg-[var(--score-high)]/10 text-[var(--score-high)] border border-[var(--score-high)]/20'
+                      : 'bg-[var(--score-low)]/10 text-[var(--score-low)] border border-[var(--score-low)]/20'
+                  }`}>
+                    {authMessage.text}
+                  </div>
+                )}
+                <form onSubmit={(e) => { e.preventDefault(); handleSendMagicLink(); }} className="flex gap-2">
+                  <input
+                    type="email"
+                    value={authEmail}
+                    onChange={(e) => setAuthEmail(e.target.value)}
+                    placeholder="ton@email.com"
+                    className="flex-1 px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--separator)] rounded-xl text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/30 focus:border-[var(--accent)] text-sm"
+                    autoComplete="email"
+                  />
+                  <button
+                    type="submit"
+                    disabled={authSending || !authEmail.trim()}
+                    className="px-5 py-3 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white font-medium transition-all text-sm whitespace-nowrap"
+                  >
+                    {authSending ? 'Envoi...' : 'Connexion'}
+                  </button>
+                </form>
+                <p className="text-[10px] text-[var(--text-tertiary)] text-center mt-3">
+                  Ton email sert uniquement à protéger le service. Pas de pub.
+                </p>
+              </div>
+            </motion.div>
+          )}
+
           {/* Search box - v0.5.0 Enrichi + Layout 2 colonnes pendant recherche */}
-          <div className={`flex flex-col ${isSearching ? 'lg:flex-row' : ''} gap-6`}>
+          <div className={`flex flex-col ${isSearching ? 'lg:flex-row' : ''} gap-6`} style={{ display: extensionConnected && !authToken ? 'none' : undefined }}>
             {/* Colonne principale */}
             <motion.div
               initial={{ opacity: 0, y: 8 }}
