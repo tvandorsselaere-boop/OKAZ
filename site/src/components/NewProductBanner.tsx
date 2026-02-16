@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ExternalLink, Package, Sparkles } from "lucide-react";
+import { ExternalLink, Sparkles } from "lucide-react";
 import { buildAmazonSearchLink, wrapAffiliateLink } from "@/lib/affiliate";
 
 interface NewProductBannerProps {
@@ -40,27 +40,20 @@ export function NewProductBanner({ productName, estimatedPrice, reason, searchQu
         className="block p-4 rounded-[20px] bg-[var(--card-bg)] border border-[#FF9900]/20 shadow-[var(--card-shadow)] hover:shadow-[var(--card-shadow-hover)] hover:scale-[1.01] transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] group"
       >
         <div className="flex gap-4">
-          {/* Image */}
-          <div className="relative w-20 h-20 rounded-xl overflow-hidden flex-shrink-0 bg-[var(--bg-secondary)]">
-            {imageUrl ? (
+          {/* Image — masquée si pas d'image disponible */}
+          {imageUrl && (
+            <div className="relative w-20 h-20 rounded-xl overflow-hidden flex-shrink-0 bg-[var(--bg-secondary)]">
               <img
                 src={imageUrl}
                 alt={productName}
                 className="w-full h-full object-cover"
                 onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none';
-                  const parent = (e.target as HTMLImageElement).parentElement;
-                  if (parent) {
-                    const fallback = parent.querySelector('.fallback-icon');
-                    if (fallback) (fallback as HTMLElement).style.display = 'flex';
-                  }
+                  const container = (e.target as HTMLImageElement).parentElement;
+                  if (container) container.style.display = 'none';
                 }}
               />
-            ) : null}
-            <div className={`fallback-icon w-full h-full items-center justify-center absolute inset-0 ${imageUrl ? 'hidden' : 'flex'}`}>
-              <Package className="w-8 h-8 text-[var(--text-tertiary)]" />
             </div>
-          </div>
+          )}
 
           {/* Contenu */}
           <div className="flex-1 min-w-0">
@@ -87,7 +80,7 @@ export function NewProductBanner({ productName, estimatedPrice, reason, searchQu
             </div>
 
             {/* Raison */}
-            <p className="text-[11px] text-[var(--text-secondary)] mt-1.5 line-clamp-1">
+            <p className="text-[11px] text-[var(--text-secondary)] mt-1.5 line-clamp-2">
               {reason}
             </p>
           </div>
