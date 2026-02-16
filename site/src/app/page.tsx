@@ -127,6 +127,7 @@ interface NewRecommendation {
   amazonUrl?: string;
   isRealPrice?: boolean;
   imageUrl?: string;
+  buyingAdvice?: string;
 }
 
 interface AnalyzeResponse {
@@ -981,6 +982,7 @@ function SearchResults({ data, onBack }: { data: { query: string; categorized: C
             amazonUrl={newRecommendation.amazonUrl}
             isRealPrice={newRecommendation.isRealPrice}
             imageUrl={newRecommendation.imageUrl}
+            buyingAdvice={newRecommendation.buyingAdvice}
           />
         )}
 
@@ -2410,6 +2412,23 @@ export default function Home() {
               const cheapestNew = candidates[0].result;
               console.log(`[OKAZ] 7. Prix neuf réel Amazon: ${cheapestNew.price}€ (match ${Math.round(candidates[0].matchRatio * 100)}%) — ${cheapestNew.title}`);
 
+              // Conseil d'achat : comparer neuf vs occasion
+              let buyingAdvice: string | undefined;
+              if (medianUsed > 0 && cheapestNew.price > 0) {
+                const ratio = cheapestNew.price / medianUsed;
+                if (ratio <= 1.0) {
+                  const saving = Math.round((1 - ratio) * 100);
+                  buyingAdvice = saving > 0
+                    ? `Le neuf est ${saving}% moins cher que la médiane occasion (${medianUsed}€) — acheter neuf est recommandé !`
+                    : `Le neuf est au même prix que l'occasion (${medianUsed}€) — autant acheter neuf avec la garantie !`;
+                  console.log(`[OKAZ] 7. CONSEIL: neuf ${cheapestNew.price}€ ≤ médiane occasion ${medianUsed}€ → acheter neuf`);
+                } else if (ratio <= 1.15) {
+                  const diff = Math.round(cheapestNew.price - medianUsed);
+                  buyingAdvice = `Seulement ${diff}€ de plus que l'occasion (${medianUsed}€) — le neuf avec garantie peut valoir le coup`;
+                  console.log(`[OKAZ] 7. CONSEIL: neuf ${cheapestNew.price}€ proche de médiane occasion ${medianUsed}€ → neuf intéressant`);
+                }
+              }
+
               initialNewRec = {
                 productName: cheapestNew.title,
                 estimatedPrice: cheapestNew.price,
@@ -2418,6 +2437,7 @@ export default function Home() {
                 amazonUrl: cheapestNew.url,
                 isRealPrice: true,
                 imageUrl: cheapestNew.image || undefined,
+                buyingAdvice,
               };
 
               // Intégrer le prix neuf dans le briefing

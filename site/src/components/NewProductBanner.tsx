@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ExternalLink, Sparkles } from "lucide-react";
+import { ExternalLink, Sparkles, TrendingDown, ArrowRight } from "lucide-react";
 import { buildAmazonSearchLink, wrapAffiliateLink } from "@/lib/affiliate";
 
 interface NewProductBannerProps {
@@ -12,9 +12,10 @@ interface NewProductBannerProps {
   amazonUrl?: string;
   isRealPrice?: boolean;
   imageUrl?: string;
+  buyingAdvice?: string;
 }
 
-export function NewProductBanner({ productName, estimatedPrice, reason, searchQuery, amazonUrl, isRealPrice, imageUrl }: NewProductBannerProps) {
+export function NewProductBanner({ productName, estimatedPrice, reason, searchQuery, amazonUrl, isRealPrice, imageUrl, buyingAdvice }: NewProductBannerProps) {
   const amazonLink = amazonUrl ? wrapAffiliateLink(amazonUrl) : buildAmazonSearchLink(searchQuery);
 
   return (
@@ -32,12 +33,26 @@ export function NewProductBanner({ productName, estimatedPrice, reason, searchQu
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">Et en neuf ?</h3>
       </div>
 
+      {/* Conseil d'achat — affiché quand le neuf est compétitif */}
+      {buyingAdvice && (
+        <div className="flex items-start gap-2.5 mb-3 p-3 rounded-xl bg-[#10B981]/10 border border-[#10B981]/20">
+          <TrendingDown className="w-4 h-4 text-[#10B981] flex-shrink-0 mt-0.5" />
+          <p className="text-xs font-medium text-[#10B981]">
+            {buyingAdvice}
+          </p>
+        </div>
+      )}
+
       {/* Carte produit — même format que les résultats occasion */}
       <a
         href={amazonLink}
         target="_blank"
         rel="noopener noreferrer"
-        className="block p-4 rounded-[20px] bg-[var(--card-bg)] border border-[#FF9900]/20 shadow-[var(--card-shadow)] hover:shadow-[var(--card-shadow-hover)] hover:scale-[1.01] transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] group"
+        className={`block p-4 rounded-[20px] bg-[var(--card-bg)] shadow-[var(--card-shadow)] hover:shadow-[var(--card-shadow-hover)] hover:scale-[1.01] transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] group ${
+          buyingAdvice
+            ? 'border-2 border-[#10B981]/40'
+            : 'border border-[#FF9900]/20'
+        }`}
       >
         <div className="flex gap-4">
           {/* Image — masquée si pas d'image disponible */}
@@ -83,6 +98,14 @@ export function NewProductBanner({ productName, estimatedPrice, reason, searchQu
             <p className="text-[11px] text-[var(--text-secondary)] mt-1.5 line-clamp-2">
               {reason}
             </p>
+
+            {/* CTA renforcé quand conseil d'achat */}
+            {buyingAdvice && (
+              <div className="flex items-center gap-1.5 mt-2 text-[#10B981]">
+                <span className="text-xs font-semibold">Voir sur Amazon</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </div>
+            )}
           </div>
         </div>
       </a>
