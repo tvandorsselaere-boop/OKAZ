@@ -661,12 +661,14 @@ export function findBestLocalResult(
 
   if (!withDistance.length) return null;
 
-  // Trier par distance d'abord, puis par score
+  // Trier par score pondéré : 70% score + 30% proximité
+  // Un MacBook 32Go à 36km (score 98) doit battre un MacBook Air 128Go à 19km (score 74)
   withDistance.sort((a, b) => {
-    // Priorité aux plus proches (< 20km), puis score
-    if (a.distance < 20 && b.distance >= 20) return -1;
-    if (b.distance < 20 && a.distance >= 20) return 1;
-    return b.result.score - a.result.score;
+    const proximityA = Math.max(0, 1 - a.distance / MAX_DISTANCE_KM); // 1.0 = 0km, 0.0 = 50km
+    const proximityB = Math.max(0, 1 - b.distance / MAX_DISTANCE_KM);
+    const weightedA = a.result.score * 0.7 + proximityA * 100 * 0.3;
+    const weightedB = b.result.score * 0.7 + proximityB * 100 * 0.3;
+    return weightedB - weightedA;
   });
 
   console.log(`[OKAZ Local] Best local: "${withDistance[0].result.title?.substring(0, 40)}" (${Math.round(withDistance[0].distance)}km, score=${withDistance[0].result.score})`);
