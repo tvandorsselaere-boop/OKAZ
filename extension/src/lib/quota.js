@@ -128,11 +128,18 @@ async function checkQuotaFromServer(uuid) {
 // Consommer une recherche
 async function consumeSearch() {
   const uuid = await getOrCreateUUID();
+  const storage = await getStorage();
+
+  // Préparer les headers (inclure JWT si disponible)
+  const headers = { 'Content-Type': 'application/json' };
+  if (storage.jwt) {
+    headers['Authorization'] = `Bearer ${storage.jwt}`;
+  }
 
   try {
     const response = await fetch(`${API_BASE}/quota/consume`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ uuid })
     });
 
@@ -143,7 +150,6 @@ async function consumeSearch() {
     const result = await response.json();
 
     // Mettre à jour le cache local
-    const storage = await getStorage();
     if (storage.quotaCache) {
       storage.quotaCache.dailyRemaining = result.remaining;
       storage.quotaCache.boostCredits = result.boostRemaining;
@@ -165,33 +171,38 @@ async function consumeSearch() {
   } catch (error) {
     console.error('[OKAZ Quota] Erreur consume:', error);
 
-    // En cas d'erreur réseau, autoriser quand même (fail-open)
-    // Le serveur rattrapera au prochain sync
+    // Fail-closed : bloquer en cas d'erreur réseau
     return {
-      allowed: true,
-      source: 'offline',
-      remaining: -1,
-      boostRemaining: -1
+      allowed: false,
+      source: 'error',
+      remaining: 0,
+      boostRemaining: 0
     };
   }
 }
 
-// Vérifier si une recherche est autorisée (local + serveur)
+// Vérifier si une recherche est autorisée (JWT requis + quota)
 async function canSearch() {
   const uuid = await getOrCreateUUID();
   const storage = await getStorage();
 
+  // JWT obligatoire pour rechercher
+  if (!storage.jwt) {
+    return { allowed: false, reason: 'auth_required' };
+  }
+
   // Si premium avec JWT valide, toujours autorisé
-  if (storage.jwt && storage.premiumUntil) {
+  if (storage.premiumUntil) {
     if (new Date(storage.premiumUntil) > new Date()) {
       return { allowed: true, reason: 'premium' };
     }
   }
 
   // Vérifier le cache local d'abord (évite les appels réseau)
+  // Cache réduit à 60 secondes (était 5 min)
   if (storage.quotaCache && storage.quotaUpdated) {
     const cacheAge = Date.now() - storage.quotaUpdated;
-    const cacheValid = cacheAge < 5 * 60 * 1000; // 5 minutes
+    const cacheValid = cacheAge < 60 * 1000; // 60 secondes
 
     if (cacheValid && storage.quotaCache.totalRemaining > 0) {
       return { allowed: true, reason: 'cache' };

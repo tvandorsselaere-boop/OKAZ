@@ -9,6 +9,7 @@ import { stripe, CREDITS, PLANS } from '@/lib/stripe';
 import type { PlanType } from '@/lib/stripe';
 import { createServiceClient } from '@/lib/supabase/server';
 import { sendWelcomePremium } from '@/lib/email';
+import { maskEmail } from '@/lib/auth/verify-request';
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
@@ -86,7 +87,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const { uuid, type, email } = session.metadata || {};
   const supabase = createServiceClient();
 
-  console.log('[OKAZ Webhook] Checkout completed:', type, 'UUID:', uuid?.substring(0, 8), 'Email:', email);
+  console.log('[OKAZ Webhook] Checkout completed:', type, 'UUID:', uuid?.substring(0, 8), 'Email:', email ? maskEmail(email) : 'N/A');
 
   if (type === 'boost' && uuid) {
     // Pack Boost: ajouter des crédits
@@ -166,7 +167,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       });
     }
 
-    console.log('[OKAZ Webhook]', planConfig.name, 'activé pour:', email, 'jusqu\'au:', planUntil.toISOString());
+    console.log('[OKAZ Webhook]', planConfig.name, 'activé pour:', maskEmail(email), 'jusqu\'au:', planUntil.toISOString());
 
     sendWelcomePremium(email).then(sent => {
       console.log('[OKAZ Webhook] Email bienvenue:', sent ? 'envoyé' : 'échec');
@@ -214,7 +215,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       await supabase.from('okaz_users').insert({ email, ...userData });
     }
 
-    console.log('[OKAZ Webhook] Legacy plus → Pro pour:', email);
+    console.log('[OKAZ Webhook] Legacy plus → Pro pour:', maskEmail(email));
 
     const { data: user } = await supabase
       .from('okaz_users')

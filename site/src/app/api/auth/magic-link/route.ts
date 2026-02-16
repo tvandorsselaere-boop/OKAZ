@@ -1,10 +1,12 @@
-// OKAZ API - Envoyer un Magic Link
+// OKAZ API - Envoyer un Magic Link (ouvert à tous les utilisateurs)
 // POST /api/auth/magic-link { email }
 // Retourne: { sent: boolean }
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { sendMagicLink } from '@/lib/email';
+import { checkRateLimit, getClientIP } from '@/lib/rate-limit';
+import { maskEmail } from '@/lib/auth/verify-request';
 import { randomBytes } from 'crypto';
 
 const TOKEN_EXPIRY_MINUTES = 15;
@@ -20,28 +22,67 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = createServiceClient();
+    const normalizedEmail = email.toLowerCase().trim();
 
-    // Vérifier que l'utilisateur existe et est premium
-    const { data: user } = await supabase
-      .from('okaz_users')
-      .select('id, premium_until')
-      .eq('email', email.toLowerCase())
-      .single();
-
-    if (!user) {
-      // Utilisateur non trouvé - ne pas révéler cette info
-      // On fait semblant d'envoyer l'email
-      console.log('[OKAZ Auth] Magic Link demandé pour email inconnu:', email);
-      return NextResponse.json({ sent: true });
+    // Rate-limit par IP (10/heure)
+    const ip = getClientIP(request.headers);
+    const ipLimit = checkRateLimit(`magic-link-ip:${ip}`, 10, 3600_000);
+    if (!ipLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Trop de demandes, réessayez plus tard' },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil(ipLimit.resetIn / 1000)) } }
+      );
     }
 
-    // Vérifier si premium actif
-    if (!user.premium_until || new Date(user.premium_until) <= new Date()) {
-      console.log('[OKAZ Auth] Magic Link demandé pour non-premium:', email);
+    // Rate-limit par email (3/heure)
+    const emailLimit = checkRateLimit(`magic-link-email:${normalizedEmail}`, 3, 3600_000);
+    if (!emailLimit.allowed) {
       return NextResponse.json(
-        { error: 'Compte non premium' },
-        { status: 403 }
+        { error: 'Trop de demandes pour cet email, réessayez plus tard' },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil(emailLimit.resetIn / 1000)) } }
+      );
+    }
+
+    const supabase = createServiceClient();
+
+    // Vérifier si l'utilisateur existe
+    let { data: user } = await supabase
+      .from('okaz_users')
+      .select('id, premium_until')
+      .eq('email', normalizedEmail)
+      .single();
+
+    // Si l'utilisateur n'existe pas, le créer (plan free)
+    if (!user) {
+      const { data: newUser, error: createError } = await supabase
+        .from('okaz_users')
+        .insert({
+          email: normalizedEmail,
+          plan_type: 'free',
+        })
+        .select('id, premium_until')
+        .single();
+
+      if (createError) {
+        console.error('[OKAZ Auth] Erreur création user:', createError.message);
+        // Race condition : l'user a peut-être été créé entre-temps
+        const { data: existingUser } = await supabase
+          .from('okaz_users')
+          .select('id, premium_until')
+          .eq('email', normalizedEmail)
+          .single();
+        user = existingUser;
+      } else {
+        user = newUser;
+      }
+
+      console.log('[OKAZ Auth] Nouvel utilisateur créé:', maskEmail(normalizedEmail));
+    }
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Erreur serveur' },
+        { status: 500 }
       );
     }
 
@@ -51,7 +92,7 @@ export async function POST(request: NextRequest) {
 
     // Stocker le token
     await supabase.from('okaz_magic_tokens').insert({
-      email: email.toLowerCase(),
+      email: normalizedEmail,
       token,
       expires_at: expiresAt.toISOString(),
     });
@@ -66,7 +107,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[OKAZ Auth] Magic Link envoyé à:', email);
+    console.log('[OKAZ Auth] Magic Link envoyé à:', maskEmail(normalizedEmail));
 
     return NextResponse.json({ sent: true });
 

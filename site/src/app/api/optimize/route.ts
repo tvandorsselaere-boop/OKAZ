@@ -1,12 +1,14 @@
 // OKAZ API - Optimisation des requêtes via Gemini
 // POST /api/optimize { query: string, imageBase64?: string, referenceUrl?: string }
-// Retourne: { criteria, briefing, optimizedUrl }
+// Retourne: { criteria, briefing, optimizedUrl, searchToken }
 
 import { NextRequest, NextResponse } from 'next/server';
 import { optimizeQuery, buildLeBonCoinUrl } from '@/lib/gemini';
 import { checkRateLimit, getClientIP } from '@/lib/rate-limit';
+import { verifyRequestAuth, consumeQuotaForRequest, generateSearchToken } from '@/lib/auth/verify-request';
 
 export async function POST(request: NextRequest) {
+  // Rate-limit IP (defense in depth)
   const ip = getClientIP(request.headers);
   const limit = checkRateLimit(`optimize:${ip}`, 20, 60_000);
   if (!limit.allowed) {
@@ -18,6 +20,25 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
+
+    // Vérifier l'authentification JWT
+    const authResult = await verifyRequestAuth(request, body);
+    if ('error' in authResult) {
+      return NextResponse.json(
+        { error: authResult.error },
+        { status: authResult.status }
+      );
+    }
+
+    // Consommer 1 recherche de quota
+    const quotaResult = await consumeQuotaForRequest(authResult.user.sub, authResult.uuid);
+    if (!quotaResult.allowed) {
+      return NextResponse.json(
+        { error: 'Quota épuisé', quotaExhausted: true, remaining: 0 },
+        { status: 429 }
+      );
+    }
+
     const { query, imageBase64, referenceUrl, clarifications } = body;
 
     if (!query || typeof query !== 'string') {
@@ -49,6 +70,9 @@ export async function POST(request: NextRequest) {
     });
     const optimizedUrl = buildLeBonCoinUrl(criteria);
 
+    // Générer un search token pour analyze et recommend-new
+    const searchToken = generateSearchToken(authResult.user.sub);
+
     console.log('[OKAZ API] Critères:', criteria);
     console.log('[OKAZ API] Briefing:', briefing);
     console.log('[OKAZ API] Contexte visuel:', visualContext);
@@ -61,6 +85,8 @@ export async function POST(request: NextRequest) {
       briefing,
       visualContext,
       optimizedUrl,
+      searchToken,
+      remaining: quotaResult.remaining,
       needsClarification: needsClarification || false,
       clarificationQuestion: clarificationQuestion || null,
       clarificationOptions: clarificationOptions || null,

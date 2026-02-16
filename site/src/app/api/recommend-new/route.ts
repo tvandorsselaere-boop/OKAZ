@@ -1,10 +1,11 @@
 // OKAZ API - Recommandation produit neuf ("Et en neuf ?")
-// POST /api/recommend-new { query: string, priceMin: number, priceMax: number }
+// POST /api/recommend-new { query: string, priceMin: number, priceMax: number, searchToken: string }
 // Retourne: { success: boolean, recommendation?: {...} }
 
 import { NextRequest, NextResponse } from 'next/server';
 import { recommendNewProduct } from '@/lib/gemini';
 import { checkRateLimit, getClientIP } from '@/lib/rate-limit';
+import { verifyRequestAuth, verifySearchToken } from '@/lib/auth/verify-request';
 
 export async function POST(request: NextRequest) {
   const ip = getClientIP(request.headers);
@@ -18,6 +19,25 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
+
+    // Vérifier l'authentification JWT
+    const authResult = await verifyRequestAuth(request, body);
+    if ('error' in authResult) {
+      return NextResponse.json(
+        { error: authResult.error },
+        { status: authResult.status }
+      );
+    }
+
+    // Vérifier le search token (émis par optimize)
+    const { searchToken } = body;
+    if (!searchToken || !verifySearchToken(searchToken, authResult.user.sub)) {
+      return NextResponse.json(
+        { error: 'Search token invalide ou expiré' },
+        { status: 403 }
+      );
+    }
+
     const { query, priceMin, priceMax, topResults } = body;
 
     if (!query) {

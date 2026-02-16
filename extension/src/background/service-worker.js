@@ -84,6 +84,11 @@ chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => 
       handleGetUUID(sendResponse);
       return true;
 
+    case 'GET_AUTH':
+      // Récupérer l'état d'auth (JWT, email, UUID)
+      handleGetAuth(sendResponse);
+      return true;
+
     case 'SAVE_AUTH':
       // Sauvegarder l'auth après connexion Magic Link
       handleSaveAuth(request.jwt, request.email, request.premiumUntil, sendResponse);
@@ -121,6 +126,23 @@ async function handleGetUUID(sendResponse) {
   }
 }
 
+// Handler pour récupérer l'état d'auth
+async function handleGetAuth(sendResponse) {
+  try {
+    const storage = await self.OkazQuota.getStorage();
+    const uuid = await self.OkazQuota.getOrCreateUUID();
+    sendResponse({
+      success: true,
+      jwt: storage.jwt || null,
+      email: storage.email || null,
+      uuid,
+    });
+  } catch (error) {
+    console.error('OKAZ SW: Erreur getAuth:', error);
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
 // Handler pour sauvegarder l'auth
 async function handleSaveAuth(jwt, email, premiumUntil, sendResponse) {
   try {
@@ -143,9 +165,20 @@ async function handleClearAuth(sendResponse) {
   }
 }
 
-// Handler de recherche avec vérification du quota
+// Handler de recherche avec vérification de l'auth + quota
 async function handleSearchWithQuota(query, criteria, sendResponse) {
   try {
+    // Vérifier que l'utilisateur est authentifié (JWT obligatoire)
+    const storage = await self.OkazQuota.getStorage();
+    if (!storage.jwt) {
+      console.log('OKAZ SW: Pas de JWT, auth requise');
+      sendResponse({
+        success: false,
+        error: 'auth_required',
+      });
+      return;
+    }
+
     // Vérifier si la recherche est autorisée
     const canSearchResult = await self.OkazQuota.canSearch();
 
@@ -169,8 +202,11 @@ async function handleSearchWithQuota(query, criteria, sendResponse) {
 
   } catch (error) {
     console.error('OKAZ SW: Erreur recherche avec quota:', error);
-    // En cas d'erreur, lancer quand même la recherche (fail-open)
-    handleSearch(query, criteria, sendResponse);
+    // En cas d'erreur réseau, bloquer (fail-closed) — l'utilisateur doit réessayer
+    sendResponse({
+      success: false,
+      error: 'Erreur de connexion au serveur. Réessayez.',
+    });
   }
 }
 

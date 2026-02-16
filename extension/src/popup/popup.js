@@ -1,5 +1,9 @@
-// OKAZ Popup v0.5.0 - Interface épurée avec scoring intelligent
+// OKAZ Popup v1.0.0 - Interface épurée avec scoring intelligent + auth email
 
+const authScreen = document.getElementById('authScreen');
+const authEmailInput = document.getElementById('authEmailInput');
+const authSendBtn = document.getElementById('authSendBtn');
+const authMessage = document.getElementById('authMessage');
 const searchInput = document.getElementById('searchInput');
 const searchBtn = document.getElementById('searchBtn');
 const homeScreen = document.getElementById('homeScreen');
@@ -11,9 +15,99 @@ const backBtn = document.getElementById('backBtn');
 let isSearching = false;
 let currentQuery = '';
 
-// Prix de référence calculés dynamiquement à partir des résultats (pas de données hardcodées)
+// === AUTH : vérifier si JWT existe ===
+async function checkAuth() {
+  try {
+    const result = await chrome.storage.local.get(['okaz_jwt']);
+    if (result.okaz_jwt) {
+      showHomeScreenDirect();
+    } else {
+      showAuthScreen();
+    }
+  } catch (e) {
+    console.error('Auth check error:', e);
+    showAuthScreen();
+  }
+}
 
-// Events
+function showAuthScreen() {
+  authScreen.style.display = 'flex';
+  homeScreen.style.display = 'none';
+  resultsScreen.style.display = 'none';
+  authEmailInput.focus();
+}
+
+function showHomeScreenDirect() {
+  authScreen.style.display = 'none';
+  homeScreen.style.display = 'flex';
+  resultsScreen.style.display = 'none';
+  searchInput.focus();
+}
+
+function showAuthMessage(text, type) {
+  authMessage.style.display = 'block';
+  authMessage.className = 'auth-message ' + type;
+  authMessage.textContent = text;
+}
+
+// Envoyer magic link
+async function handleAuthSend() {
+  const email = authEmailInput.value.trim();
+  if (!email || !email.includes('@')) {
+    showAuthMessage('Entre une adresse email valide', 'error');
+    return;
+  }
+
+  authSendBtn.disabled = true;
+  authSendBtn.textContent = 'Envoi en cours...';
+  authMessage.style.display = 'none';
+
+  try {
+    // Détecter l'API base (prod ou dev)
+    let apiBase = 'https://okaz-ia.fr/api';
+    try {
+      if (!chrome.runtime.getManifest().update_url) {
+        apiBase = 'http://localhost:3000/api';
+      }
+    } catch (e) {}
+
+    const response = await fetch(`${apiBase}/auth/magic-link`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.sent) {
+      showAuthMessage('Email envoye ! Clique sur le lien dans ton email pour te connecter.', 'success');
+    } else {
+      showAuthMessage(data.error || 'Erreur lors de l\'envoi', 'error');
+    }
+  } catch (error) {
+    console.error('Auth send error:', error);
+    showAuthMessage('Erreur de connexion au serveur', 'error');
+  }
+
+  authSendBtn.disabled = false;
+  authSendBtn.textContent = 'Recevoir mon lien de connexion';
+}
+
+// Écouter les changements de storage (retour auth depuis le site)
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes.okaz_jwt && changes.okaz_jwt.newValue) {
+    console.log('OKAZ Popup: JWT détecté, passage à l\'écran de recherche');
+    showHomeScreenDirect();
+  }
+});
+
+// Events auth
+authSendBtn.addEventListener('click', handleAuthSend);
+authEmailInput.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') handleAuthSend();
+});
+
+// Events search
 searchBtn.addEventListener('click', handleSearch);
 searchInput.addEventListener('keypress', (e) => {
   if (e.key === 'Enter') handleSearch();
@@ -28,8 +122,8 @@ document.querySelectorAll('.example').forEach(el => {
   });
 });
 
-// Focus auto
-searchInput.focus();
+// Lancer la vérification auth au chargement
+checkAuth();
 
 async function handleSearch() {
   const query = searchInput.value.trim();
@@ -51,6 +145,8 @@ async function handleSearch() {
     if (response && response.success) {
       const analyzedResults = analyzeResults(response.results, query);
       displayResults(analyzedResults, query);
+    } else if (response?.error === 'auth_required') {
+      showAuthScreen();
     } else {
       showError(response?.error || 'Erreur de recherche');
     }
@@ -66,12 +162,14 @@ async function handleSearch() {
 function showHomeScreen() {
   homeScreen.style.display = 'flex';
   resultsScreen.style.display = 'none';
+  authScreen.style.display = 'none';
   searchInput.focus();
 }
 
 function showResultsScreen() {
   homeScreen.style.display = 'none';
   resultsScreen.style.display = 'block';
+  authScreen.style.display = 'none';
   searchQueryDisplay.querySelector('strong').textContent = currentQuery;
 }
 
@@ -325,4 +423,4 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-console.log('OKAZ Popup v0.5.0 loaded');
+console.log('OKAZ Popup v1.0.0 loaded');

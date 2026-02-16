@@ -102,6 +102,8 @@ interface OptimizeResponse {
   briefing?: SearchBriefing;
   visualContext?: VisualContext;
   optimizedUrl: string;
+  searchToken?: string;
+  remaining?: number;
   needsClarification?: boolean;
   clarificationQuestion?: string;
   clarificationOptions?: string[];
@@ -1449,6 +1451,10 @@ export default function Home() {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [isUpgrading, setIsUpgrading] = useState(false);
 
+  // Auth token (JWT récupéré de l'extension)
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [searchToken, setSearchToken] = useState<string | null>(null);
+
   // Récupérer le quota depuis l'extension
   const fetchQuotaFromExtension = useCallback(() => {
     if (!extensionId) return;
@@ -1468,12 +1474,32 @@ export default function Home() {
     }
   }, [extensionId]);
 
-  // Charger le quota initial quand l'extension est connectée
+  // Récupérer le JWT depuis l'extension
+  const fetchAuthFromExtension = useCallback(() => {
+    if (!extensionId) return;
+    try {
+      // @ts-ignore
+      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+        // @ts-ignore
+        chrome.runtime.sendMessage(extensionId, { type: 'GET_AUTH' }, (response: { success: boolean; jwt?: string; email?: string; uuid?: string }) => {
+          // @ts-ignore
+          if (!chrome.runtime.lastError && response?.success && response.jwt) {
+            setAuthToken(response.jwt);
+          }
+        });
+      }
+    } catch (err) {
+      console.error('[OKAZ] Erreur récupération auth:', err);
+    }
+  }, [extensionId]);
+
+  // Charger le quota + auth initial quand l'extension est connectée
   useEffect(() => {
     if (extensionConnected && extensionId) {
       fetchQuotaFromExtension();
+      fetchAuthFromExtension();
     }
-  }, [extensionConnected, extensionId, fetchQuotaFromExtension]);
+  }, [extensionConnected, extensionId, fetchQuotaFromExtension, fetchAuthFromExtension]);
 
   // Gérer les retours d'auth (magic link) et de paiement (Stripe)
   // Auth via fragment hash (#auth=success&token=JWT), Stripe via query params
@@ -1491,6 +1517,7 @@ export default function Home() {
 
       if (token && email) {
         console.log('[OKAZ] Auth magic link réussie pour:', email);
+        setAuthToken(token);
         // @ts-ignore
         chrome.runtime.sendMessage(extensionId, {
           type: 'SAVE_AUTH',
@@ -1838,9 +1865,12 @@ export default function Home() {
           console.log('[OKAZ] 1a. Clarifications précédentes:', clarificationHistory.length);
         }
 
+        const optimizeHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (authToken) optimizeHeaders['Authorization'] = `Bearer ${authToken}`;
+
         const optimizeRes = await fetch('/api/optimize', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: optimizeHeaders,
           body: JSON.stringify(optimizePayload),
           signal,
         });
@@ -1851,9 +1881,34 @@ export default function Home() {
           return;
         }
 
+        // Gérer les erreurs d'auth (401) et de quota (429)
+        if (optimizeRes.status === 401) {
+          setError('Session expirée. Reconnecte-toi via l\'extension OKAZ.');
+          setAuthToken(null);
+          setIsSearching(false);
+          setIsOptimizing(false);
+          return;
+        }
+        if (optimizeRes.status === 429) {
+          const errData = await optimizeRes.json();
+          if (errData.quotaExhausted) {
+            setShowUpgradeModal(true);
+          } else {
+            setError('Trop de requêtes, réessaye dans quelques secondes');
+          }
+          setIsSearching(false);
+          setIsOptimizing(false);
+          return;
+        }
+
         console.log('[OKAZ] 1b. Réponse reçue, parsing JSON...');
         const optimizeData: OptimizeResponse = await optimizeRes.json();
         console.log('[OKAZ] 1c. Données:', optimizeData);
+
+        // Capturer le searchToken pour analyze et recommend-new
+        if (optimizeData.searchToken) {
+          setSearchToken(optimizeData.searchToken);
+        }
 
         if (optimizeData.success && optimizeData.criteria) {
           // Intercepter si Gemini demande une clarification (max 2 rounds)
@@ -2018,10 +2073,13 @@ export default function Home() {
 
           try {
             // v0.5.0 - Passer le contexte visuel + prix réels pour ajuster le scoring
+            const analyzeHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+            if (authToken) analyzeHeaders['Authorization'] = `Bearer ${authToken}`;
+
             const analyzeRes = await fetch('/api/analyze', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ results: resultsForAnalysis, query: q, visualContext, priceStats, matchCriteria: criteria.matchCriteria }),
+              headers: analyzeHeaders,
+              body: JSON.stringify({ results: resultsForAnalysis, query: q, visualContext, priceStats, matchCriteria: criteria.matchCriteria, searchToken }),
             });
             const analyzeData: AnalyzeResponse = await analyzeRes.json();
 
@@ -2354,10 +2412,13 @@ export default function Home() {
               .map(r => ({ title: r.title, price: r.price, site: r.site }));
 
             try {
+              const recHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+              if (authToken) recHeaders['Authorization'] = `Bearer ${authToken}`;
+
               const recRes = await fetch('/api/recommend-new', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query: criteria.keywords || q, priceMin, priceMax, topResults }),
+                headers: recHeaders,
+                body: JSON.stringify({ query: criteria.keywords || q, priceMin, priceMax, topResults, searchToken }),
               });
               const recData = await recRes.json();
               if (recData.success && recData.recommendation?.hasRecommendation) {
@@ -2410,6 +2471,8 @@ export default function Home() {
           if (response?.error === 'quota_exhausted') {
             fetchQuotaFromExtension(); // Rafraîchir le quota
             setShowUpgradeModal(true);
+          } else if (response?.error === 'auth_required') {
+            setError('Connecte-toi d\'abord via l\'extension OKAZ (clique sur l\'icone de l\'extension)');
           } else {
             setError(response?.error || 'Erreur de recherche');
           }

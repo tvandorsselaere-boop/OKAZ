@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe, PLANS, STRIPE_PRICES } from '@/lib/stripe';
 import type { PlanType } from '@/lib/stripe';
+import { maskEmail } from '@/lib/auth/verify-request';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
@@ -24,7 +25,7 @@ export async function POST(request: NextRequest) {
     const plan = validPlans.includes(planType) ? planType as Exclude<PlanType, 'free'> : 'pro';
     const planConfig = PLANS[plan];
 
-    console.log('[OKAZ Checkout]', planConfig.name, 'pour:', email);
+    console.log('[OKAZ Checkout]', planConfig.name, 'pour:', maskEmail(email));
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',

@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { generateToken } from '@/lib/auth/jwt';
+import { maskEmail } from '@/lib/auth/verify-request';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
@@ -48,12 +49,40 @@ export async function GET(request: NextRequest) {
       .update({ used_at: new Date().toISOString() })
       .eq('id', magicToken.id);
 
-    // Récupérer l'utilisateur
-    const { data: user } = await supabase
+    // Récupérer l'utilisateur, ou le créer s'il n'existe pas
+    let { data: user } = await supabase
       .from('okaz_users')
       .select('id, email, premium_until')
       .eq('email', magicToken.email)
       .single();
+
+    if (!user) {
+      // Auto-créer l'utilisateur (plan free)
+      const { data: newUser, error: createError } = await supabase
+        .from('okaz_users')
+        .insert({
+          email: magicToken.email,
+          plan_type: 'free',
+        })
+        .select('id, email, premium_until')
+        .single();
+
+      if (createError) {
+        // Race condition possible
+        const { data: existingUser } = await supabase
+          .from('okaz_users')
+          .select('id, email, premium_until')
+          .eq('email', magicToken.email)
+          .single();
+        user = existingUser;
+      } else {
+        user = newUser;
+      }
+
+      if (user) {
+        console.log('[OKAZ Auth] Utilisateur auto-créé:', maskEmail(user.email));
+      }
+    }
 
     if (!user) {
       return NextResponse.redirect(`${APP_URL}#auth=error&reason=user_not_found`);
@@ -63,7 +92,7 @@ export async function GET(request: NextRequest) {
     const premiumUntil = user.premium_until ? new Date(user.premium_until) : undefined;
     const jwt = await generateToken(user.id, user.email, premiumUntil);
 
-    console.log('[OKAZ Auth] Connexion réussie pour:', user.email);
+    console.log('[OKAZ Auth] Connexion réussie pour:', maskEmail(user.email));
 
     // Rediriger avec le token dans le fragment hash (pas en query param)
     // Le hash n'est pas envoyé au serveur, pas dans les logs, pas dans le referrer
