@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
-/* Spinner animation — inline style uses animation: spin */
-@keyframes spin {
+/* Spinner animation — nom unique pour éviter conflit Tailwind CSS 4 */
+@keyframes okaz-rotate {
+  from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
 
