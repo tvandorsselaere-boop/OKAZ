@@ -3,43 +3,6 @@
 
 (function() {
   console.log('OKAZ: Back Market parser v0.5.0 chargé');
-  console.log('OKAZ: URL =', window.location.href);
-
-  // Debug: afficher la structure de la page
-  function debugDOM() {
-    console.log('OKAZ DEBUG BACKMARKET: ========== Analyse du DOM ==========');
-    console.log('OKAZ DEBUG: URL:', window.location.href);
-    console.log('OKAZ DEBUG: Title:', document.title);
-
-    // Chercher les éléments avec data-testid
-    const testIdElements = document.querySelectorAll('[data-testid]');
-    console.log('OKAZ DEBUG: Éléments data-testid:', testIdElements.length);
-    if (testIdElements.length > 0) {
-      const testIds = [...new Set([...testIdElements].map(el => el.getAttribute('data-testid')))];
-      console.log('OKAZ DEBUG: data-testid uniques:', testIds.slice(0, 30));
-    }
-
-    // Chercher les liens vers des produits
-    const productLinks = document.querySelectorAll('a[href*="/product/"], a[href*="/p/"]');
-    console.log('OKAZ DEBUG: Liens produits trouvés:', productLinks.length);
-
-    // Chercher les classes contenant "product" ou "card"
-    const allClasses = new Set();
-    document.querySelectorAll('*').forEach(el => {
-      if (el.className && typeof el.className === 'string') {
-        el.className.split(' ').forEach(c => {
-          if (c.toLowerCase().includes('product') || c.toLowerCase().includes('card') || c.toLowerCase().includes('listing')) {
-            allClasses.add(c);
-          }
-        });
-      }
-    });
-    if (allClasses.size > 0) {
-      console.log('OKAZ DEBUG: Classes contenant product/card/listing:', [...allClasses].slice(0, 30));
-    }
-
-    console.log('OKAZ DEBUG BACKMARKET: =====================================');
-  }
 
   // Attendre que la page soit complètement chargée
   function waitForResults() {
@@ -49,12 +12,6 @@
 
       const check = () => {
         attempts++;
-
-        // Debug toutes les 5 tentatives
-        if (attempts % 5 === 1) {
-          console.log(`OKAZ BACKMARKET: Tentative ${attempts}/${maxAttempts}`);
-          debugDOM();
-        }
 
         // Liste de sélecteurs Back Market à essayer
         const selectorsList = [
@@ -86,8 +43,7 @@
         if (attempts < maxAttempts) {
           setTimeout(check, 400);
         } else {
-          console.log('OKAZ BACKMARKET: Timeout après', maxAttempts, 'tentatives');
-          debugDOM();
+          console.warn('OKAZ BACKMARKET: Timeout après', maxAttempts, 'tentatives');
           // Dernier recours - liens vers produits
           const productLinks = document.querySelectorAll('a[href*="/p/"]');
           resolve({ products: productLinks, selector: 'fallback' });
@@ -100,13 +56,9 @@
 
   // Parser les résultats
   async function parseResults() {
-    console.log('OKAZ BACKMARKET: Début parsing...');
-
     const { products: productElements, selector } = await waitForResults();
     const results = [];
     const seenUrls = new Set();
-
-    console.log(`OKAZ BACKMARKET: Parsing de ${productElements.length} éléments (${selector})`);
 
     productElements.forEach((product, index) => {
       if (index >= 10) return; // Limiter à 10 résultats
@@ -221,11 +173,6 @@
         const hasShipping = true;
         const hasWarranty = true; // Garantie Back Market incluse
 
-        // Debug pour les premiers éléments
-        if (index < 3) {
-          console.log(`OKAZ BACKMARKET DEBUG [${index}]: title="${title?.substring(0, 30)}", price=${price}`);
-        }
-
         if (title && url) {
           results.push({
             id: `bm-${index}-${Date.now()}`,
@@ -268,11 +215,8 @@
   // Écouter les messages du service worker
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.type === 'PARSE_PAGE') {
-      console.log('OKAZ BACKMARKET: Demande de parsing reçue');
-
       (async () => {
         // Scroll pour déclencher lazy loading
-        console.log('OKAZ BACKMARKET: Scroll pour lazy loading...');
         for (let i = 0; i < 3; i++) {
           window.scrollBy(0, 400);
           await new Promise(r => setTimeout(r, 250));
@@ -281,7 +225,6 @@
         await new Promise(r => setTimeout(r, 400));
 
         const results = await parseResults();
-        console.log('OKAZ BACKMARKET: Envoi de', results.length, 'résultats');
         sendResponse({ success: true, results: results });
       })().catch(error => {
         console.error('OKAZ BACKMARKET: Erreur', error);
@@ -294,11 +237,7 @@
 
   // Parser automatiquement si on est sur une page de recherche
   if (window.location.href.includes('/search') || window.location.href.includes('/l/')) {
-    console.log('OKAZ BACKMARKET: Page de recherche détectée');
-
     setTimeout(async () => {
-      console.log('OKAZ BACKMARKET: Scroll pour déclencher lazy loading...');
-
       // Scroll progressif
       for (let i = 0; i < 3; i++) {
         window.scrollBy(0, 400);
@@ -307,10 +246,7 @@
       window.scrollTo(0, 0);
       await new Promise(r => setTimeout(r, 800));
 
-      console.log('OKAZ BACKMARKET: Parsing après scroll...');
       const results = await parseResults();
-
-      console.log('OKAZ BACKMARKET AUTO: Envoi de', results.length, 'résultats au SW');
       chrome.runtime.sendMessage({
         type: 'BACKMARKET_RESULTS',
         results: results,

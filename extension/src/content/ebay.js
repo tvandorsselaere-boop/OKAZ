@@ -3,7 +3,6 @@
 
 (function() {
   console.log('OKAZ: eBay parser v0.8.0 chargé');
-  console.log('OKAZ: URL =', window.location.href);
 
   // Accepter le consentement GDPR si présent
   function acceptConsent() {
@@ -62,7 +61,6 @@
 
     // ===== STRATÉGIE 1 : s-card DOM (eBay 2025) =====
     const cards = document.querySelectorAll('.s-card');
-    console.log(`OKAZ EBAY: ${cards.length} s-cards trouvées`);
 
     if (cards.length > 0) {
       for (const card of cards) {
@@ -98,7 +96,6 @@
           addResult(title, price, url, image);
         } catch (e) {}
       }
-      console.log(`OKAZ EBAY: ${results.length} résultats via s-cards`);
     }
 
     // ===== STRATÉGIE 2 : Liens /itm/ dans le DOM =====
@@ -113,7 +110,6 @@
         });
         links = itmLinks;
       }
-      console.log(`OKAZ EBAY: ${links.length} liens /itm/ trouvés`);
 
       for (const link of links) {
         if (results.length >= maxResults) break;
@@ -154,17 +150,13 @@
           addResult(title, price, url, image);
         } catch (e) {}
       }
-      if (results.length > 0) console.log(`OKAZ EBAY: ${results.length} résultats via liens /itm/`);
     }
-
-    console.log(`OKAZ EBAY: TOTAL ${results.length} résultats`);
     return results;
   }
 
   // Écouter les messages du service worker
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.type === 'PARSE_PAGE') {
-      console.log('OKAZ EBAY: PARSE_PAGE reçue');
 
       (async () => {
         for (let i = 0; i < 3; i++) {
@@ -187,7 +179,6 @@
 
   // Auto-parse si page de recherche
   if (window.location.href.includes('/sch/')) {
-    console.log('OKAZ EBAY: Page de recherche détectée, auto-parse dans 3s...');
 
     setTimeout(async () => {
       try {
@@ -199,7 +190,6 @@
         await new Promise(r => setTimeout(r, 800));
 
         const results = await parseResults();
-        console.log('OKAZ EBAY AUTO:', results.length, 'résultats');
 
         if (results.length > 0) {
           chrome.runtime.sendMessage({
@@ -207,8 +197,6 @@
             results,
             url: window.location.href
           });
-        } else {
-          console.log('OKAZ EBAY AUTO: 0 résultats, le SW retentera');
         }
       } catch (error) {
         console.error('OKAZ EBAY AUTO: Erreur', error);

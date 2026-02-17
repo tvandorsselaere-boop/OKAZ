@@ -3,7 +3,6 @@
 
 (function() {
   console.log('OKAZ: Amazon parser v0.5.0 chargé');
-  console.log('OKAZ: URL =', window.location.href);
 
   // Détection CAPTCHA Amazon
   function isCaptchaPage() {
@@ -22,13 +21,9 @@
       const check = () => {
         attempts++;
 
-        if (attempts % 5 === 1) {
-          console.log(`OKAZ AMAZON: Tentative ${attempts}/${maxAttempts}`);
-        }
-
         // Détection CAPTCHA
         if (isCaptchaPage()) {
-          console.log('OKAZ AMAZON: CAPTCHA détecté, abandon');
+          console.warn('OKAZ AMAZON: CAPTCHA détecté, abandon');
           resolve({ products: [], selector: 'captcha' });
           return;
         }
@@ -50,7 +45,6 @@
             return asin && asin.length > 0;
           });
           if (valid.length > 0) {
-            console.log(`OKAZ AMAZON: ${valid.length} produits avec "${selector}"`);
             resolve({ products: valid, selector });
             return;
           }
@@ -59,7 +53,7 @@
         // Fallback: liens /dp/ si aucun sélecteur structuré ne marche
         if (attempts >= maxAttempts) {
           const dpLinks = document.querySelectorAll('a[href*="/dp/"]');
-          console.log('OKAZ AMAZON: Timeout, fallback liens /dp/:', dpLinks.length);
+          console.warn('OKAZ AMAZON: Timeout, fallback liens /dp/:', dpLinks.length);
           resolve({ products: dpLinks, selector: 'fallback-dp' });
           return;
         }
@@ -73,16 +67,11 @@
 
   // Parser les résultats
   async function parseResults(maxResults = 20) {
-    console.log('OKAZ AMAZON: Début parsing (max:', maxResults, ')...');
-
     const { products: productElements, selector } = await waitForResults();
     const results = [];
     const seenAsins = new Set();
 
-    console.log(`OKAZ AMAZON: Parsing de ${productElements.length} éléments (${selector})`);
-
     if (selector === 'captcha') {
-      console.log('OKAZ AMAZON: Page CAPTCHA, retour vide');
       return [];
     }
 
@@ -191,11 +180,6 @@
           }
         }
 
-        // Debug pour les premiers éléments
-        if (index < 3) {
-          console.log(`OKAZ AMAZON DEBUG [${index}]: asin="${asin}", title="${title?.substring(0, 40)}", price=${price}`);
-        }
-
         // Détecter la condition (neuf vs reconditionné)
         const titleLower = (title || '').toLowerCase();
         const isReconditioned = /reconditionn[eé]|renewed|occasion|refurbished/i.test(title || '');
@@ -230,11 +214,8 @@
   // Écouter les messages du service worker
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.type === 'PARSE_PAGE') {
-      console.log('OKAZ AMAZON: Demande de parsing reçue, maxResults:', request.maxResults || 20);
-
       (async () => {
         // Scroll pour déclencher lazy loading
-        console.log('OKAZ AMAZON: Scroll pour lazy loading...');
         for (let i = 0; i < 3; i++) {
           window.scrollBy(0, 400);
           await new Promise(r => setTimeout(r, 250));
@@ -243,7 +224,6 @@
         await new Promise(r => setTimeout(r, 400));
 
         const results = await parseResults(request.maxResults || 20);
-        console.log('OKAZ AMAZON: Envoi de', results.length, 'résultats');
         sendResponse({ success: true, results: results });
       })().catch(error => {
         console.error('OKAZ AMAZON: Erreur', error);
@@ -256,10 +236,7 @@
 
   // Parser automatiquement si on est sur une page de recherche
   if (window.location.href.includes('/s?') || window.location.href.includes('/s/')) {
-    console.log('OKAZ AMAZON: Page de recherche détectée');
-
     setTimeout(async () => {
-      console.log('OKAZ AMAZON: Scroll pour déclencher lazy loading...');
 
       for (let i = 0; i < 3; i++) {
         window.scrollBy(0, 400);
@@ -268,10 +245,7 @@
       window.scrollTo(0, 0);
       await new Promise(r => setTimeout(r, 800));
 
-      console.log('OKAZ AMAZON: Parsing après scroll...');
       const results = await parseResults();
-
-      console.log('OKAZ AMAZON AUTO: Envoi de', results.length, 'résultats au SW');
       chrome.runtime.sendMessage({
         type: 'AMAZON_RESULTS',
         results: results,

@@ -21,7 +21,7 @@ export default function PrivacyPage() {
         </h1>
 
         <p className="text-sm text-[var(--text-tertiary)] mb-12">
-          Dernière mise à jour : 15 février 2026
+          Dernière mise à jour : 17 février 2026
         </p>
 
         <div className="space-y-10 text-[15px] leading-relaxed text-[var(--text-secondary)]">
@@ -120,7 +120,32 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-3">10. Modifications</h2>
+            <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-3">10. Rétention des données</h2>
+            <ul className="list-disc pl-6 space-y-2">
+              <li><strong>Requêtes de recherche</strong> : non stockées par OKAZ. Envoyées à Google Gemini pour analyse en temps réel, puis supprimées de notre mémoire.</li>
+              <li><strong>Images uploadées</strong> : envoyées à Google Gemini pour analyse visuelle, non stockées par OKAZ.</li>
+              <li><strong>Comptes utilisateurs</strong> : conservés jusqu&apos;à demande de suppression par l&apos;utilisateur.</li>
+              <li><strong>Tokens d&apos;authentification (magic links)</strong> : expirés et supprimés automatiquement après 15 minutes.</li>
+              <li><strong>Tokens JWT révoqués</strong> : supprimés automatiquement après expiration (7 jours).</li>
+              <li><strong>Données de paiement</strong> : les reçus Stripe sont conservés 7 ans conformément aux obligations comptables françaises. OKAZ ne stocke pas vos coordonnées bancaires.</li>
+              <li><strong>Quotas de recherche</strong> : compteurs journaliers, réinitialisés chaque jour. Aucun historique de recherche conservé.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-3">11. Sous-traitants (Art. 28 RGPD)</h2>
+            <p className="mb-3">OKAZ fait appel aux sous-traitants suivants pour le traitement des données :</p>
+            <ul className="list-disc pl-6 space-y-2">
+              <li><strong>Google Cloud (Gemini API)</strong> : analyse IA des requêtes et résultats. Données traitées conformément au Data Processing Addendum de Google Cloud.</li>
+              <li><strong>Supabase</strong> : base de données hébergée en Europe (région EU). Standard DPA.</li>
+              <li><strong>Stripe</strong> : traitement des paiements. Certifié PCI-DSS. Standard DPA.</li>
+              <li><strong>Resend</strong> : envoi d&apos;emails transactionnels (magic links, confirmations). Standard DPA.</li>
+              <li><strong>Vercel</strong> : hébergement du site web. Standard DPA.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-3">12. Modifications</h2>
             <p>
               Cette politique peut être mise à jour. En cas de changement significatif, nous vous en informerons par email ou via le site.
             </p>

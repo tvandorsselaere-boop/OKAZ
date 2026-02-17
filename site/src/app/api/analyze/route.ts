@@ -47,10 +47,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[OKAZ API] Analyse de', results.length, 'résultats pour:', query);
-    if (visualContext) {
-      console.log('[OKAZ API] Contexte visuel:', visualContext);
-    }
+    console.log('[OKAZ Analyze]', results.length, 'results for:', query);
 
     // Convertir en format attendu
     const rawResults: RawResult[] = results.map((r: Record<string, unknown>) => ({
@@ -86,11 +83,6 @@ export async function POST(request: NextRequest) {
     } : undefined;
 
     const { analyzed, topPick } = await analyzeResultsWithGemini(rawResults, query || '', typedVisualContext, typedPriceStats, typedMatchCriteria);
-
-    console.log('[OKAZ API] Analyse terminée:', analyzed.length, 'résultats');
-    if (topPick) {
-      console.log('[OKAZ API] TopPick:', topPick.id, '-', topPick.headline);
-    }
 
     return NextResponse.json({
       success: true,

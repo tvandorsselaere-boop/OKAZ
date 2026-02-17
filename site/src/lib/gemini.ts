@@ -271,7 +271,6 @@ function parseGeminiResponse(text: string, query: string): ParsedGeminiResponse 
     const category = parsed.category || 'autre';
     const sites = SITES_BY_CATEGORY[category] || SITES_BY_CATEGORY.autre;
 
-    console.log(`[Gemini] Catégorie détectée: ${category} → Sites: ${sites.join(', ')}`);
 
     // v0.5.0 - Extraire le contexte visuel (pour l'analyse, pas la recherche)
     let visualContext: VisualContext | undefined;
@@ -286,8 +285,6 @@ function parseGeminiResponse(text: string, query: string): ParsedGeminiResponse 
       // Ne garder que si au moins un champ est défini
       if (!visualContext.color && !visualContext.size && !visualContext.condition && !visualContext.variant) {
         visualContext = undefined;
-      } else {
-        console.log(`[Gemini] Contexte visuel détecté:`, visualContext);
       }
     }
 
@@ -306,7 +303,6 @@ function parseGeminiResponse(text: string, query: string): ParsedGeminiResponse 
           ? parsed.matchCriteria.excludeIfPresent.map(String)
           : [],
       };
-      console.log(`[Gemini] MatchCriteria:`, matchCriteria);
     }
 
     return {
@@ -337,7 +333,6 @@ function parseGeminiResponse(text: string, query: string): ParsedGeminiResponse 
 
 // Construire l'URL Back Market affiliée
 function buildBackMarketUrl(query: string): string {
-  // TODO: Remplacer par le vrai lien affilié une fois le partenariat signé
   const searchTerms = encodeURIComponent(query);
   return `https://www.backmarket.fr/fr-fr/search?q=${searchTerms}&utm_source=okaz&utm_medium=referral&utm_campaign=briefing`;
 }
@@ -460,8 +455,6 @@ export interface OptimizeOptions {
 // v0.5.0 - Fetch metadata from reference URL
 async function fetchReferenceProduct(url: string): Promise<{ title?: string; price?: number; description?: string } | null> {
   try {
-    console.log('[Gemini] Fetching reference URL:', url);
-
     // Parse l'URL pour extraire des infos basiques
     const urlObj = new URL(url);
     const domain = urlObj.hostname.replace('www.', '');
@@ -510,16 +503,8 @@ export async function optimizeQuery(options: OptimizeOptions | string): Promise<
   const opts: OptimizeOptions = typeof options === 'string' ? { query: options } : options;
   const { query, imageBase64, referenceUrl, clarifications } = opts;
 
-  console.log('[Gemini] ====== DÉBUT OPTIMISATION ======');
-  console.log('[Gemini] Requête:', query);
-  console.log('[Gemini] Image:', imageBase64 ? 'OUI (base64)' : 'NON');
-  console.log('[Gemini] Reference URL:', referenceUrl || 'NON');
-  console.log('[Gemini] Clarifications:', clarifications?.length || 0);
-  console.log('[Gemini] Modèle:', GEMINI_MODEL);
-
   // Fallback si pas de clé API
   if (!process.env.GEMINI_API_KEY) {
-    console.log('[Gemini] ❌ Pas de clé API, utilisation du fallback');
     return {
       criteria: {
         keywords: query,
@@ -528,10 +513,7 @@ export async function optimizeQuery(options: OptimizeOptions | string): Promise<
     };
   }
 
-  console.log('[Gemini] ✓ Clé API présente (masquée):', process.env.GEMINI_API_KEY?.substring(0, 10) + '...');
-
   try {
-    console.log('[Gemini] Initialisation client...');
     const genAI = getGeminiClient();
     const model = genAI.getGenerativeModel({
       model: GEMINI_MODEL,
@@ -541,16 +523,13 @@ export async function optimizeQuery(options: OptimizeOptions | string): Promise<
         responseSchema: OPTIMIZE_SCHEMA,
       },
     });
-    console.log('[Gemini] ✓ Client initialisé (structured output, temperature: 0.2)');
 
     // v0.5.0 - Build prompt with context (image + URL)
     const prompt = buildPromptWithContext(query, !!imageBase64, referenceUrl, clarifications);
-    console.log('[Gemini] Envoi requête à l\'API...');
 
     // v0.5.0 - Si image, utiliser Vision
     let result;
     if (imageBase64) {
-      console.log('[Gemini] Mode Vision activé');
       const imagePart = {
         inlineData: {
           data: imageBase64,
@@ -562,12 +541,8 @@ export async function optimizeQuery(options: OptimizeOptions | string): Promise<
       result = await model.generateContent(prompt);
     }
 
-    console.log('[Gemini] ✓ Réponse reçue');
-
     const response = await result.response;
     const text = response.text();
-
-    console.log('[Gemini] Réponse brute:', text);
 
     const { criteria, briefing, visualContext, needsClarification, clarificationQuestion, clarificationOptions } = parseGeminiResponse(text, query);
 
@@ -585,7 +560,6 @@ export async function optimizeQuery(options: OptimizeOptions | string): Promise<
         boostIfPresent: boost,
         excludeIfPresent: [],
       };
-      console.log('[Gemini] MatchCriteria fallback (code-side):', matchCriteria);
     }
 
     const finalCriteria: SearchCriteria = {
@@ -603,18 +577,6 @@ export async function optimizeQuery(options: OptimizeOptions | string): Promise<
       originalQuery: query,
     };
 
-    console.log('[Gemini] ✓ Critères extraits:', JSON.stringify(finalCriteria));
-    if (briefing) {
-      console.log('[Gemini] ✓ Briefing généré:', JSON.stringify(briefing));
-    }
-    if (visualContext) {
-      console.log('[Gemini] ✓ Contexte visuel:', JSON.stringify(visualContext));
-    }
-    if (needsClarification) {
-      console.log('[Gemini] ⚠ Clarification nécessaire:', clarificationQuestion);
-    }
-    console.log('[Gemini] ====== FIN OPTIMISATION ======');
-
     return {
       criteria: finalCriteria,
       briefing,
@@ -625,13 +587,8 @@ export async function optimizeQuery(options: OptimizeOptions | string): Promise<
     };
 
   } catch (error: unknown) {
-    console.error('[Gemini] ❌ ERREUR:', error);
-    if (error instanceof Error) {
-      console.error('[Gemini] Message:', error.message);
-      console.error('[Gemini] Stack:', error.stack);
-    }
+    console.error('[Gemini] Optimize error:', error instanceof Error ? error.message : error);
     // Fallback: retourner la requête originale
-    console.log('[Gemini] Utilisation du fallback (requête brute)');
     return {
       criteria: {
         keywords: query,
@@ -688,23 +645,9 @@ export async function analyzeResultsWithGemini(
   priceStats?: RealPriceStats,   // Prix réels calculés des résultats scrapés
   matchCriteria?: MatchCriteria  // Critères de matching pour validation cohérence
 ): Promise<AnalysisResult> {
-  console.log('[Gemini] ====== ANALYSE DES RÉSULTATS ======');
-  console.log('[Gemini] Nombre de résultats à analyser:', results.length);
-  if (visualContext) {
-    console.log('[Gemini] Contexte visuel:', JSON.stringify(visualContext));
-  }
-  if (matchCriteria) {
-    console.log('[Gemini] MatchCriteria reçu:', JSON.stringify(matchCriteria));
-  }
-
   if (!process.env.GEMINI_API_KEY || results.length === 0) {
-    console.log('[Gemini] Pas de clé API ou pas de résultats, skip analyse');
     return { analyzed: [] };
   }
-
-  // Analyser TOUS les résultats - l'IA est la valeur ajoutée d'OKAZ
-  // Pas de limite artificielle, on track les coûts pour optimiser plus tard
-  console.log('[Gemini] Analyse de TOUS les', results.length, 'résultats');
 
   try {
     const genAI = getGeminiClient();
@@ -720,30 +663,25 @@ export async function analyzeResultsWithGemini(
 
     // Passer le contexte visuel + prix réels + matchCriteria
     const prompt = buildAnalysisPrompt(results, searchQuery, visualContext, priceStats, matchCriteria);
-    console.log('[Gemini] Envoi analyse (structured output)...');
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text();
 
-    console.log('[Gemini] Réponse analyse brute:', text.substring(0, 2000));
-
     const analysisResult = parseAnalysisResponse(text, results);
 
     // Retry si Gemini retourne 0 résultats (rate limit ou erreur transitoire)
     if (analysisResult.analyzed.length === 0 && results.length > 0) {
-      console.warn('[Gemini] ⚠ Analyse vide, retry dans 2s...');
+      console.warn('[Gemini] Empty analysis, retrying in 2s...');
       await new Promise(resolve => setTimeout(resolve, 2000));
       const retryResult = await model.generateContent(prompt);
       const retryResponse = await retryResult.response;
       const retryText = retryResponse.text();
-      console.log('[Gemini] Réponse retry brute:', retryText.substring(0, 2000));
       const retryAnalysis = parseAnalysisResponse(retryText, results);
       if (retryAnalysis.analyzed.length > 0) {
-        console.log('[Gemini] ✓ Retry réussi:', retryAnalysis.analyzed.length, 'résultats');
         return retryAnalysis;
       }
-      console.error('[Gemini] ✗ Retry échoué, retour vide');
+      console.error('[Gemini] Retry failed, returning empty');
     }
 
     return analysisResult;
@@ -884,7 +822,6 @@ function parseAnalysisResponse(text: string, originalResults: RawResult[]): Anal
           ? topPickData.highlights.slice(0, 3).map(String)
           : [],
       };
-      console.log('[Gemini] ✓ TopPick identifié:', topPick.id, '-', topPick.headline);
     }
 
     return { analyzed, topPick };
@@ -911,9 +848,6 @@ export async function recommendNewProduct(
   priceMax: number,
   topResults?: Array<{ title: string; price: number; site: string }>
 ): Promise<NewProductRecommendation> {
-  console.log('[Gemini] ====== RECOMMANDATION NEUF ======');
-  console.log('[Gemini] Recherche:', query, '| Fourchette:', priceMin, '-', priceMax, '€');
-
   if (!process.env.GEMINI_API_KEY) {
     return { hasRecommendation: false };
   }
@@ -957,8 +891,6 @@ Règles :
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text();
-
-    console.log('[Gemini] Réponse recommandation:', text.substring(0, 300));
 
     return parseNewProductResponse(text);
   } catch (error) {

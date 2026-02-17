@@ -22,11 +22,11 @@ export const stripe = {
   get subscriptions() { return getStripe().subscriptions; },
 };
 
-// Price IDs (à créer dans Stripe Dashboard et configurer dans les env vars)
+// Price IDs (configurés dans Stripe Dashboard + env vars Vercel)
 export const STRIPE_PRICES = {
-  BOOST: process.env.STRIPE_PRICE_BOOST || 'price_boost_placeholder',
-  PRO: process.env.STRIPE_PRICE_PRO || 'price_pro_placeholder',
-  PREMIUM: process.env.STRIPE_PRICE_PREMIUM || 'price_premium_placeholder',
+  BOOST: process.env.STRIPE_PRICE_BOOST || '',
+  PRO: process.env.STRIPE_PRICE_PRO || '',
+  PREMIUM: process.env.STRIPE_PRICE_PREMIUM || '',
 };
 
 // Montants en centimes

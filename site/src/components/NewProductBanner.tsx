@@ -92,6 +92,9 @@ export function NewProductBanner({ productName, estimatedPrice, reason, searchQu
               <span className="px-2 py-0.5 text-[10px] font-medium bg-[var(--bg-secondary)] text-[var(--text-secondary)] rounded-full">
                 Amazon
               </span>
+              <span className="text-[9px] text-[var(--text-tertiary)] italic">
+                Lien affilié
+              </span>
             </div>
 
             {/* Raison */}

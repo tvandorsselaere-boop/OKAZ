@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[OKAZ API] Recommandation neuf pour:', query, '| Fourchette:', priceMin, '-', priceMax, '€');
+    console.log('[OKAZ Recommend]', query, `${priceMin}-${priceMax}€`);
 
     const recommendation = await recommendNewProduct(
       query,
@@ -55,8 +55,6 @@ export async function POST(request: NextRequest) {
       Number(priceMax) || 0,
       topResults
     );
-
-    console.log('[OKAZ API] Recommandation:', recommendation.hasRecommendation ? recommendation.productName : 'Aucune');
 
     return NextResponse.json({
       success: true,

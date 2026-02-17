@@ -3,66 +3,6 @@
 
 (function() {
   console.log('OKAZ: LeBonCoin parser v0.5.0 chargé');
-  console.log('OKAZ: URL =', window.location.href);
-
-  // Debug: afficher la structure de la page
-  function debugDOM() {
-    console.log('OKAZ DEBUG: ========== Analyse du DOM ==========');
-    console.log('OKAZ DEBUG: URL:', window.location.href);
-    console.log('OKAZ DEBUG: Title:', document.title);
-
-    // Chercher tous les liens vers des annonces
-    const adLinks = document.querySelectorAll('a[href*="/ad/"]');
-    console.log('OKAZ DEBUG: Liens /ad/ trouvés:', adLinks.length);
-    if (adLinks.length > 0 && adLinks.length < 5) {
-      adLinks.forEach((l, i) => console.log(`  [${i}] ${l.href}`));
-    }
-
-    // Chercher les éléments avec data-testid (nouveau format)
-    const testIdElements = document.querySelectorAll('[data-testid]');
-    console.log('OKAZ DEBUG: Éléments data-testid:', testIdElements.length);
-    if (testIdElements.length > 0) {
-      const testIds = [...new Set([...testIdElements].map(el => el.getAttribute('data-testid')))];
-      console.log('OKAZ DEBUG: data-testid uniques:', testIds.slice(0, 30));
-    }
-
-    // Chercher les éléments avec data-qa-id
-    const qaElements = document.querySelectorAll('[data-qa-id]');
-    console.log('OKAZ DEBUG: Éléments data-qa-id:', qaElements.length);
-    if (qaElements.length > 0) {
-      const qaIds = [...new Set([...qaElements].map(el => el.getAttribute('data-qa-id')))];
-      console.log('OKAZ DEBUG: data-qa-id uniques:', qaIds.slice(0, 20));
-    }
-
-    // Chercher les éléments avec data-test-id
-    const testElements = document.querySelectorAll('[data-test-id]');
-    console.log('OKAZ DEBUG: Éléments data-test-id:', testElements.length);
-
-    // Chercher les articles
-    const articles = document.querySelectorAll('article');
-    console.log('OKAZ DEBUG: Articles:', articles.length);
-
-    // Chercher les divs/li avec classe contenant "ad" ou "card"
-    const adDivs = document.querySelectorAll('[class*="ad"], [class*="Ad"], [class*="card"], [class*="Card"], [class*="listing"], [class*="Listing"]');
-    console.log('OKAZ DEBUG: Éléments ad/card/listing:', adDivs.length);
-
-    // Afficher les classes uniques qui contiennent "ad" ou "card"
-    const allClasses = new Set();
-    document.querySelectorAll('*').forEach(el => {
-      if (el.className && typeof el.className === 'string') {
-        el.className.split(' ').forEach(c => {
-          if (c.toLowerCase().includes('ad') || c.toLowerCase().includes('card') || c.toLowerCase().includes('item')) {
-            allClasses.add(c);
-          }
-        });
-      }
-    });
-    if (allClasses.size > 0) {
-      console.log('OKAZ DEBUG: Classes contenant ad/card/item:', [...allClasses].slice(0, 30));
-    }
-
-    console.log('OKAZ DEBUG: =====================================');
-  }
 
   // Attendre que la page soit complètement chargée
   function waitForResults() {
@@ -72,12 +12,6 @@
 
       const check = () => {
         attempts++;
-
-        // Debug toutes les 5 tentatives
-        if (attempts % 5 === 1) {
-          console.log(`OKAZ: Tentative ${attempts}/${maxAttempts}`);
-          debugDOM();
-        }
 
         // Liste de sélecteurs à essayer (mis à jour pour 2026)
         const selectorsList = [
@@ -124,8 +58,7 @@
         if (attempts < maxAttempts) {
           setTimeout(check, 500);
         } else {
-          console.log('OKAZ: Timeout après', maxAttempts, 'tentatives');
-          debugDOM();
+          console.warn('OKAZ: Timeout après', maxAttempts, 'tentatives');
           // Dernier recours - même si peu de liens
           resolve({ ads: adLinks, selector: 'fallback' });
         }
@@ -137,12 +70,8 @@
 
   // Parser les résultats
   async function parseResults() {
-    console.log('OKAZ: Début parsing...');
-
     const { ads: adElements, selector } = await waitForResults();
     const results = [];
-
-    console.log(`OKAZ: Parsing de ${adElements.length} éléments (${selector})`);
 
     adElements.forEach((ad, index) => {
       if (index >= 10) return; // Limiter à 10 résultats
@@ -334,11 +263,6 @@
                             deliveryText.includes('à venir chercher') ||
                             !hasShipping; // Si pas de livraison détectée, c'est forcément main propre
 
-        // Debug pour les premiers éléments
-        if (index < 5) {
-          console.log(`OKAZ DEBUG [${index}]: title="${title?.substring(0, 30)}", price=${price}, location="${location}", handDelivery=${handDelivery}`);
-        }
-
         if (title && url) {
           results.push({
             id: `lbc-${index}-${Date.now()}`,
@@ -406,11 +330,8 @@
   // Écouter les messages du service worker
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.type === 'PARSE_PAGE') {
-      console.log('OKAZ: Demande de parsing reçue');
-
       // Scroll pour déclencher lazy loading avant parsing
       (async () => {
-        console.log('OKAZ: Scroll pour lazy loading...');
         for (let i = 0; i < 3; i++) {
           window.scrollBy(0, 500);
           await new Promise(r => setTimeout(r, 300));
@@ -419,7 +340,6 @@
         await new Promise(r => setTimeout(r, 500));
 
         const results = await parseResults();
-        console.log('OKAZ: Envoi de', results.length, 'résultats');
         sendResponse({ success: true, results: results });
       })().catch(error => {
         console.error('OKAZ: Erreur', error);
@@ -432,12 +352,8 @@
 
   // Parser automatiquement si on est sur une page de recherche
   if (window.location.href.includes('/recherche')) {
-    console.log('OKAZ: Page de recherche détectée');
-
     // Attendre le chargement initial
     setTimeout(async () => {
-      console.log('OKAZ: Scroll pour déclencher lazy loading...');
-
       // Scroll progressif pour charger les annonces (lazy loading)
       for (let i = 0; i < 3; i++) {
         window.scrollBy(0, 500);
@@ -448,10 +364,7 @@
       window.scrollTo(0, 0);
       await new Promise(r => setTimeout(r, 1000));
 
-      console.log('OKAZ: Parsing après scroll...');
       const results = await parseResults();
-
-      console.log('OKAZ AUTO: Envoi de', results.length, 'résultats au SW');
       chrome.runtime.sendMessage({
         type: 'LEBONCOIN_RESULTS',
         results: results,

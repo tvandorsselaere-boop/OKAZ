@@ -3,7 +3,10 @@ import { SignJWT, jwtVerify } from 'jose';
 import { v4 as uuidv4 } from 'uuid';
 import { createServiceClient } from '@/lib/supabase/server';
 
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'dev-secret-min-32-characters-long');
+if (!process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable must be set');
+}
+const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
 const ISSUER = 'okaz.facile-ia.com';
 const TOKEN_EXPIRY = '365d'; // 1 an
 
@@ -59,8 +62,6 @@ export async function generateToken(userId: string, email: string, premiumUntil?
     .setExpirationTime(TOKEN_EXPIRY)
     .sign(JWT_SECRET);
 
-  console.log('[JWT] Token généré pour', email, 'JTI:', jti.substring(0, 8) + '...');
-
   return token;
 }
 
@@ -79,7 +80,6 @@ export async function verifyToken(token: string): Promise<TokenPayload | null> {
     // Vérifier si révoqué
     const isRevoked = await isTokenRevoked(jti);
     if (isRevoked) {
-      console.log('[JWT] Token révoqué:', jti.substring(0, 8) + '...');
       return null;
     }
 
@@ -92,7 +92,6 @@ export async function verifyToken(token: string): Promise<TokenPayload | null> {
       .single();
 
     if (!user || user.current_token_jti !== jti) {
-      console.log('[JWT] Token non actif pour user:', payload.sub);
       // Ajouter à la blacklist pour éviter de refaire la vérif DB
       const expiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
       await revokeToken(jti, expiresAt);
@@ -130,7 +129,6 @@ export async function revokeToken(jti: string, expiresAt?: Date): Promise<void> 
       expires_at: expiry.toISOString(),
     });
 
-  console.log('[JWT] Token révoqué:', jti.substring(0, 8) + '...');
 }
 
 /**
@@ -171,5 +169,4 @@ export async function revokeAllUserTokens(userId: string): Promise<void> {
     .update({ current_token_jti: null })
     .eq('id', userId);
 
-  console.log('[JWT] Tous les tokens révoqués pour user:', userId);
 }

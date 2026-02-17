@@ -3,43 +3,6 @@
 
 (function() {
   console.log('OKAZ: Vinted parser v0.5.0 chargé');
-  console.log('OKAZ: URL =', window.location.href);
-
-  // Debug: afficher la structure de la page
-  function debugDOM() {
-    console.log('OKAZ DEBUG VINTED: ========== Analyse du DOM ==========');
-    console.log('OKAZ DEBUG: URL:', window.location.href);
-    console.log('OKAZ DEBUG: Title:', document.title);
-
-    // Chercher les éléments avec data-testid
-    const testIdElements = document.querySelectorAll('[data-testid]');
-    console.log('OKAZ DEBUG: Éléments data-testid:', testIdElements.length);
-    if (testIdElements.length > 0) {
-      const testIds = [...new Set([...testIdElements].map(el => el.getAttribute('data-testid')))];
-      console.log('OKAZ DEBUG: data-testid uniques:', testIds.slice(0, 30));
-    }
-
-    // Chercher les liens vers des items
-    const itemLinks = document.querySelectorAll('a[href*="/items/"]');
-    console.log('OKAZ DEBUG: Liens /items/ trouvés:', itemLinks.length);
-
-    // Chercher les classes contenant "item" ou "card"
-    const allClasses = new Set();
-    document.querySelectorAll('*').forEach(el => {
-      if (el.className && typeof el.className === 'string') {
-        el.className.split(' ').forEach(c => {
-          if (c.toLowerCase().includes('item') || c.toLowerCase().includes('card') || c.toLowerCase().includes('product')) {
-            allClasses.add(c);
-          }
-        });
-      }
-    });
-    if (allClasses.size > 0) {
-      console.log('OKAZ DEBUG: Classes contenant item/card/product:', [...allClasses].slice(0, 30));
-    }
-
-    console.log('OKAZ DEBUG VINTED: =====================================');
-  }
 
   // Attendre que la page soit complètement chargée
   function waitForResults() {
@@ -49,12 +12,6 @@
 
       const check = () => {
         attempts++;
-
-        // Debug toutes les 5 tentatives
-        if (attempts % 5 === 1) {
-          console.log(`OKAZ VINTED: Tentative ${attempts}/${maxAttempts}`);
-          debugDOM();
-        }
 
         // Liste de sélecteurs Vinted à essayer
         const selectorsList = [
@@ -87,8 +44,7 @@
         if (attempts < maxAttempts) {
           setTimeout(check, 400);
         } else {
-          console.log('OKAZ VINTED: Timeout après', maxAttempts, 'tentatives');
-          debugDOM();
+          console.warn('OKAZ VINTED: Timeout après', maxAttempts, 'tentatives');
           // Dernier recours - liens vers items
           const itemLinks = document.querySelectorAll('a[href*="/items/"]');
           resolve({ items: itemLinks, selector: 'fallback' });
@@ -101,13 +57,9 @@
 
   // Parser les résultats
   async function parseResults() {
-    console.log('OKAZ VINTED: Début parsing...');
-
     const { items: itemElements, selector } = await waitForResults();
     const results = [];
     const seenUrls = new Set();
-
-    console.log(`OKAZ VINTED: Parsing de ${itemElements.length} éléments (${selector})`);
 
     itemElements.forEach((item, index) => {
       if (index >= 10) return; // Limiter à 10 résultats
@@ -234,11 +186,6 @@
         const handDelivery = false;
         const hasShipping = true;
 
-        // Debug pour les premiers éléments
-        if (index < 3) {
-          console.log(`OKAZ VINTED DEBUG [${index}]: title="${title?.substring(0, 30)}", price=${price}, location="${location}"`);
-        }
-
         if (title && url) {
           results.push({
             id: `vinted-${index}-${Date.now()}`,
@@ -304,11 +251,8 @@
   // Écouter les messages du service worker
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.type === 'PARSE_PAGE') {
-      console.log('OKAZ VINTED: Demande de parsing reçue');
-
       (async () => {
         // Scroll pour déclencher lazy loading
-        console.log('OKAZ VINTED: Scroll pour lazy loading...');
         for (let i = 0; i < 3; i++) {
           window.scrollBy(0, 400);
           await new Promise(r => setTimeout(r, 250));
@@ -317,7 +261,6 @@
         await new Promise(r => setTimeout(r, 400));
 
         const results = await parseResults();
-        console.log('OKAZ VINTED: Envoi de', results.length, 'résultats');
         sendResponse({ success: true, results: results });
       })().catch(error => {
         console.error('OKAZ VINTED: Erreur', error);
@@ -330,11 +273,7 @@
 
   // Parser automatiquement si on est sur une page de catalogue
   if (window.location.href.includes('/catalog') || window.location.href.includes('/vetements') || window.location.href.includes('/search')) {
-    console.log('OKAZ VINTED: Page de recherche détectée');
-
     setTimeout(async () => {
-      console.log('OKAZ VINTED: Scroll pour déclencher lazy loading...');
-
       // Scroll progressif
       for (let i = 0; i < 3; i++) {
         window.scrollBy(0, 400);
@@ -343,10 +282,7 @@
       window.scrollTo(0, 0);
       await new Promise(r => setTimeout(r, 800));
 
-      console.log('OKAZ VINTED: Parsing après scroll...');
       const results = await parseResults();
-
-      console.log('OKAZ VINTED AUTO: Envoi de', results.length, 'résultats au SW');
       chrome.runtime.sendMessage({
         type: 'VINTED_RESULTS',
         results: results,

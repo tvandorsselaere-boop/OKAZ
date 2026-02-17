@@ -7,7 +7,10 @@ import { verifyToken, type TokenPayload } from './jwt';
 import { createServiceClient } from '@/lib/supabase/server';
 
 // Search tokens : signés HMAC (stateless, compatible serverless)
-const SEARCH_TOKEN_SECRET = process.env.JWT_SECRET || 'okaz-search-token-fallback';
+if (!process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable must be set');
+}
+const SEARCH_TOKEN_SECRET = process.env.JWT_SECRET;
 const SEARCH_TOKEN_TTL = 5 * 60 * 1000; // 5 minutes
 
 export interface AuthResult {

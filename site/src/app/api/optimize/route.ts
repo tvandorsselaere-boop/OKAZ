@@ -56,10 +56,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[OKAZ API] Optimisation requête:', query);
-    console.log('[OKAZ API] Image:', imageBase64 ? 'OUI' : 'NON');
-    console.log('[OKAZ API] Reference URL:', referenceUrl || 'NON');
-    console.log('[OKAZ API] Clarifications:', clarifications?.length || 0);
+    console.log('[OKAZ Optimize]', query, imageBase64 ? '+image' : '', clarifications?.length ? `+${clarifications.length} clarif` : '');
 
     // Passer les options enrichies à Gemini
     const { criteria, briefing, visualContext, needsClarification, clarificationQuestion, clarificationOptions } = await optimizeQuery({
@@ -72,12 +69,6 @@ export async function POST(request: NextRequest) {
 
     // Générer un search token pour analyze et recommend-new
     const searchToken = generateSearchToken(authResult.user.sub);
-
-    console.log('[OKAZ API] Critères:', criteria);
-    console.log('[OKAZ API] Briefing:', briefing);
-    console.log('[OKAZ API] Contexte visuel:', visualContext);
-    console.log('[OKAZ API] Clarification:', needsClarification, clarificationQuestion);
-    console.log('[OKAZ API] URL optimisée:', optimizedUrl);
 
     return NextResponse.json({
       success: true,
