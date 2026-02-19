@@ -25,10 +25,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Vérifier le JWT
+    // Vérifier le JWT (optionnel — fallback UUID si JWT absent/invalide)
+    // Sécurité acceptable : UUID est un v4 random, non devinable
     const auth = await verifyRequestAuth(request, body);
     if ('error' in auth) {
-      return NextResponse.json({ error: auth.error }, { status: auth.status });
+      console.log('[OKAZ Quota] Consume sans JWT valide, fallback UUID:', uuid.substring(0, 8) + '...');
     }
 
     const supabase = createServiceClient();

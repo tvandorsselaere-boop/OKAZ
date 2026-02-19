@@ -205,7 +205,21 @@ async function handleSearchWithQuota(query, criteria, sendResponse) {
     }
 
     // Consommer une recherche
-    await self.OkazQuota.consumeSearch();
+    const consumeResult = await self.OkazQuota.consumeSearch();
+    if (consumeResult && consumeResult.allowed === false && consumeResult.source !== 'error') {
+      // Quota réellement épuisé (pas une erreur réseau)
+      const quota = await self.OkazQuota.getQuotaStatus();
+      sendResponse({
+        success: false,
+        error: 'quota_exhausted',
+        quota: quota
+      });
+      return;
+    }
+    // Si erreur réseau/auth sur consume, on laisse passer (fail-open pour l'UX)
+    if (consumeResult && consumeResult.source === 'error') {
+      console.warn('OKAZ SW: consumeSearch failed, proceeding anyway');
+    }
 
     // Lancer la recherche
     handleSearch(query, criteria, sendResponse);
