@@ -28,6 +28,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
+    // L'email du JWT doit correspondre à l'email de la requête
+    if (auth.user.email !== email) {
+      return NextResponse.json({ error: 'Email non autorisé' }, { status: 403 });
+    }
+
     // Valider le type de plan
     const validPlans: PlanType[] = ['pro', 'premium'];
     const plan = validPlans.includes(planType) ? planType as Exclude<PlanType, 'free'> : 'pro';
