@@ -82,20 +82,41 @@ export interface RealPriceStats {
 }
 
 // Calculer les stats de prix à partir des résultats scrapés
+// Filtre les outliers via écart-type pour éviter de mélanger des populations différentes
+// Ex: "macbook M4" → Air (~800€) vs Pro (~1500€+) → médiane faussée sans filtrage
 export function computePriceStats(prices: number[]): RealPriceStats | null {
   const valid = prices.filter(p => p > 0).sort((a, b) => a - b);
   if (valid.length === 0) return null;
 
-  const mid = Math.floor(valid.length / 2);
-  const median = valid.length % 2 === 0
-    ? Math.round((valid[mid - 1] + valid[mid]) / 2)
-    : valid[mid];
+  let filtered = valid;
+
+  // Filtrage outliers si assez de données (≥5 prix)
+  if (valid.length >= 5) {
+    const mean = valid.reduce((s, p) => s + p, 0) / valid.length;
+    const variance = valid.reduce((s, p) => s + (p - mean) ** 2, 0) / valid.length;
+    const stdDev = Math.sqrt(variance);
+
+    // Garder uniquement les prix dans mean ± 1.5 écart-type
+    const lo = mean - 1.5 * stdDev;
+    const hi = mean + 1.5 * stdDev;
+    const trimmed = valid.filter(p => p >= lo && p <= hi);
+
+    // Utiliser le filtrage seulement si on garde au moins 3 prix
+    if (trimmed.length >= 3) {
+      filtered = trimmed;
+    }
+  }
+
+  const mid = Math.floor(filtered.length / 2);
+  const median = filtered.length % 2 === 0
+    ? Math.round((filtered[mid - 1] + filtered[mid]) / 2)
+    : filtered[mid];
 
   return {
     median,
-    min: valid[0],
-    max: valid[valid.length - 1],
-    count: valid.length,
+    min: filtered[0],
+    max: filtered[filtered.length - 1],
+    count: filtered.length,
   };
 }
 
