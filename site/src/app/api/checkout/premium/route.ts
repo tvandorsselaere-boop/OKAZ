@@ -1,23 +1,31 @@
 // OKAZ API - Créer session Stripe pour un abonnement (Pro ou Premium)
 // POST /api/checkout/premium { email, uuid, planType: 'pro' | 'premium' }
+// Requiert JWT
 // Retourne: { checkoutUrl }
 
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe, PLANS, STRIPE_PRICES } from '@/lib/stripe';
 import type { PlanType } from '@/lib/stripe';
-import { maskEmail } from '@/lib/auth/verify-request';
+import { verifyRequestAuth, maskEmail } from '@/lib/auth/verify-request';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, uuid, planType } = await request.json();
+    const body = await request.json();
+    const { email, uuid, planType } = body;
 
     if (!email) {
       return NextResponse.json(
         { error: 'Email requis' },
         { status: 400 }
       );
+    }
+
+    // Vérifier le JWT
+    const auth = await verifyRequestAuth(request, body);
+    if ('error' in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
     // Valider le type de plan

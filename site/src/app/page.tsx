@@ -1558,7 +1558,7 @@ export default function Home() {
               try {
                 await fetch('/api/auth/link-uuid', {
                   method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
+                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                   body: JSON.stringify({ email, uuid: uuidRes.uuid }),
                 });
                 console.log('[OKAZ] UUID lié au compte:', uuidRes.uuid.substring(0, 8) + '...');
@@ -1628,9 +1628,11 @@ export default function Home() {
         throw new Error('UUID non disponible');
       }
 
+      const boostHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (authToken) boostHeaders['Authorization'] = `Bearer ${authToken}`;
       const response = await fetch('/api/checkout/boost', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: boostHeaders,
         body: JSON.stringify({ uuid: uuidResponse.uuid }),
       });
 
@@ -1663,9 +1665,11 @@ export default function Home() {
         chrome.runtime.sendMessage(extensionId, { type: 'GET_UUID' }, resolve);
       });
 
+      const planHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (authToken) planHeaders['Authorization'] = `Bearer ${authToken}`;
       const response = await fetch('/api/checkout/premium', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: planHeaders,
         body: JSON.stringify({
           email,
           uuid: uuidResponse?.uuid || '',
@@ -1699,9 +1703,11 @@ export default function Home() {
 
       if (!uuidResponse?.uuid) return;
 
+      const portalHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (authToken) portalHeaders['Authorization'] = `Bearer ${authToken}`;
       const response = await fetch('/api/checkout/portal', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: portalHeaders,
         body: JSON.stringify({ uuid: uuidResponse.uuid }),
       });
 

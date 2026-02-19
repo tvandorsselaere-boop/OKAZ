@@ -1,21 +1,30 @@
 // OKAZ API - Créer session Stripe pour Pack Boost
 // POST /api/checkout/boost { uuid }
+// Requiert JWT
 // Retourne: { checkoutUrl }
 
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe, STRIPE_PRICES } from '@/lib/stripe';
+import { verifyRequestAuth } from '@/lib/auth/verify-request';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
 export async function POST(request: NextRequest) {
   try {
-    const { uuid } = await request.json();
+    const body = await request.json();
+    const { uuid } = body;
 
     if (!uuid) {
       return NextResponse.json(
         { error: 'UUID requis' },
         { status: 400 }
       );
+    }
+
+    // Vérifier le JWT
+    const auth = await verifyRequestAuth(request, body);
+    if ('error' in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
     console.log('[OKAZ Checkout] Boost pour UUID:', uuid.substring(0, 8) + '...');
