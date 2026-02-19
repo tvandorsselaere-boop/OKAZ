@@ -1,7 +1,7 @@
 import { ImageResponse } from 'next/og';
 
 export const runtime = 'edge';
-export const alt = 'OKAZ - La bonne affaire en 8 secondes';
+export const alt = 'OKAZ - Comparez 5 sites en 30 secondes';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
@@ -10,7 +10,7 @@ export default async function Image() {
     (
       <div
         style={{
-          background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #0F172A 100%)',
+          background: '#F8FAFC',
           width: '100%',
           height: '100%',
           display: 'flex',
@@ -22,28 +22,28 @@ export default async function Image() {
           overflow: 'hidden',
         }}
       >
-        {/* Gradient accent orb */}
+        {/* Subtle accent orb */}
         <div
           style={{
             position: 'absolute',
-            top: '-100px',
-            right: '-100px',
-            width: '500px',
-            height: '500px',
+            top: '-200px',
+            right: '-200px',
+            width: '600px',
+            height: '600px',
             borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(99,102,241,0.3) 0%, transparent 70%)',
+            background: 'radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%)',
             display: 'flex',
           }}
         />
         <div
           style={{
             position: 'absolute',
-            bottom: '-150px',
-            left: '-100px',
+            bottom: '-200px',
+            left: '-200px',
             width: '600px',
             height: '600px',
             borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(139,92,246,0.2) 0%, transparent 70%)',
+            background: 'radial-gradient(circle, rgba(139,92,246,0.06) 0%, transparent 70%)',
             display: 'flex',
           }}
         />
@@ -51,50 +51,50 @@ export default async function Image() {
         {/* Logo */}
         <div
           style={{
-            fontSize: 96,
+            fontSize: 128,
             fontWeight: 700,
-            color: '#FFFFFF',
-            letterSpacing: '-2px',
+            color: '#0F172A',
+            letterSpacing: '-3px',
             display: 'flex',
             alignItems: 'center',
-            gap: '8px',
           }}
         >
-          <span style={{ color: '#818CF8' }}>O</span>
+          <span style={{ color: '#6366F1' }}>O</span>
           <span>KAZ</span>
         </div>
 
         {/* Tagline */}
         <div
           style={{
-            fontSize: 36,
-            color: '#94A3B8',
-            marginTop: '16px',
+            fontSize: 44,
+            fontWeight: 500,
+            color: '#475569',
+            marginTop: '12px',
             display: 'flex',
           }}
         >
-          La bonne affaire en 8 secondes
+          Comparez 5 sites en 30 secondes
         </div>
 
         {/* Sites */}
         <div
           style={{
             display: 'flex',
-            gap: '24px',
+            gap: '32px',
             marginTop: '48px',
-            fontSize: 20,
-            color: '#64748B',
+            fontSize: 28,
+            fontWeight: 500,
           }}
         >
           <span style={{ color: '#F97316' }}>LeBonCoin</span>
-          <span>|</span>
+          <span style={{ color: '#CBD5E1' }}>|</span>
           <span style={{ color: '#2DD4BF' }}>Vinted</span>
-          <span>|</span>
-          <span style={{ color: '#60A5FA' }}>Back Market</span>
-          <span>|</span>
-          <span style={{ color: '#FBBF24' }}>Amazon</span>
-          <span>|</span>
-          <span style={{ color: '#F87171' }}>eBay</span>
+          <span style={{ color: '#CBD5E1' }}>|</span>
+          <span style={{ color: '#3B82F6' }}>Back Market</span>
+          <span style={{ color: '#CBD5E1' }}>|</span>
+          <span style={{ color: '#DAA520' }}>Amazon</span>
+          <span style={{ color: '#CBD5E1' }}>|</span>
+          <span style={{ color: '#EF4444' }}>eBay</span>
         </div>
 
         {/* Badge IA */}
@@ -102,30 +102,30 @@ export default async function Image() {
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '8px',
-            marginTop: '32px',
-            padding: '8px 24px',
+            marginTop: '40px',
+            padding: '12px 32px',
             borderRadius: '999px',
-            background: 'rgba(99,102,241,0.15)',
-            border: '1px solid rgba(99,102,241,0.3)',
-            fontSize: 18,
-            color: '#818CF8',
+            background: 'rgba(99,102,241,0.08)',
+            border: '2px solid rgba(99,102,241,0.2)',
+            fontSize: 24,
+            fontWeight: 500,
+            color: '#6366F1',
           }}
         >
-          Propulsé par l&apos;IA Gemini
+          Analyse IA de chaque annonce
         </div>
 
         {/* Footer */}
         <div
           style={{
             position: 'absolute',
-            bottom: '24px',
-            fontSize: 16,
-            color: '#475569',
+            bottom: '28px',
+            fontSize: 20,
+            color: '#94A3B8',
             display: 'flex',
           }}
         >
-          okaz-ia.fr — par Facile-IA
+          okaz-ia.fr
         </div>
       </div>
     ),
