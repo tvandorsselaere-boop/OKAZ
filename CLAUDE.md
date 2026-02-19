@@ -458,7 +458,7 @@ OKAZ est un **projet Lab** de l'écosystème Facile-IA.
 | Fichier | Role |
 |---------|------|
 | `site/src/app/page.tsx` | Page principale (~2900 lignes) — UI, search flow, resultats, modals, ThemeToggleButton |
-| `site/src/app/layout.tsx` | Layout + Inter font + dark mode script + AdSense |
+| `site/src/app/layout.tsx` | Layout + Inter font + dark mode script + JSON-LD + AdSense |
 | `site/src/components/NewProductBanner.tsx` | Bandeau "Et en neuf ?" (Lucide icon, card-bg) |
 | `site/src/components/ui/glass-card.tsx` | Carte Apple-style (card-bg + shadow, pas de blur) |
 | `site/src/components/ui/liquid-button.tsx` | Bouton flat (accent, secondary, ghost) |
@@ -654,7 +654,7 @@ cd site && npm run test:relevance
 - [x] Dark mode toggle (Sun/Moon, localStorage, toutes les pages)
 - [x] Filtre anti-accessoires Amazon (coque, étui, housse → exclus)
 - [x] Filtre prix aberrant Amazon (< 20% médiane occasion → exclu)
-- [x] Amazon matching via keywordsBM (sans specs RAM/SSD)
+- [x] Amazon matching via keywords complets (avec specs RAM/SSD)
 - [x] Matching post-clarification (criteria.keywords au lieu de q brute)
 - [x] Deploiement Vercel (okaz-ia.fr) ✅ Auto-deploy main
 - [x] Intégration eBay (parser s-card 2025 + 4 stratégies multi-fallback)
@@ -674,7 +674,7 @@ cd site && npm run test:relevance
 - [x] Spinner timeline fix (inline styles pour Tailwind CSS 4 specificite)
 - [x] Message "Pas de resultats a proximite" quand geoloc active sans resultats locaux
 
-### Phase 4.5: Lancement (EN COURS — objectif 15 fev 2026)
+### Phase 4.5: Lancement (EN COURS — en attente validation extension CWS)
 
 #### Chrome Web Store (EN ATTENTE — compte dev en validation)
 - [x] Icone extension 128x128 PNG (existe)
@@ -695,7 +695,7 @@ cd site && npm run test:relevance
 - [x] Page /cgu (freemium, Stripe, affiliation, droit francais)
 - [x] Footer avec liens: Confidentialite | Mentions legales | CGU | FAQ
 - [x] Mention affiliation dans le footer
-- [ ] Bandeau cookies (consentement avant Gemini/Supabase/Stripe/AdSense)
+- [x] Bandeau cookies (consentement, localStorage okaz_consent)
 
 #### FAQ ✅
 - [x] Page /faq (12 questions, accordeon details/summary, design V0)
@@ -703,12 +703,13 @@ cd site && npm run test:relevance
 #### SEO & Meta ✅
 - [x] Favicon (ico existant + apple-touch-icon 180x180)
 - [x] Meta OG (titre, description, locale fr_FR, siteName)
-- [x] Twitter Card (summary)
+- [x] Twitter Card (summary_large_image)
 - [x] Canonical URL + metadataBase
 - [x] robots.txt (avec lien sitemap)
 - [x] sitemap.xml dynamique (/, /privacy, /mentions-legales, /cgu, /faq)
-- [ ] OG Image 1200x630 (pour previews social)
-- [ ] Structured data JSON-LD WebApplication
+- [x] OG Image 1200x630 dynamique (Next.js edge runtime, fond blanc)
+- [x] Structured data JSON-LD WebApplication
+- [x] Wording SEO: "Trouvez la bonne affaire en 30 secondes"
 
 #### Mobile ✅
 - [x] Page mobile MobileLanding (desktop-only explainer)
@@ -716,9 +717,25 @@ cd site && npm run test:relevance
 - [x] Envoi lien par email via Resend (noreply@okaz-ia.fr)
 - [x] API /api/send-link (email HTML brande)
 
-#### Nice-to-have (post-lancement)
+#### Stripe Production ✅
+- [x] Compte Stripe live cree (FacilIA)
+- [x] Produits live: Boost 0.99€, Pro 19.99€/an, Premium 49.99€/an
+- [x] Webhook live configure (okaz-ia.fr/api/webhooks/stripe)
+- [x] Variables Vercel mises a jour (sk_live, price IDs, whsec)
+
+#### Amazon Neuf — Filtrage ameliore ✅
+- [x] Matching via keywords complets (pas keywordsBM)
+- [x] Filtre reconditionne (exclu du "Et en neuf ?")
+- [x] Penalite specs RAM/stockage (ex: 8Go vs 24Go demandes)
+
+#### Google Search Console
+- [x] Site indexe sur Google
+- [ ] Flag "Pages trompeuses" — examen demande (faux positif probable, domaine recent + extension)
+- [ ] Re-indexation apres mise a jour SEO wording
+
+#### Affiliation (EN ATTENTE — apres validation extension CWS)
 - [ ] S'inscrire Amazon Partenaires
-- [ ] S'inscrire Awin editeur + postuler programmes
+- [ ] S'inscrire Awin editeur + postuler programmes (Back Market, Rakuten, eBay, Fnac)
 - [ ] S'inscrire AdSense
 
 ### Phase 5: Sites par Categorie + Musique (ROADMAP)
