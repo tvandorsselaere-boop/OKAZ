@@ -1482,6 +1482,32 @@ export default function Home() {
   const [authMessage, setAuthMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   // Récupérer le quota depuis l'extension
+  // Rafraîchir le quota depuis le SERVEUR (source de vérité, bypass cache extension)
+  const refreshQuotaFromServer = useCallback(async () => {
+    if (!extensionId) return;
+    try {
+      // @ts-ignore
+      if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) return;
+      // Récupérer l'UUID depuis l'extension
+      // @ts-ignore
+      chrome.runtime.sendMessage(extensionId, { type: 'GET_UUID' }, async (uuidRes: { uuid?: string }) => {
+        // @ts-ignore
+        if (chrome.runtime.lastError || !uuidRes?.uuid) return;
+        try {
+          const res = await fetch(`/api/quota/status?uuid=${uuidRes.uuid}`);
+          if (res.ok) {
+            const serverQuota = await res.json();
+            setQuota(serverQuota);
+          }
+        } catch (e) {
+          console.error('[OKAZ] Erreur refresh quota serveur:', e);
+        }
+      });
+    } catch (err) {
+      console.error('[OKAZ] Erreur refresh quota:', err);
+    }
+  }, [extensionId]);
+
   const fetchQuotaFromExtension = useCallback(() => {
     if (!extensionId) return;
     try {
@@ -1595,7 +1621,7 @@ export default function Home() {
     if (params.get('boost') === 'success') {
       console.log('[OKAZ] Achat boost réussi');
       setTimeout(() => {
-        fetchQuotaFromExtension();
+        refreshQuotaFromServer();
       }, 2000);
 
       window.history.replaceState({}, '', window.location.pathname);
@@ -1606,12 +1632,12 @@ export default function Home() {
       const email = params.get('email');
       console.log('[OKAZ] Achat premium réussi pour:', email);
       setTimeout(() => {
-        fetchQuotaFromExtension();
+        refreshQuotaFromServer();
       }, 2000);
 
       window.history.replaceState({}, '', window.location.pathname);
     }
-  }, [extensionConnected, extensionId, fetchQuotaFromExtension]);
+  }, [extensionConnected, extensionId, refreshQuotaFromServer]);
 
   // Handlers pour l'upgrade modal
   const handleBuyBoost = async () => {
@@ -2586,7 +2612,7 @@ export default function Home() {
         } else {
           // Vérifier si c'est une erreur de quota
           if (response?.error === 'quota_exhausted') {
-            fetchQuotaFromExtension(); // Rafraîchir le quota
+            refreshQuotaFromServer(); // Rafraîchir depuis le serveur (source de vérité)
             setShowUpgradeModal(true);
           } else if (response?.error === 'auth_required') {
             setError('Connecte-toi d\'abord via l\'extension OKAZ (clique sur l\'icone de l\'extension)');
@@ -2596,8 +2622,8 @@ export default function Home() {
         }
         setIsSearching(false);
         setSearchPhase('idle');
-        // Rafraîchir le quota après la recherche
-        fetchQuotaFromExtension();
+        // Rafraîchir le quota depuis le serveur (bypass cache extension)
+        refreshQuotaFromServer();
       });
     } catch (err: unknown) {
       // Ne pas afficher d'erreur si c'est un abort volontaire
