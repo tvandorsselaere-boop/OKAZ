@@ -3024,33 +3024,6 @@ main propre Paris ou livraison si garantie"
                 )}
               </AnimatePresence>
 
-              {/* Mini-tuto - remplace les exemples */}
-              {!isSearching && !error && !clarificationData && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.15 }}
-                  className="mt-6 p-4 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--separator)]"
-                >
-                  <div className="flex items-center gap-2 mb-2.5">
-                    <Lightbulb className="w-4 h-4 text-[var(--accent)]" />
-                    <span className="text-xs font-medium text-[var(--text-secondary)]">Plus tu donnes de contexte, meilleurs sont les resultats</span>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5 mb-3">
-                    {['Budget', 'Usage', 'Taille', 'Livraison', 'Etat'].map((tag) => (
-                      <span
-                        key={tag}
-                        className="px-2 py-0.5 text-[10px] font-medium bg-[var(--bg-tertiary)] border border-[var(--separator)] rounded-full text-[var(--text-tertiary)]"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                  <p className="text-xs text-[var(--text-tertiary)] italic">
-                    Ex : &quot;MacBook Pro M2 a moins de 800€ pour coder, bon etat, livrable&quot;
-                  </p>
-                </motion.div>
-              )}
             </div>
             </motion.div>
 
@@ -3153,7 +3126,7 @@ main propre Paris ou livraison si garantie"
               <a href="/faq" className="hover:text-[var(--accent)] transition-colors">FAQ</a>
             </div>
             <p className="mb-3 opacity-60">
-              Liens affiliés Amazon, Back Market, Rakuten. Le classement n&apos;est pas influencé par l&apos;affiliation.
+              Liens affiliés Amazon, Back Market, eBay. Le classement n&apos;est pas influencé par l&apos;affiliation.
             </p>
             <p>
               Un projet{" "}

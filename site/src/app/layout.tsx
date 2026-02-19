@@ -51,7 +51,7 @@ export const metadata: Metadata = {
     locale: "fr_FR",
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "OKAZ - La bonne affaire en 8 secondes",
     description:
       "Comparez 5 sites d'occasion en une recherche. L'IA trouve la meilleure affaire.",
@@ -85,6 +85,34 @@ export default function RootLayout({
                 } catch(e) {}
               })();
             `,
+          }}
+        />
+        {/* JSON-LD Structured Data */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "WebApplication",
+              "name": "OKAZ",
+              "url": "https://okaz-ia.fr",
+              "description": "Comparez LeBonCoin, Vinted, Back Market, Amazon et eBay en une seule recherche. Notre IA analyse chaque annonce et trouve les meilleures affaires.",
+              "applicationCategory": "ShoppingApplication",
+              "operatingSystem": "Chrome",
+              "browserRequirements": "Requires Google Chrome with OKAZ extension",
+              "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "EUR",
+                "description": "5 recherches gratuites par jour"
+              },
+              "author": {
+                "@type": "Organization",
+                "name": "Facile-IA",
+                "url": "https://facile-ia.fr"
+              },
+              "inLanguage": "fr"
+            }),
           }}
         />
         {/* AdSense - Chargé uniquement si configuré */}
