@@ -73,11 +73,21 @@
           seenUrls.add(url);
 
           let title = '';
-          const titleEl = card.querySelector('[class*="title"], [role="heading"], h3, .s-card__title');
-          if (titleEl) title = titleEl.textContent?.trim() || '';
-          if (!title) title = link.textContent?.trim() || '';
-          if (!title) title = link.title || '';
-          title = title.replace(/^(Neuf|D'occasion|Nouveau)\s*[–-]\s*/i, '').replace(/^Sponsorisé\s*/i, '').trim();
+          const titleEl = card.querySelector('.s-card__title, [role="heading"], h3');
+          if (titleEl) {
+            // Prefer innerText (respects hidden elements) over textContent
+            title = titleEl.innerText?.trim() || titleEl.textContent?.trim() || '';
+          }
+          if (!title) title = link.title || link.getAttribute('aria-label') || '';
+          if (!title) title = link.innerText?.trim() || '';
+          // Strip eBay UI text that leaks into titles
+          title = title
+            .replace(/La page s'ouvre dans une nouvelle fen[êe]tre/gi, '')
+            .replace(/Opens in a new (?:window|tab)/gi, '')
+            .replace(/Ouvre dans un nouvel onglet/gi, '')
+            .replace(/^(Neuf|D'occasion|Nouveau)\s*[–-]\s*/i, '')
+            .replace(/^Sponsorisé\s*/i, '')
+            .trim();
           if (!title || title.length < 5) continue;
 
           const price = extractPrice(card.textContent || '');
@@ -129,12 +139,18 @@
           }
           if (!container) container = link.parentElement;
 
-          let title = link.title || '';
+          let title = link.title || link.getAttribute('aria-label') || '';
           if (!title) {
-            const h = container?.querySelector('[role="heading"], h3, [class*="title"]');
-            title = h?.textContent?.trim() || link.textContent?.trim() || '';
+            const h = container?.querySelector('.s-card__title, [role="heading"], h3');
+            title = h?.innerText?.trim() || h?.textContent?.trim() || link.innerText?.trim() || '';
           }
-          title = title.replace(/^(Neuf|D'occasion|Nouveau)\s*[–-]\s*/i, '').replace(/^Sponsorisé\s*/i, '').trim();
+          title = title
+            .replace(/La page s'ouvre dans une nouvelle fen[êe]tre/gi, '')
+            .replace(/Opens in a new (?:window|tab)/gi, '')
+            .replace(/Ouvre dans un nouvel onglet/gi, '')
+            .replace(/^(Neuf|D'occasion|Nouveau)\s*[–-]\s*/i, '')
+            .replace(/^Sponsorisé\s*/i, '')
+            .trim();
           if (!title || title.length < 5) continue;
 
           const price = extractPrice(container?.textContent || '');
