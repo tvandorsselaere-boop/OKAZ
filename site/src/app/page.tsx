@@ -2355,9 +2355,9 @@ export default function Home() {
           const amazonNewWithPrice = amazonNewResults.filter((r: SearchResult) => r.price > 0);
           if (amazonNewWithPrice.length > 0 && correctedResults.length > 0) {
             // DONNÉES RÉELLES : filtrer par pertinence titre puis prendre le moins cher
-            // keywordsBM (générique, sans specs RAM/SSD) matche mieux les titres Amazon
-            // qui n'incluent pas les specs détaillées. Fallback: keywords, puis q
-            const matchQuery = criteria.keywordsBM || criteria.keywords || q;
+            // Pour Amazon neuf, utiliser les keywords COMPLETS (avec specs RAM/SSD)
+            // keywordsBM est trop générique (ex: "MacBook" au lieu de "MacBook 24Go")
+            const matchQuery = criteria.keywords || criteria.keywordsBM || q;
             const stopWords = new Set(['le', 'la', 'les', 'un', 'une', 'des', 'de', 'du', 'en', 'et', 'ou', 'pour', 'pas', 'sur', 'par', 'avec', 'dans', 'bon', 'etat', 'neuf', 'occasion', 'cher', 'prix', 'livrable']);
             const queryTerms = matchQuery.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
               .split(/[\s,;:!?.\-_/]+/)
@@ -2365,10 +2365,24 @@ export default function Home() {
             console.log(`[OKAZ] 7. Matching Amazon avec: "${matchQuery}" → termes: [${queryTerms.join(', ')}]`);
 
             // Scorer chaque résultat Amazon par correspondance avec la requête
+            // + pénaliser si les specs RAM/stockage ne correspondent pas
+            const ramMatch = matchQuery.match(/(\d+)\s*(?:go|gb|ram)/i);
+            const requiredRAM = ramMatch ? parseInt(ramMatch[1]) : 0;
             const scored = amazonNewWithPrice.map((r: SearchResult) => {
               const titleNorm = r.title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
               const matchCount = queryTerms.filter(term => titleNorm.includes(term)).length;
-              const matchRatio = queryTerms.length > 0 ? matchCount / queryTerms.length : 0;
+              let matchRatio = queryTerms.length > 0 ? matchCount / queryTerms.length : 0;
+              // Pénaliser si RAM demandée mais titre contient une RAM bien inférieure
+              if (requiredRAM > 0) {
+                const titleRAMMatch = titleNorm.match(/(\d+)\s*(?:go|gb)/i);
+                if (titleRAMMatch) {
+                  const titleRAM = parseInt(titleRAMMatch[1]);
+                  if (titleRAM < requiredRAM * 0.7) {
+                    console.log(`[OKAZ] 7. Pénalité RAM Amazon: "${r.title}" (${titleRAM}Go vs ${requiredRAM}Go demandés)`);
+                    matchRatio *= 0.3;
+                  }
+                }
+              }
               return { result: r, matchRatio, matchCount };
             });
 
@@ -2377,10 +2391,16 @@ export default function Home() {
 
             // Filtre anti-accessoires : exclure coques, étuis, housses, câbles, etc.
             const accessoryWords = /\b(coque|etui|housse|protection|film|verre\s*tremp|cable|chargeur|adaptateur|support|stand|sac|sacoche|sleeve|skin|sticker|autocollant|compatible\s*avec|pour\s+(?:iphone|macbook|ipad|samsung))\b/i;
+            // Filtre reconditionné : on cherche du NEUF, pas du reconditionné
+            const recondWords = /\b(reconditionn[eé]|renewed|refurbished)\b/i;
             const filtered = relevant.filter(s => {
               const titleLower = s.result.title.toLowerCase();
               if (accessoryWords.test(titleLower)) {
                 console.log(`[OKAZ] 7. Exclu accessoire Amazon: "${s.result.title}" (${s.result.price}€)`);
+                return false;
+              }
+              if (recondWords.test(titleLower) || (s.result as unknown as Record<string, unknown>).condition === 'reconditioned') {
+                console.log(`[OKAZ] 7. Exclu reconditionné Amazon: "${s.result.title}" (${s.result.price}€)`);
                 return false;
               }
               return true;
