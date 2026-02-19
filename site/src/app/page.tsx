@@ -1548,10 +1548,10 @@ export default function Home() {
   // Charger le quota + auth initial quand l'extension est connectée
   useEffect(() => {
     if (extensionConnected && extensionId) {
-      fetchQuotaFromExtension();
+      refreshQuotaFromServer(); // Source de vérité serveur (pas le cache extension)
       fetchAuthFromExtension();
     }
-  }, [extensionConnected, extensionId, fetchQuotaFromExtension, fetchAuthFromExtension]);
+  }, [extensionConnected, extensionId, refreshQuotaFromServer, fetchAuthFromExtension]);
 
   // Gérer les retours d'auth (magic link) et de paiement (Stripe)
   // Auth via fragment hash (#auth=success&token=JWT), Stripe via query params
