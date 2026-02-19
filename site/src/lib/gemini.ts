@@ -738,7 +738,7 @@ IMPORTANT: Vérifie que cette compréhension est COHÉRENTE avec les résultats 
   }
 
   return `Analyse ces annonces pour "${query}".${visualContextSection}${matchCriteriaSection}
-${priceStats ? `Prix marché: médiane ${priceStats.median}€ (${priceStats.count} annonces, ${priceStats.min}-${priceStats.max}€). Utilise cette médiane comme marketPrice.` : ''}
+${priceStats ? `Prix marché RÉEL: médiane ${priceStats.median}€ (basé sur ${priceStats.count} annonces, min ${priceStats.min}€ - max ${priceStats.max}€). OBLIGATION: utilise ${priceStats.median}€ comme marketPrice pour TOUS les résultats. Ne jamais inventer un prix marché différent.` : ''}
 
 ANNONCES:
 ${JSON.stringify(resultsJson)}
@@ -747,8 +747,8 @@ Pour CHAQUE annonce, évalue:
 - confidence (0-100): pertinence par rapport à la recherche. 90+: bon produit, 60-89: probable, 40-59: douteux, <40: hors-sujet
 - relevant: false seulement si accessoire/coque/câble ou produit totalement différent
 - matchDetails: court résumé (ex: "✓ MacBook M3 comme demandé" ou "✗ Housse, pas un ordinateur")
-- marketPrice: estime le prix marché occasion pour CE MODÈLE SPÉCIFIQUE (chaque génération/variante a son propre prix marché).${priceStats ? ` La médiane globale est ${priceStats.median}€ mais adapte par modèle.` : ''}
-- dealScore (1-10): rapport qualité/prix pour CE MODÈLE. Compare le prix au marché du MÊME modèle, pas à la médiane globale. Un produit au prix correct pour son modèle = 5-6, en dessous = 7-10, au-dessus = 1-4
+- marketPrice: ${priceStats ? `utilise ${priceStats.median}€ (médiane réelle de ${priceStats.count} annonces). NE PAS inventer un prix différent.` : 'estime le prix marché occasion basé sur les annonces affichées.'}
+- dealScore (1-10): rapport qualité/prix. Compare le prix de l'annonce à la médiane réelle (marketPrice). Prix < médiane = 7-10 (bonne affaire), prix ≈ médiane = 5-6 (correct), prix > médiane = 1-4 (cher)
 - dealType: excellent/good/fair/overpriced/suspicious
 - redFlags: ["Prix suspect"] si prix <60% du marché de CE modèle, sinon []
 
