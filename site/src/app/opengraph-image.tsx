@@ -73,7 +73,7 @@ export default async function Image() {
             display: 'flex',
           }}
         >
-          Comparez 5 sites en 30 secondes
+          Trouvez la bonne affaire en 30 secondes
         </div>
 
         {/* Sites */}

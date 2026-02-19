@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "OKAZ - La bonne affaire en 8 secondes",
+  title: "OKAZ - Trouvez la bonne affaire en 30 secondes",
   description:
     "Comparez LeBonCoin, Vinted, Back Market, Amazon et eBay en une seule recherche. Notre IA analyse chaque annonce et trouve les meilleures affaires.",
   keywords: [
@@ -42,7 +42,7 @@ export const metadata: Metadata = {
     apple: "/apple-touch-icon.png",
   },
   openGraph: {
-    title: "OKAZ - La bonne affaire en 8 secondes",
+    title: "OKAZ - Trouvez la bonne affaire en 30 secondes",
     description:
       "Comparez LeBonCoin, Vinted, Back Market, Amazon et eBay en une recherche. L'IA analyse chaque annonce.",
     type: "website",
@@ -52,7 +52,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "OKAZ - La bonne affaire en 8 secondes",
+    title: "OKAZ - Trouvez la bonne affaire en 30 secondes",
     description:
       "Comparez 5 sites d'occasion en une recherche. L'IA trouve la meilleure affaire.",
   },
