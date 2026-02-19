@@ -20,7 +20,7 @@ SOLUTION: L'extension Chrome fait le scraping dans le navigateur de l'utilisateu
 - Pas de blocage IP
 ```
 
-### Architecture Actuelle (v1.0.0)
+### Architecture Actuelle (v1.0.1-dev)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -38,7 +38,8 @@ SOLUTION: L'extension Chrome fait le scraping dans le navigateur de l'utilisateu
                           │ (via externally_connectable)
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                   EXTENSION CHROME v1.0.0                   │
+│          EXTENSION CHROME v1.0.0 (CWS publiee)             │
+│          ID: aikbnoohaapncgdfgbnkkcnbmolhakfo               │
 │                   Le moteur de scraping                     │
 │                                                             │
 │  1. Recoit les criteres structures                          │
@@ -131,7 +132,7 @@ SORTIE: { productName, estimatedPrice, reason, searchUrl (Amazon affilie) }
 GEMINI_API_KEY=votre_cle_api
 ```
 
-### Estimation des Prix (v0.8.0)
+### Estimation des Prix (v1.0.1)
 
 ```
 ⚠️ REGLE ABSOLUE: PRIX ANCRES SUR LES DONNEES REELLES ⚠️
@@ -139,16 +140,22 @@ GEMINI_API_KEY=votre_cle_api
 - Prix occasion = médiane des prix scrapés (calculé client-side, pas Gemini)
 - Prix neuf = retourné par /api/recommend-new (Gemini avec contexte résultats réels)
 - Gemini NE DOIT PAS estimer les prix occasion ni neuf dans /api/optimize
+- Gemini NE DOIT PAS inventer un prix marché différent de la médiane réelle
 - Temperature 0.2 sur tous les appels Gemini (reduce hallucinations)
 - Zero données en dur, zero table de prix statique
 ```
 
 Flux des prix :
 1. Extension scrape → prix bruts des annonces
-2. Client calcule la médiane/min/max des prix scrapés (priceStats)
-3. priceStats passé à /api/analyze → Gemini utilise la médiane comme marketPrice
+2. `computePriceStats()` filtre les outliers (mean ± 1.5 ecart-type) puis calcule médiane
+3. priceStats passé à /api/analyze → Gemini DOIT utiliser la médiane comme marketPrice
 4. /api/recommend-new → prix neuf officiel (toujours retourné sauf vintage/auto/immo)
 5. Badges persistants sur la page résultats : "Neuf" (vert) + "Occasion médiane" (bleu)
+
+Filtrage outliers (computePriceStats dans gemini.ts) :
+- Si ≥5 prix : calcule mean + stdDev, garde uniquement mean ± 1.5σ
+- Si <3 prix restent apres filtrage : pas de filtrage (garde tous)
+- Evite de mélanger populations différentes (ex: MacBook Air + Pro)
 
 ---
 
@@ -285,22 +292,40 @@ const finalScore = Math.round((confidence / 100) * 80 + (dealScore / 10) * 20);
 
 ### API Routes Freemium
 
-| Route | Role |
-|-------|------|
-| POST /api/quota/consume | Decremente le quota apres recherche |
-| GET /api/quota/status | Retourne l'etat du quota |
-| POST /api/auth/magic-link | Envoie le magic link |
-| POST /api/auth/verify | Verifie le token |
-| POST /api/checkout/boost | Cree session Stripe (boost) |
-| POST /api/checkout/premium | Cree session Stripe (premium) |
-| POST /api/checkout/portal | Stripe Billing Portal (gestion abo) |
-| POST /api/webhooks/stripe | Webhook Stripe (checkout, sub update/delete, payment_failed) |
-| POST /api/send-link | Envoi lien OKAZ par email (Resend, page mobile) |
+| Route | Auth | Role |
+|-------|------|------|
+| POST /api/quota/consume | JWT optionnel (fallback UUID) | Decremente le quota apres recherche |
+| GET /api/quota/status | Aucune (UUID en query) | Retourne l'etat du quota |
+| POST /api/auth/magic-link | Aucune | Envoie le magic link |
+| POST /api/auth/verify | Aucune | Verifie le token, retourne JWT |
+| POST /api/auth/link-uuid | JWT requis + email match | Lie l'UUID extension au compte user |
+| POST /api/checkout/boost | JWT requis | Cree session Stripe (boost) |
+| POST /api/checkout/premium | JWT requis + email match | Cree session Stripe (abonnement) |
+| POST /api/checkout/portal | JWT requis | Stripe Billing Portal (gestion abo) |
+| POST /api/webhooks/stripe | Signature Stripe | Webhook (checkout, sub update/delete, payment_failed) |
+| POST /api/send-link | Aucune | Envoi lien OKAZ par email (Resend, page mobile) |
+
+### Securite API (v1.0.1)
+
+- `verifyRequestAuth()` dans `site/src/lib/auth/verify-request.ts` verifie le JWT
+- JWT genere par `/api/auth/verify` avec expiration 365j et JTI rotation
+- Routes checkout : JWT obligatoire, email du JWT doit matcher l'email de la requete
+- Route consume : JWT optionnel (l'extension CWS v1.0.0 peut avoir un JWT invalide/absent)
+- Route link-uuid : JWT obligatoire (empeche detournement de compte)
+- robots.txt : `Disallow: /api/` (empeche indexation des routes API)
+
+### Quota — Affichage compteur (v1.0.1)
+
+- Apres chaque recherche, le site appelle `/api/quota/status` directement (source de verite serveur)
+- NE PAS dependre du cache de l'extension (60s, souvent stale)
+- Fonction `refreshQuotaFromServer()` dans page.tsx : GET_UUID → fetch /api/quota/status
+- `fetchQuotaFromExtension()` reste pour le chargement initial uniquement
 
 ### Emails (Resend)
-- Domaine: `okaz-ia.fr` (verifie dans Resend via DNS OVH)
+- Domaine: `okaz-ia.fr` (DKIM + SPF verifies via DNS OVH)
 - From: `OKAZ <noreply@okaz-ia.fr>`
 - Magic link + Email bienvenue Premium
+- DMARC: a configurer sur OVH (`_dmarc.okaz-ia.fr` TXT record) pour reduire spam
 
 ---
 
@@ -439,12 +464,15 @@ OKAZ est un **projet Lab** de l'écosystème Facile-IA.
 | `site/src/app/api/checkout/premium/route.ts` | Session Stripe premium |
 | `site/src/app/api/checkout/portal/route.ts` | Stripe Billing Portal (gestion abo) |
 | `site/src/app/api/webhooks/stripe/route.ts` | Webhook Stripe (checkout, subscription.updated/deleted, payment_failed) |
+| `site/src/app/api/auth/link-uuid/route.ts` | Lie UUID extension au compte apres magic link |
 
 ### Site Web — Libraries
 
 | Fichier | Role |
 |---------|------|
-| `site/src/lib/gemini.ts` | Service Gemini + Structured Output schemas (OPTIMIZE_SCHEMA, ANALYZE_SCHEMA) + MatchCriteria |
+| `site/src/lib/auth/verify-request.ts` | Middleware JWT (verifyRequestAuth) |
+| `site/src/lib/auth/jwt.ts` | Generation/verification JWT (365j, JTI rotation) |
+| `site/src/lib/gemini.ts` | Service Gemini + Structured Output schemas (OPTIMIZE_SCHEMA, ANALYZE_SCHEMA) + MatchCriteria + computePriceStats |
 | `site/src/lib/scoring.ts` | Scoring multi-criteres + categorisation |
 | `site/src/lib/affiliate.ts` | Wrapping liens affilies (Awin + Amazon) |
 | `site/src/lib/geo.ts` | Geolocation, geocoding (ville + code postal + dept), calcul distance |
@@ -469,17 +497,29 @@ OKAZ est un **projet Lab** de l'écosystème Facile-IA.
 
 ### Extension Chrome
 
+**CWS publiee : ID `aikbnoohaapncgdfgbnkkcnbmolhakfo`**
+**Version CWS actuelle : v1.0.0 — Version locale : v1.0.1-dev**
+
 | Fichier | Role |
 |---------|------|
-| `extension/manifest.json` | Config v0.5.0 + externally_connectable |
-| `extension/src/background/service-worker.js` | Orchestrateur (SEARCH, PING, GET_QUOTA, GET_UUID, SAVE_AUTH, CLEAR_AUTH) |
+| `extension/manifest.json` | Config v1.0.0 + externally_connectable |
+| `extension/src/background/service-worker.js` | Orchestrateur (SEARCH, PING, GET_QUOTA, GET_UUID, GET_AUTH, SAVE_AUTH, CLEAR_AUTH) |
 | `extension/src/content/leboncoin.js` | Parser DOM LeBonCoin |
 | `extension/src/content/vinted.js` | Parser DOM Vinted |
 | `extension/src/content/backmarket.js` | Parser DOM Back Market |
 | `extension/src/content/amazon.js` | Parser DOM Amazon (neuf + seconde main) |
 | `extension/src/content/ebay.js` | Parser DOM eBay v0.8.0 (s-card 2025 + /itm/ fallback) |
-| `extension/src/lib/quota.js` | Gestion quota cote extension |
+| `extension/src/lib/quota.js` | Gestion quota cote extension (UUID, JWT, cache, consume) |
 | `extension/src/popup/popup.js` | Popup extension |
+
+#### Changements locaux NON publies sur CWS (a inclure dans v1.0.1)
+
+| Fichier | Changement | Impact |
+|---------|-----------|--------|
+| `service-worker.js` | Verification resultat `consumeSearch()` — bloque si quota epuise | Empeche recherche gratuite si consume echoue |
+| `ebay.js` | `innerText` au lieu de `textContent` + strip texte UI eBay | Corrige titres eBay pollues ("La page s'ouvre dans une nouvelle fenetre") |
+
+Pour publier v1.0.1 : mettre a jour version dans manifest.json, creer nouveau zip, soumettre sur CWS.
 
 ### Tests
 
@@ -564,14 +604,26 @@ cd site && npx tsc --noEmit
 # Site - Build
 cd site && npm run build
 
-# Site - Deploy
-cd site && vercel --prod
+# Site - Deploy (auto-deploy depuis main, sinon manual "Create Deployment" sur Vercel)
+git push origin main
 
 # Tests pertinence
 cd site && npm run test:relevance
 
 # Extension - Recharger dans chrome://extensions apres modifications
+# Extension - Publier nouvelle version CWS:
+#   1. Mettre a jour version dans extension/manifest.json
+#   2. Creer zip du dossier extension/
+#   3. Soumettre sur Chrome Developer Dashboard
 ```
+
+## Deploiement
+
+- **Site** : Vercel auto-deploy depuis `main` branch
+- **Git remote** : `https://github.com/tvandorsselaere-boop/OKAZ.git`
+- **Attention** : si l'auto-deploy ne se declenche pas, faire "Create Deployment" manuellement dans le dashboard Vercel (lie au rename du repo okaz → OKAZ)
+- **Extension CWS** : mise a jour manuelle (nouveau zip + soumission sur CWS dashboard)
+- **User teste sur PROD** (okaz-ia.fr) → commit + push main pour deployer
 
 ---
 
@@ -674,20 +726,16 @@ cd site && npm run test:relevance
 - [x] Spinner timeline fix (inline styles pour Tailwind CSS 4 specificite)
 - [x] Message "Pas de resultats a proximite" quand geoloc active sans resultats locaux
 
-### Phase 4.5: Lancement (EN COURS — en attente validation extension CWS)
+### Phase 4.5: Lancement (EN COURS — beta famille/amis)
 
-#### Chrome Web Store (EN ATTENTE — compte dev en validation)
-- [x] Icone extension 128x128 PNG (existe)
+#### Chrome Web Store ✅ PUBLIEE
+- [x] Extension publiee : ID `aikbnoohaapncgdfgbnkkcnbmolhakfo`
 - [x] Manifest v1.0.0
-- [x] Description courte + longue Chrome Web Store (textes prets)
-- [x] Categorie (Shopping) + tags
-- [x] Politique de confidentialite (okaz-ia.fr/privacy)
-- [x] Justification permissions (textes prets pour formulaire CWS)
-- [x] Zip extension pret (okaz-extension-v1.0.0.zip)
-- [x] Compte dev Chrome cree (5$, en attente validation ~2-3j)
-- [ ] Screenshots extension (1280x800 ou 640x400)
-- [ ] Soumettre pour review (des que compte valide)
-- [ ] Mettre a jour `externally_connectable` avec l'ID publie
+- [x] `externally_connectable` avec ID publie (hardcode dans page.tsx)
+- [x] Site detecte auto l'extension publiee au chargement
+- [x] Lien CWS dans l'onboarding (remplace saisie manuelle d'ID)
+- [ ] Screenshots extension (1280x800 ou 640x400) — pour la fiche CWS
+- [ ] Publier v1.0.1 (fix eBay titres + consume result check)
 
 #### RGPD / Legal ✅
 - [x] Page /privacy (RGPD, Gemini, Supabase, Stripe, eBay, light/dark)
@@ -700,12 +748,18 @@ cd site && npm run test:relevance
 #### FAQ ✅
 - [x] Page /faq (12 questions, accordeon details/summary, design V0)
 
+#### Securite ✅
+- [x] JWT sur toutes les routes checkout (boost, premium, portal)
+- [x] JWT + email match sur checkout/premium et auth/link-uuid
+- [x] JWT optionnel sur quota/consume (fallback UUID pour compat extension CWS v1.0.0)
+- [x] robots.txt: `Disallow: /api/`
+
 #### SEO & Meta ✅
 - [x] Favicon (ico existant + apple-touch-icon 180x180)
 - [x] Meta OG (titre, description, locale fr_FR, siteName)
 - [x] Twitter Card (summary_large_image)
 - [x] Canonical URL + metadataBase
-- [x] robots.txt (avec lien sitemap)
+- [x] robots.txt (avec lien sitemap + Disallow /api/)
 - [x] sitemap.xml dynamique (/, /privacy, /mentions-legales, /cgu, /faq)
 - [x] OG Image 1200x630 dynamique (Next.js edge runtime, fond blanc)
 - [x] Structured data JSON-LD WebApplication
@@ -723,6 +777,11 @@ cd site && npm run test:relevance
 - [x] Webhook live configure (okaz-ia.fr/api/webhooks/stripe)
 - [x] Variables Vercel mises a jour (sk_live, price IDs, whsec)
 
+#### Qualite scoring ✅
+- [x] Filtrage outliers prix (ecart-type) dans computePriceStats
+- [x] Gemini force a utiliser la mediane reelle (plus d'invention de prix)
+- [x] Compteur recherches rafraichi depuis le serveur (plus de cache stale)
+
 #### Amazon Neuf — Filtrage ameliore ✅
 - [x] Matching via keywords complets (pas keywordsBM)
 - [x] Filtre reconditionne (exclu du "Et en neuf ?")
@@ -733,7 +792,12 @@ cd site && npm run test:relevance
 - [ ] Flag "Pages trompeuses" — examen demande (faux positif probable, domaine recent + extension)
 - [ ] Re-indexation apres mise a jour SEO wording
 
-#### Affiliation (EN ATTENTE — apres validation extension CWS)
+#### Email deliverabilite
+- [x] DKIM + SPF verifies (Resend)
+- [ ] DMARC DNS record a configurer sur OVH (`_dmarc.okaz-ia.fr`)
+- Note: les comptes enfant Google bloquent les emails transactionnels
+
+#### Affiliation (EN ATTENTE — apres retours beta)
 - [ ] S'inscrire Amazon Partenaires
 - [ ] S'inscrire Awin editeur + postuler programmes (Back Market, Rakuten, eBay, Fnac)
 - [ ] S'inscrire AdSense
@@ -836,4 +900,4 @@ Plan : Finir desktop → Prototype RN → Tester stores → Fallback PWA si reje
 
 ---
 
-*Mis a jour le 15 fevrier 2026 - v1.0.0-rc3 (Structured Output + MatchCriteria + Flash Lite + Scoring Quality)*
+*Mis a jour le 19 fevrier 2026 - v1.0.1-dev (Extension CWS publiee + Securite API + Scoring outliers + Quota serveur)*
