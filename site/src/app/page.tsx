@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Sparkles, Shield, ArrowLeft, ExternalLink, AlertTriangle, Settings, Check, Wand2, TrendingDown, Lightbulb, BadgeCheck, ShoppingBag, X, MapPin, Navigation, Camera, MessageCircle, Monitor, Mail, CheckCircle, Sun, Moon, Award, Handshake, Target, Package, ListFilter, ChevronDown, Loader2 } from "lucide-react";
+import { Search, Sparkles, Shield, ArrowLeft, ExternalLink, AlertTriangle, Settings, Check, Wand2, TrendingDown, Lightbulb, BadgeCheck, ShoppingBag, X, MapPin, Navigation, Camera, MessageCircle, Monitor, Mail, CheckCircle, Sun, Moon, Award, Handshake, Target, Package, ListFilter, ChevronDown, Loader2, Chrome } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 
 import { UpgradeModal, SearchCounter } from "@/components/ui/upgrade-modal";
@@ -29,7 +29,9 @@ interface QuotaStatus {
   totalRemaining: number;
 }
 
-// Extension ID - will be loaded from localStorage or env
+// Extension ID - published on Chrome Web Store
+const PUBLISHED_EXTENSION_ID = 'aikbnoohaapncgdfgbnkkcnbmolhakfo';
+const CWS_URL = `https://chromewebstore.google.com/detail/okaz-comparateur-dannonces/${PUBLISHED_EXTENSION_ID}`;
 const EXTENSION_ID_KEY = 'okaz_extension_id';
 
 interface ExtensionResponse {
@@ -1137,31 +1139,27 @@ function LoadingBriefing({ briefing, searchPhase }: { briefing: SearchBriefing |
 }
 
 function ExtensionSetup({ onSave }: { onSave: (id: string) => void }) {
-  const [extensionId, setExtensionId] = useState('');
+  const [showDevInput, setShowDevInput] = useState(false);
+  const [devId, setDevId] = useState('');
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
 
-  const testConnection = async () => {
-    if (!extensionId.trim()) return;
-
+  const testDevConnection = async () => {
+    if (!devId.trim()) return;
     setTesting(true);
     setTestResult(null);
-
     try {
-      // @ts-ignore - chrome is available in browser
+      // @ts-ignore
       if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
         // @ts-ignore
-        chrome.runtime.sendMessage(extensionId.trim(), { type: 'PING' }, (response: ExtensionResponse) => {
+        chrome.runtime.sendMessage(devId.trim(), { type: 'PING' }, (response: ExtensionResponse) => {
           // @ts-ignore
-          if (chrome.runtime.lastError) {
-            // @ts-ignore
-            console.error('Extension error:', chrome.runtime.lastError);
+          if (chrome.runtime.lastError || !response || !response.success) {
             setTestResult('error');
-          } else if (response && response.success) {
-            setTestResult('success');
-            onSave(extensionId.trim());
           } else {
-            setTestResult('error');
+            setTestResult('success');
+            localStorage.setItem(EXTENSION_ID_KEY, devId.trim());
+            onSave(devId.trim());
           }
           setTesting(false);
         });
@@ -1169,10 +1167,22 @@ function ExtensionSetup({ onSave }: { onSave: (id: string) => void }) {
         setTestResult('error');
         setTesting(false);
       }
-    } catch (err) {
-      console.error('Test error:', err);
+    } catch {
       setTestResult('error');
       setTesting(false);
+    }
+  };
+
+  const handleRetry = () => {
+    // @ts-ignore
+    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+      // @ts-ignore
+      chrome.runtime.sendMessage(PUBLISHED_EXTENSION_ID, { type: 'PING' }, (response: ExtensionResponse) => {
+        // @ts-ignore
+        if (!chrome.runtime.lastError && response && response.success) {
+          onSave(PUBLISHED_EXTENSION_ID);
+        }
+      });
     }
   };
 
@@ -1180,57 +1190,64 @@ function ExtensionSetup({ onSave }: { onSave: (id: string) => void }) {
     <div className="space-y-6">
       <div className="text-center">
         <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-[var(--accent)]/10 flex items-center justify-center">
-          <Settings className="w-8 h-8 text-[var(--accent)]" />
+          <Chrome className="w-8 h-8 text-[var(--accent)]" />
         </div>
-        <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">Configuration requise</h2>
+        <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">Extension Chrome requise</h2>
         <p className="text-sm text-[var(--text-secondary)]">
-          Connectez l&apos;extension Chrome pour utiliser OKAZ
+          Installez l&apos;extension OKAZ pour comparer les annonces
         </p>
       </div>
 
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm text-[var(--text-secondary)] mb-2">
-            ID de l&apos;extension Chrome
-          </label>
-          <input
-            type="text"
-            value={extensionId}
-            onChange={(e) => setExtensionId(e.target.value)}
-            placeholder="Ex: abcdefghijklmnopqrstuvwxyz123456"
-            className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--separator)] rounded-xl text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/30 focus:border-[var(--accent)]"
-          />
-        </div>
-
-        <div className="text-xs text-[var(--text-tertiary)] space-y-1">
-          <p>Pour trouver l&apos;ID :</p>
-          <ol className="list-decimal list-inside space-y-1 ml-2">
-            <li>Ouvrez <code className="bg-[var(--bg-tertiary)] px-1 rounded">chrome://extensions</code></li>
-            <li>Activez le &quot;Mode developpeur&quot;</li>
-            <li>Trouvez &quot;OKAZ&quot; et copiez l&apos;ID</li>
-          </ol>
-        </div>
-
-        {testResult === 'error' && (
-          <div className="p-3 bg-[var(--score-low)]/10 border border-[var(--score-low)]/20 rounded-xl text-[var(--score-low)] text-sm">
-            Connexion echouee. Verifiez que l&apos;extension est installee et l&apos;ID est correct.
-          </div>
-        )}
-
-        {testResult === 'success' && (
-          <div className="p-3 bg-[var(--score-high)]/10 border border-[var(--score-high)]/20 rounded-xl text-[var(--score-high)] text-sm flex items-center gap-2">
-            <Check className="w-4 h-4" />
-            Extension connectee avec succes !
-          </div>
-        )}
+      <div className="space-y-3">
+        <a
+          href={CWS_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white font-medium transition-all"
+        >
+          <ExternalLink className="w-4 h-4" />
+          Installer depuis le Chrome Web Store
+        </a>
 
         <button
-          onClick={testConnection}
-          disabled={!extensionId.trim() || testing}
-          className="w-full py-3 px-4 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white font-medium transition-all"
+          onClick={handleRetry}
+          className="w-full py-3 px-4 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] border border-[var(--separator)] text-[var(--text-primary)] font-medium transition-all"
         >
-          {testing ? 'Test en cours...' : 'Tester la connexion'}
+          Deja installee ? Reessayer la connexion
         </button>
+      </div>
+
+      <div className="pt-2 border-t border-[var(--separator)]">
+        <button
+          onClick={() => setShowDevInput(!showDevInput)}
+          className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors"
+        >
+          Mode developpeur
+        </button>
+
+        {showDevInput && (
+          <div className="mt-3 space-y-3">
+            <input
+              type="text"
+              value={devId}
+              onChange={(e) => setDevId(e.target.value)}
+              placeholder="ID extension personnalise"
+              className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--separator)] rounded-xl text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/30 focus:border-[var(--accent)] text-sm"
+            />
+            {testResult === 'error' && (
+              <div className="p-3 bg-[var(--score-low)]/10 border border-[var(--score-low)]/20 rounded-xl text-[var(--score-low)] text-sm">
+                Connexion echouee.
+              </div>
+            )}
+            <button
+              onClick={testDevConnection}
+              disabled={!devId.trim() || testing}
+              className="w-full py-2 px-4 rounded-xl bg-[var(--bg-tertiary)] hover:bg-[var(--separator)] disabled:opacity-50 text-[var(--text-primary)] text-sm font-medium transition-all"
+            >
+              {testing ? 'Test...' : 'Tester'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1712,45 +1729,46 @@ export default function Home() {
     setGeolocEnabled(!geolocEnabled);
   };
 
-  // Load extension ID from localStorage on mount
+  // Load extension ID on mount - try published ID first, then localStorage fallback
   useEffect(() => {
-    const savedId = localStorage.getItem(EXTENSION_ID_KEY);
-    if (savedId) {
-      setExtensionId(savedId);
-      // Test connection
-      testExtensionConnection(savedId);
-    } else {
-      setShowSetup(true);
-    }
-  }, []);
-
-  const testExtensionConnection = useCallback((id: string) => {
-    try {
-      // @ts-ignore
-      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+    const tryConnect = (id: string, onFail: () => void) => {
+      try {
         // @ts-ignore
-        chrome.runtime.sendMessage(id, { type: 'PING' }, (response: ExtensionResponse) => {
+        if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
           // @ts-ignore
-          if (chrome.runtime.lastError || !response || !response.success) {
-            setExtensionConnected(false);
-            setShowSetup(true);
-          } else {
-            setExtensionConnected(true);
-            setShowSetup(false);
-          }
+          chrome.runtime.sendMessage(id, { type: 'PING' }, (response: ExtensionResponse) => {
+            // @ts-ignore
+            if (chrome.runtime.lastError || !response || !response.success) {
+              onFail();
+            } else {
+              setExtensionId(id);
+              setExtensionConnected(true);
+              setShowSetup(false);
+            }
+          });
+        } else {
+          onFail();
+        }
+      } catch {
+        onFail();
+      }
+    };
+
+    // Try published ID first
+    tryConnect(PUBLISHED_EXTENSION_ID, () => {
+      // Fallback: try saved custom ID (dev mode)
+      const savedId = localStorage.getItem(EXTENSION_ID_KEY);
+      if (savedId && savedId !== PUBLISHED_EXTENSION_ID) {
+        tryConnect(savedId, () => {
+          setShowSetup(true);
         });
       } else {
-        setExtensionConnected(false);
         setShowSetup(true);
       }
-    } catch {
-      setExtensionConnected(false);
-      setShowSetup(true);
-    }
+    });
   }, []);
 
   const handleSaveExtensionId = (id: string) => {
-    localStorage.setItem(EXTENSION_ID_KEY, id);
     setExtensionId(id);
     setExtensionConnected(true);
     setShowSetup(false);
