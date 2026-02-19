@@ -1,0 +1,35 @@
+// OKAZ API - Lier l'UUID extension au compte utilisateur
+// POST /api/auth/link-uuid { email, uuid }
+// Met à jour extension_uuid après connexion magic link
+
+import { NextRequest, NextResponse } from 'next/server';
+import { createServiceClient } from '@/lib/supabase/server';
+
+export async function POST(request: NextRequest) {
+  try {
+    const { email, uuid } = await request.json();
+
+    if (!email || !uuid) {
+      return NextResponse.json({ error: 'Email et UUID requis' }, { status: 400 });
+    }
+
+    const supabase = createServiceClient();
+
+    const { error } = await supabase
+      .from('okaz_users')
+      .update({ extension_uuid: uuid, updated_at: new Date().toISOString() })
+      .eq('email', email);
+
+    if (error) {
+      console.error('[OKAZ Auth] Erreur link-uuid:', error);
+      return NextResponse.json({ error: 'Erreur mise à jour' }, { status: 500 });
+    }
+
+    console.log('[OKAZ Auth] UUID lié pour:', email, '→', uuid.substring(0, 8) + '...');
+    return NextResponse.json({ success: true });
+
+  } catch (error) {
+    console.error('[OKAZ Auth] Erreur link-uuid:', error);
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
+  }
+}

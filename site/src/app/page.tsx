@@ -1551,7 +1551,23 @@ export default function Home() {
           email,
           premiumUntil: null,
         }, () => {
-          fetchQuotaFromExtension();
+          // Lier le UUID de cette extension au compte utilisateur
+          // @ts-ignore
+          chrome.runtime.sendMessage(extensionId, { type: 'GET_UUID' }, async (uuidRes: { uuid?: string }) => {
+            if (uuidRes?.uuid) {
+              try {
+                await fetch('/api/auth/link-uuid', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ email, uuid: uuidRes.uuid }),
+                });
+                console.log('[OKAZ] UUID lié au compte:', uuidRes.uuid.substring(0, 8) + '...');
+              } catch (e) {
+                console.error('[OKAZ] Erreur link-uuid:', e);
+              }
+            }
+            fetchQuotaFromExtension();
+          });
         });
       }
 
