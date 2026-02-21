@@ -2965,8 +2965,8 @@ main propre Paris ou livraison si garantie"
               {/* Options sous le textarea */}
               <div className="mt-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  {/* Preview image uploadée */}
-                  {uploadedImage && (
+                  {/* Preview image uploadée / lien upload */}
+                  {uploadedImage ? (
                     <button
                       type="button"
                       onClick={handleRemoveImage}
@@ -2974,6 +2974,15 @@ main propre Paris ou livraison si garantie"
                     >
                       <span className="truncate max-w-[80px]">{uploadedImage.name}</span>
                       <X className="w-3 h-3" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => imageInputRef.current?.click()}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs bg-[var(--bg-secondary)] border border-[var(--separator)] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-all"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Rechercher par photo</span>
                     </button>
                   )}
 
