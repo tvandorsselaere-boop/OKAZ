@@ -927,40 +927,43 @@ function SearchResults({ data, onBack, onRefine }: { data: { query: string; cate
             </span>
           </div>
 
-          {/* Ligne 2 : badges prix + bouton affiner */}
-          <div className="flex items-center gap-2 flex-wrap mt-2">
-            {totalResults > 0 && briefing && briefing.newProductPrice && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--score-high)]/10 border border-[var(--score-high)]/20">
-                <ShoppingBag className="w-3 h-3 text-[var(--score-high)]" />
-                <span className="text-[11px] text-[var(--score-high)] font-medium">Neuf : {briefing.newProductPrice.label}</span>
-              </div>
-            )}
-            {totalResults > 0 && briefing && briefing.marketPriceRange && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--accent)]/10 border border-[var(--accent)]/20">
-                <TrendingDown className="w-3 h-3 text-[var(--accent)]" />
-                <span className="text-[11px] text-[var(--accent)] font-medium">
+          {/* Ligne 2 : badges prix (gris neutre) */}
+          {totalResults > 0 && briefing && (briefing.newProductPrice || briefing.marketPriceRange || (briefing.warningText && briefing.warningPrice > 0)) && (
+            <div className="flex items-center gap-2 flex-wrap mt-2 text-[var(--text-secondary)]">
+              {briefing.newProductPrice && (
+                <span className="text-[11px]">Neuf : {briefing.newProductPrice.label}</span>
+              )}
+              {briefing.newProductPrice && briefing.marketPriceRange && (
+                <span className="text-[var(--text-tertiary)]">&middot;</span>
+              )}
+              {briefing.marketPriceRange && (
+                <span className="text-[11px]">
                   Occasion : med. {briefing.marketPriceRange.median}€
                   {briefing.marketPriceRange.count && (
-                    <span className="text-[var(--accent)]/50 ml-0.5">({briefing.marketPriceRange.count})</span>
+                    <span className="text-[var(--text-tertiary)] ml-0.5">({briefing.marketPriceRange.count} annonces)</span>
                   )}
                 </span>
-              </div>
-            )}
-            {totalResults > 0 && briefing && briefing.warningPrice > 0 && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--score-low)]/10 border border-[var(--score-low)]/20">
-                <AlertTriangle className="w-3 h-3 text-[var(--score-low)]" />
-                <span className="text-[11px] text-[var(--score-low)] font-medium">{briefing.warningText}</span>
-              </div>
-            )}
+              )}
+              {briefing.warningPrice > 0 && briefing.warningText && (
+                <>
+                  <span className="text-[var(--text-tertiary)]">&middot;</span>
+                  <span className="text-[11px] flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" />
+                    {briefing.warningText}
+                  </span>
+                </>
+              )}
+            </div>
+          )}
 
-            <button
-              onClick={() => setShowRefine(!showRefine)}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] border border-[var(--separator)] text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all ml-auto"
-            >
-              <MessageCircle className="w-3 h-3" />
-              Affiner
-            </button>
-          </div>
+          {/* Ligne 3 : bouton Affiner la recherche (accent) */}
+          <button
+            onClick={() => setShowRefine(!showRefine)}
+            className="flex items-center gap-2 w-full mt-3 px-3 py-2 rounded-xl bg-[var(--accent)]/10 hover:bg-[var(--accent)]/20 border border-[var(--accent)]/20 text-sm text-[var(--accent)] font-medium transition-all"
+          >
+            <MessageCircle className="w-4 h-4" />
+            Affiner la recherche
+          </button>
 
           {/* Formulaire d'affinage (expandable) */}
           <AnimatePresence>
