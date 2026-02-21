@@ -12,6 +12,7 @@ import { randomBytes } from 'crypto';
 const TOKEN_EXPIRY_MINUTES = 15;
 
 export async function POST(request: NextRequest) {
+  console.log('[OKAZ Auth] Magic-link request received from:', getClientIP(request.headers));
   try {
     const { email } = await request.json();
 

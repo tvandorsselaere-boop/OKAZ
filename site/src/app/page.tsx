@@ -1976,8 +1976,9 @@ export default function Home() {
       } else {
         setAuthMessage({ text: data.error || 'Erreur lors de l\'envoi', type: 'error' });
       }
-    } catch {
-      setAuthMessage({ text: 'Erreur de connexion au serveur', type: 'error' });
+    } catch (err) {
+      console.error('[OKAZ Auth] Fetch magic-link failed:', err);
+      setAuthMessage({ text: 'Erreur de connexion au serveur. Vérifie ta connexion internet et réessaie.', type: 'error' });
     }
     setAuthSending(false);
   };
