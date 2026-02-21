@@ -313,7 +313,59 @@ export function SmartAdSlot({
   );
 }
 
+// eBay Smart Placement — widget dynamique EPN
+// Nécessite NEXT_PUBLIC_EPN_PLACEMENT_ID (data-config-id du dashboard EPN)
+export function EbaySmartPlacement({
+  keywords,
+  className = "",
+}: {
+  keywords: string;
+  className?: string;
+}) {
+  const placementId = process.env.NEXT_PUBLIC_EPN_PLACEMENT_ID;
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!placementId || !containerRef.current) return;
+
+    // Nettoyer le contenu précédent (changement de keywords)
+    containerRef.current.innerHTML = "";
+
+    // Créer l'élément <ins> attendu par epn-smart-tools.js
+    const ins = document.createElement("ins");
+    ins.className = "epn-placement";
+    ins.setAttribute("data-config-id", placementId);
+    if (keywords) {
+      ins.setAttribute("data-keyword", keywords);
+    }
+    ins.setAttribute("data-marketplace-id", "EBAY_FR");
+    containerRef.current.appendChild(ins);
+
+    // Re-déclencher le scan du script EPN pour les nouveaux éléments
+    if (typeof window !== "undefined" && (window as EPNWindow)._epn_process) {
+      (window as EPNWindow)._epn_process!();
+    }
+  }, [placementId, keywords]);
+
+  // Pas de config-id → fallback bannière affiliée classique
+  if (!placementId) {
+    return <AffiliateBanner site="ebay" keywords={keywords} className={className} />;
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      className={`ebay-smart-placement rounded-2xl overflow-hidden ${className}`}
+      style={{ minHeight: 250, width: "100%" }}
+    />
+  );
+}
+
 // Déclarations TypeScript pour les objets globaux des régies
+interface EPNWindow extends Window {
+  _epn_process?: () => void;
+}
+
 declare global {
   interface Window {
     _mNHandle?: unknown;

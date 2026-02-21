@@ -123,6 +123,8 @@ export default function RootLayout({
             crossOrigin="anonymous"
           />
         )}
+        {/* eBay Smart Placements */}
+        <script async src="https://epnt.ebay.com/static/epn-smart-tools.js" />
       </head>
       <body
         className={`${inter.variable} ${geistMono.variable} antialiased`}

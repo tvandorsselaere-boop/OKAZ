@@ -1,6 +1,6 @@
 "use client";
 
-import { SmartAdSlot, AffiliateBanner } from "./AdSlot";
+import { SmartAdSlot, AffiliateBanner, EbaySmartPlacement } from "./AdSlot";
 
 interface AdSidebarProps {
   keywords?: string[];
@@ -15,12 +15,12 @@ const hasAdNetwork =
 export function AdSidebar({ keywords = [], phase = "loading" }: AdSidebarProps) {
   const keywordsStr = keywords.length > 0 ? keywords.join(" ") : "";
 
-  // Si pas de régie configurée → afficher 1 Amazon + 1 eBay (pas de duplication)
+  // Si pas de régie configurée → Amazon affiliate + eBay Smart Placement
   if (!hasAdNetwork && keywordsStr) {
     return (
       <div className="flex flex-col gap-4 w-full">
         <AffiliateBanner site="amazon" keywords={keywordsStr} />
-        <AffiliateBanner site="ebay" keywords={keywordsStr} />
+        <EbaySmartPlacement keywords={keywordsStr} />
       </div>
     );
   }
