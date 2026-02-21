@@ -898,109 +898,116 @@ function SearchResults({ data, onBack, onRefine }: { data: { query: string; cate
           </div>
         </div>
 
+        {/* Résumé de la recherche — carte unifiée */}
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="px-4 py-3 rounded-[20px] bg-[var(--card-bg)] border border-[var(--separator)] shadow-[var(--card-shadow)]"
+          className="rounded-[20px] bg-[var(--card-bg)] border border-[var(--separator)] shadow-[var(--card-shadow)] overflow-hidden"
         >
-          <div className="flex items-center gap-3 flex-wrap">
-            <span className="text-[var(--text-primary)] font-medium">{query}</span>
-            {wasOptimized && criteria && (
-              <>
-                <span className="text-[var(--text-tertiary)]">&rarr;</span>
-                <div className="flex items-center gap-1.5 text-xs text-[var(--accent)]">
-                  <Wand2 className="w-3 h-3" />
-                  {criteria.keywords}
-                </div>
-                {criteria.category && (
-                  <span className="text-[10px] bg-[var(--accent)]/10 px-1.5 py-0.5 rounded text-[var(--accent)]">
-                    {criteria.category}
-                  </span>
-                )}
-              </>
-            )}
-            <span className="text-xs text-[var(--text-tertiary)] ml-auto flex-shrink-0">
-              {totalResults} resultat{totalResults > 1 ? 's' : ''} &middot; {(duration / 1000).toFixed(1)}s
-            </span>
+          {/* En-tête : requête + stats */}
+          <div className="px-4 pt-4 pb-3">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-[11px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider">Resume de la recherche</p>
+              <span className="text-[11px] text-[var(--text-tertiary)]">
+                {totalResults} resultat{totalResults > 1 ? 's' : ''} &middot; {(duration / 1000).toFixed(1)}s
+              </span>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[var(--text-primary)] font-semibold">{query}</span>
+              {wasOptimized && criteria && (
+                <>
+                  <span className="text-[var(--text-tertiary)]">&rarr;</span>
+                  <div className="flex items-center gap-1.5 text-xs text-[var(--accent)]">
+                    <Wand2 className="w-3 h-3" />
+                    {criteria.keywords}
+                  </div>
+                  {criteria.category && (
+                    <span className="text-[10px] bg-[var(--accent)]/10 px-1.5 py-0.5 rounded text-[var(--accent)]">
+                      {criteria.category}
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
           </div>
 
-          {/* Affiner la recherche */}
-          <AnimatePresence mode="wait">
-            {!showRefine ? (
-              <motion.div key="btn" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="mt-2 pt-2 border-t border-[var(--separator)]">
-                <button
-                  onClick={() => setShowRefine(true)}
-                  className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--accent)] transition-colors"
-                >
-                  <MessageCircle className="w-3.5 h-3.5" />
-                  Affiner la recherche
-                </button>
-              </motion.div>
-            ) : (
-              <motion.div key="form" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mt-2 pt-2 border-t border-[var(--separator)]">
-                <form onSubmit={(e) => { e.preventDefault(); if (refineText.trim()) onRefine(refineText.trim()); }} className="flex gap-2">
-                  <input
-                    type="text"
-                    value={refineText}
-                    onChange={(e) => setRefineText(e.target.value)}
-                    placeholder="Ex: plutot en 256Go, budget max 400€..."
-                    className="flex-1 px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--separator)] rounded-xl text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/30 focus:border-[var(--accent)] text-xs"
-                    autoFocus
-                  />
-                  <button
-                    type="submit"
-                    disabled={!refineText.trim()}
-                    className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white text-xs font-medium transition-all whitespace-nowrap"
-                  >
-                    Relancer
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setShowRefine(false); setRefineText(''); }}
-                    className="px-2 py-2 rounded-xl text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </form>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </motion.div>
+          {/* Prix : neuf, occasion, méfiance */}
+          {totalResults > 0 && briefing && (briefing.newProductPrice || briefing.marketPriceRange) && (
+            <div className="px-4 pb-3 flex flex-wrap gap-2">
+              {briefing.newProductPrice && (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--score-high)]/10 border border-[var(--score-high)]/20">
+                  <ShoppingBag className="w-3.5 h-3.5 text-[var(--score-high)]" />
+                  <span className="text-xs text-[var(--score-high)] font-medium">Neuf : {briefing.newProductPrice.label}</span>
+                </div>
+              )}
+              {briefing.marketPriceRange && (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--accent)]/10 border border-[var(--accent)]/20">
+                  <TrendingDown className="w-3.5 h-3.5 text-[var(--accent)]" />
+                  <span className="text-xs text-[var(--accent)] font-medium">
+                    Occasion : mediane {briefing.marketPriceRange.median}€
+                    {briefing.marketPriceRange.count && (
+                      <span className="text-[var(--accent)]/50 ml-1">({briefing.marketPriceRange.count} annonces)</span>
+                    )}
+                  </span>
+                </div>
+              )}
+              {briefing.warningPrice > 0 && (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--score-low)]/10 border border-[var(--score-low)]/20">
+                  <AlertTriangle className="w-3.5 h-3.5 text-[var(--score-low)]" />
+                  <span className="text-xs text-[var(--score-low)] font-medium">{briefing.warningText}</span>
+                </div>
+              )}
+            </div>
+          )}
 
-        {/* Briefing prix — persistant sur la page de résultats */}
-        {totalResults > 0 && briefing && (briefing.newProductPrice || briefing.marketPriceRange) && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
-            className="flex flex-wrap gap-2"
-          >
-            {briefing.newProductPrice && (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--score-high)]/10 border border-[var(--score-high)]/20">
-                <ShoppingBag className="w-3.5 h-3.5 text-[var(--score-high)]" />
-                <span className="text-xs text-[var(--score-high)] font-medium">Neuf : {briefing.newProductPrice.label}</span>
-              </div>
-            )}
-            {briefing.marketPriceRange && (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--accent)]/10 border border-[var(--accent)]/20">
-                <TrendingDown className="w-3.5 h-3.5 text-[var(--accent)]" />
-                <span className="text-xs text-[var(--accent)] font-medium">
-                  Occasion : mediane {briefing.marketPriceRange.median}€
-                  {briefing.marketPriceRange.count && (
-                    <span className="text-[var(--accent)]/50 ml-1">({briefing.marketPriceRange.count} annonces)</span>
-                  )}
-                </span>
-              </div>
-            )}
-            {briefing.warningPrice > 0 && (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--score-low)]/10 border border-[var(--score-low)]/20">
-                <AlertTriangle className="w-3.5 h-3.5 text-[var(--score-low)]" />
-                <span className="text-xs text-[var(--score-low)] font-medium">{briefing.warningText}</span>
-              </div>
-            )}
-          </motion.div>
-        )}
+          {/* Affiner la recherche */}
+          <div className="px-4 py-3 border-t border-[var(--separator)]">
+            <AnimatePresence mode="wait">
+              {!showRefine ? (
+                <motion.button
+                  key="btn"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setShowRefine(true)}
+                  className="flex items-center gap-2 w-full px-3 py-2 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] border border-[var(--separator)] text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  Affiner la recherche
+                </motion.button>
+              ) : (
+                <motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                  <p className="text-xs text-[var(--text-secondary)] mb-2">Dis-nous ce qui ne va pas, on relance avec tes precisions</p>
+                  <form onSubmit={(e) => { e.preventDefault(); if (refineText.trim()) onRefine(refineText.trim()); }} className="flex gap-2">
+                    <input
+                      type="text"
+                      value={refineText}
+                      onChange={(e) => setRefineText(e.target.value)}
+                      placeholder="Ex: plutot en 256Go, budget max 400€..."
+                      className="flex-1 px-3 py-2.5 bg-[var(--bg-secondary)] border border-[var(--separator)] rounded-xl text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/30 focus:border-[var(--accent)] text-sm"
+                      autoFocus
+                    />
+                    <button
+                      type="submit"
+                      disabled={!refineText.trim()}
+                      className="px-4 py-2.5 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white text-sm font-medium transition-all whitespace-nowrap"
+                    >
+                      Relancer
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setShowRefine(false); setRefineText(''); }}
+                      className="px-2 py-2 rounded-xl text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </form>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </motion.div>
 
         {totalResults === 0 && (
           <div className="text-center py-12">
