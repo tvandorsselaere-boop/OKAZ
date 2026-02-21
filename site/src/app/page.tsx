@@ -1219,7 +1219,10 @@ function ExtensionSetup({ onSave }: { onSave: (id: string) => void }) {
     }
   };
 
+  const [retryFailed, setRetryFailed] = useState(false);
+
   const handleRetry = () => {
+    setRetryFailed(false);
     // @ts-ignore
     if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
       // @ts-ignore
@@ -1227,8 +1230,12 @@ function ExtensionSetup({ onSave }: { onSave: (id: string) => void }) {
         // @ts-ignore
         if (!chrome.runtime.lastError && response && response.success) {
           onSave(PUBLISHED_EXTENSION_ID);
+        } else {
+          setRetryFailed(true);
         }
       });
+    } else {
+      setRetryFailed(true);
     }
   };
 
@@ -1293,6 +1300,11 @@ function ExtensionSetup({ onSave }: { onSave: (id: string) => void }) {
         >
           Deja installee ? Reessayer la connexion
         </button>
+        {retryFailed && (
+          <p className="text-xs text-[var(--score-low)] text-center">
+            Extension non detectee. Installe-la d&apos;abord puis recharge cette page.
+          </p>
+        )}
       </div>
 
       <div className="pt-2 border-t border-[var(--separator)]">
