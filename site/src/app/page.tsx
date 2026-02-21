@@ -1180,6 +1180,13 @@ function ExtensionSetup({ onSave }: { onSave: (id: string) => void }) {
   // Detect Chromium-based browsers via user agent (chrome.runtime absent en navigation privee)
   const isChromium = typeof navigator !== 'undefined' && /Chrome|Chromium/i.test(navigator.userAgent);
 
+  // Detect outdated Chrome (< 144)
+  const MIN_CHROME_VERSION = 144;
+  const chromeVersion = typeof navigator !== 'undefined'
+    ? parseInt(navigator.userAgent.match(/Chrome\/(\d+)/)?.[1] || '0', 10)
+    : 0;
+  const isChromeOutdated = isChromium && chromeVersion > 0 && chromeVersion < MIN_CHROME_VERSION;
+
   const testDevConnection = async () => {
     if (!devId.trim()) return;
     setTesting(true);
@@ -1560,6 +1567,13 @@ export default function Home() {
   const [authEmail, setAuthEmail] = useState('');
   const [authSending, setAuthSending] = useState(false);
   const [authMessage, setAuthMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  // Detect outdated Chrome
+  const MIN_CHROME_VERSION = 144;
+  const chromeVersion = typeof navigator !== 'undefined'
+    ? parseInt(navigator.userAgent.match(/Chrome\/(\d+)/)?.[1] || '0', 10)
+    : 0;
+  const isChromeOutdated = chromeVersion > 0 && chromeVersion < MIN_CHROME_VERSION;
 
   // Récupérer le quota depuis l'extension
   // Rafraîchir le quota depuis le SERVEUR (source de vérité, bypass cache extension)
@@ -1956,7 +1970,7 @@ export default function Home() {
     }
   };
 
-  // Envoyer magic link depuis le site
+  // Envoyer magic link depuis le site (avec retry automatique)
   const handleSendMagicLink = async () => {
     if (!authEmail.trim() || !authEmail.includes('@')) {
       setAuthMessage({ text: 'Entre une adresse email valide', type: 'error' });
@@ -1964,21 +1978,37 @@ export default function Home() {
     }
     setAuthSending(true);
     setAuthMessage(null);
-    try {
-      const res = await fetch('/api/auth/magic-link', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: authEmail.trim() }),
-      });
-      const data = await res.json();
-      if (res.ok && data.sent) {
-        setAuthMessage({ text: 'Email envoyé ! Clique sur le lien dans ton email.', type: 'success' });
-      } else {
-        setAuthMessage({ text: data.error || 'Erreur lors de l\'envoi', type: 'error' });
+
+    const maxRetries = 2;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const res = await fetch('/api/auth/magic-link', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: authEmail.trim() }),
+        });
+        const data = await res.json();
+        if (res.ok && data.sent) {
+          setAuthMessage({ text: 'Email envoyé ! Clique sur le lien dans ton email.', type: 'success' });
+          setAuthSending(false);
+          return;
+        } else {
+          setAuthMessage({ text: data.error || 'Erreur lors de l\'envoi', type: 'error' });
+          setAuthSending(false);
+          return;
+        }
+      } catch (err) {
+        console.error(`[OKAZ Auth] Fetch magic-link failed (attempt ${attempt + 1}):`, err);
+        if (attempt < maxRetries) {
+          await new Promise(r => setTimeout(r, 1000));
+          continue;
+        }
+        // Tous les retries ont échoué
+        const msg = isChromeOutdated
+          ? `Erreur de connexion. Ton navigateur (Chrome ${chromeVersion}) est obsolète — mets-le à jour pour continuer.`
+          : 'Erreur de connexion au serveur. Vérifie ta connexion internet et réessaie.';
+        setAuthMessage({ text: msg, type: 'error' });
       }
-    } catch (err) {
-      console.error('[OKAZ Auth] Fetch magic-link failed:', err);
-      setAuthMessage({ text: 'Erreur de connexion au serveur. Vérifie ta connexion internet et réessaie.', type: 'error' });
     }
     setAuthSending(false);
   };
@@ -2844,6 +2874,11 @@ export default function Home() {
                 <p className="text-xs text-[var(--text-secondary)] text-center mb-4">
                   Entre ton email une seule fois pour activer ton compte. Ensuite, la connexion est automatique.
                 </p>
+                {isChromeOutdated && (
+                  <div className="mb-3 p-3 rounded-xl text-sm text-center" style={{ background: 'rgba(245, 158, 11, 0.1)', color: 'var(--score-medium)', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+                    Ton navigateur (Chrome {chromeVersion}) est obsolète. <a href="https://www.google.com/chrome/" target="_blank" rel="noopener noreferrer" className="underline font-medium">Mets Chrome à jour</a> pour eviter les erreurs.
+                  </div>
+                )}
                 {authMessage && (
                   <div className={`mb-3 p-3 rounded-xl text-sm text-center ${
                     authMessage.type === 'success'
