@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { query, imageBase64, referenceUrl, clarifications } = body;
+    const { query, imageBase64, referenceUrl, clarifications, refinement } = body;
 
     if (!query || typeof query !== 'string') {
       return NextResponse.json(
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[OKAZ Optimize]', query, imageBase64 ? '+image' : '', clarifications?.length ? `+${clarifications.length} clarif` : '');
+    console.log('[OKAZ Optimize]', query, imageBase64 ? '+image' : '', clarifications?.length ? `+${clarifications.length} clarif` : '', refinement ? '+refinement' : '');
 
     // Passer les options enrichies à Gemini
     const { criteria, briefing, visualContext, needsClarification, clarificationQuestion, clarificationOptions } = await optimizeQuery({
@@ -64,6 +64,7 @@ export async function POST(request: NextRequest) {
       imageBase64,
       referenceUrl,
       clarifications,
+      refinement,
     });
     const optimizedUrl = buildLeBonCoinUrl(criteria);
 

@@ -471,6 +471,7 @@ export interface OptimizeOptions {
   imageBase64?: string;      // Image produit (base64)
   referenceUrl?: string;     // URL de référence (Amazon, Fnac, Apple...)
   clarifications?: Array<{ question: string; answer: string }>;  // Réponses aux clarifications précédentes
+  refinement?: string;       // Feedback utilisateur pour affiner une recherche précédente
 }
 
 // v0.5.0 - Fetch metadata from reference URL
@@ -491,7 +492,7 @@ async function fetchReferenceProduct(url: string): Promise<{ title?: string; pri
 }
 
 // Build prompt with image context and clarification history
-function buildPromptWithContext(query: string, hasImage: boolean, referenceUrl?: string, clarifications?: Array<{ question: string; answer: string }>): string {
+function buildPromptWithContext(query: string, hasImage: boolean, referenceUrl?: string, clarifications?: Array<{ question: string; answer: string }>, refinement?: string): string {
   let contextInfo = '';
 
   if (hasImage) {
@@ -515,6 +516,12 @@ Extrais le nom du produit et les specs de l'URL si possible.`;
     contextInfo += `\n\nIMPORTANT: Tu as DÉJÀ obtenu ces informations. Utilise-les pour générer les critères de recherche. Si tu as encore besoin d'une précision DIFFÉRENTE, tu peux poser UNE DERNIÈRE question. Sinon, génère directement les critères avec needsClarification: false.`;
   }
 
+  if (refinement) {
+    contextInfo += `\n\nAFFINAGE: L'utilisateur a deja lance cette recherche mais les resultats ne correspondaient pas. Voici son retour:
+"${refinement}"
+Ajuste les criteres de recherche (keywords, matchCriteria, priceMax, category, excludeIfPresent) en tenant compte de ce feedback. Ne pose PAS de question de clarification, genere directement les criteres affines avec needsClarification: false.`;
+  }
+
   return buildPrompt(query) + contextInfo;
 }
 
@@ -522,7 +529,7 @@ Extrais le nom du produit et les specs de l'URL si possible.`;
 export async function optimizeQuery(options: OptimizeOptions | string): Promise<OptimizeResult> {
   // Compatibilité: accepter string ou options object
   const opts: OptimizeOptions = typeof options === 'string' ? { query: options } : options;
-  const { query, imageBase64, referenceUrl, clarifications } = opts;
+  const { query, imageBase64, referenceUrl, clarifications, refinement } = opts;
 
   // Fallback si pas de clé API
   if (!process.env.GEMINI_API_KEY) {
@@ -546,7 +553,7 @@ export async function optimizeQuery(options: OptimizeOptions | string): Promise<
     });
 
     // v0.5.0 - Build prompt with context (image + URL)
-    const prompt = buildPromptWithContext(query, !!imageBase64, referenceUrl, clarifications);
+    const prompt = buildPromptWithContext(query, !!imageBase64, referenceUrl, clarifications, refinement);
 
     // v0.5.0 - Si image, utiliser Vision
     let result;

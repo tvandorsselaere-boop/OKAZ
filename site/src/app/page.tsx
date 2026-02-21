@@ -857,8 +857,10 @@ function HandDeliverySection({ results, userLocation }: { results: AnalyzedResul
   );
 }
 
-function SearchResults({ data, onBack }: { data: { query: string; categorized: CategorizedResults; totalResults: number; duration: number; criteria?: SearchCriteria; topPick?: TopPick; userLocation?: { lat: number; lng: number }; newRecommendation?: NewRecommendation | null; briefing?: SearchBriefing | null }; onBack: () => void }) {
+function SearchResults({ data, onBack, onRefine }: { data: { query: string; categorized: CategorizedResults; totalResults: number; duration: number; criteria?: SearchCriteria; topPick?: TopPick; userLocation?: { lat: number; lng: number }; newRecommendation?: NewRecommendation | null; briefing?: SearchBriefing | null }; onBack: () => void; onRefine: (feedback: string) => void }) {
   const { categorized, totalResults, duration, query, criteria, topPick, userLocation, newRecommendation, briefing } = data;
+  const [showRefine, setShowRefine] = useState(false);
+  const [refineText, setRefineText] = useState('');
   const { results } = categorized;
 
   // v0.5.0 - Nouveau layout simplifié avec 2 top choices
@@ -994,6 +996,47 @@ function SearchResults({ data, onBack }: { data: { query: string; categorized: C
           excludeIds={excludeIds}
           userLocation={userLocation}
         />
+
+        {/* Affiner la recherche — discret */}
+        {totalResults > 0 && (
+          <div className="mt-6 text-center">
+            {!showRefine ? (
+              <button
+                onClick={() => setShowRefine(true)}
+                className="text-xs text-[var(--text-tertiary)] hover:text-[var(--accent)] transition-colors"
+              >
+                Pas ce que tu cherchais ? <span className="underline">Affiner</span>
+              </button>
+            ) : (
+              <motion.div
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="max-w-md mx-auto"
+              >
+                <p className="text-xs text-[var(--text-secondary)] mb-2">
+                  Explique ce qui ne va pas, on relance avec tes precisions
+                </p>
+                <form onSubmit={(e) => { e.preventDefault(); if (refineText.trim()) onRefine(refineText.trim()); }} className="flex gap-2">
+                  <input
+                    type="text"
+                    value={refineText}
+                    onChange={(e) => setRefineText(e.target.value)}
+                    placeholder="Ex: je cherche en 256Go, budget max 400€..."
+                    className="flex-1 px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--separator)] rounded-xl text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/30 focus:border-[var(--accent)] text-xs"
+                    autoFocus
+                  />
+                  <button
+                    type="submit"
+                    disabled={!refineText.trim()}
+                    className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white text-xs font-medium transition-all whitespace-nowrap"
+                  >
+                    Relancer
+                  </button>
+                </form>
+              </motion.div>
+            )}
+          </div>
+        )}
 
         {/* Mention légale affiliation */}
         {totalResults > 0 && (
@@ -1144,6 +1187,9 @@ function ExtensionSetup({ onSave }: { onSave: (id: string) => void }) {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
 
+  // Detect Chromium-based browsers (Chrome, Edge, Brave, Opera, Vivaldi)
+  const isChromium = typeof window !== 'undefined' && 'chrome' in window && !!(window as unknown as { chrome?: { runtime?: unknown } }).chrome?.runtime;
+
   const testDevConnection = async () => {
     if (!devId.trim()) return;
     setTesting(true);
@@ -1185,6 +1231,38 @@ function ExtensionSetup({ onSave }: { onSave: (id: string) => void }) {
       });
     }
   };
+
+  // Non-Chromium browser: show specific message
+  if (!isChromium) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-[var(--score-medium)]/10 flex items-center justify-center">
+            <Chrome className="w-8 h-8 text-[var(--score-medium)]" />
+          </div>
+          <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">Google Chrome requis</h2>
+          <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
+            OKAZ utilise une extension Chrome pour comparer les annonces en temps reel.
+            Pour l&apos;instant, seul Google Chrome (ou un navigateur compatible comme Edge, Brave, Opera) est supporte.
+          </p>
+        </div>
+
+        <a
+          href="https://www.google.com/chrome/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white font-medium transition-all"
+        >
+          <ExternalLink className="w-4 h-4" />
+          Telecharger Google Chrome
+        </a>
+
+        <p className="text-xs text-[var(--text-tertiary)] text-center">
+          D&apos;autres navigateurs seront supportes prochainement.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -1902,7 +1980,7 @@ export default function Home() {
     setAuthSending(false);
   };
 
-  const handleSearch = async (searchQuery?: string, _unused?: undefined, clarificationHistory?: Array<{ question: string; answer: string }>) => {
+  const handleSearch = async (searchQuery?: string, _unused?: undefined, clarificationHistory?: Array<{ question: string; answer: string }>, refinement?: string) => {
     const q = searchQuery || query;
     let currentSearchToken: string | null = null;
 
@@ -1951,7 +2029,7 @@ export default function Home() {
       try {
         console.log('[OKAZ] 1a. Appel API /api/optimize...');
         // v0.5.0 - Inclure image et URL de référence si présents
-        const optimizePayload: { query: string; imageBase64?: string; referenceUrl?: string; clarifications?: Array<{ question: string; answer: string }> } = {
+        const optimizePayload: { query: string; imageBase64?: string; referenceUrl?: string; clarifications?: Array<{ question: string; answer: string }>; refinement?: string } = {
           query: q.trim()
         };
         if (uploadedImage?.base64) {
@@ -1965,6 +2043,10 @@ export default function Home() {
         if (clarificationHistory && clarificationHistory.length > 0) {
           optimizePayload.clarifications = clarificationHistory;
           console.log('[OKAZ] 1a. Clarifications précédentes:', clarificationHistory.length);
+        }
+        if (refinement) {
+          optimizePayload.refinement = refinement;
+          console.log('[OKAZ] 1a. Affinage:', refinement);
         }
 
         const optimizeHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -2692,7 +2774,12 @@ export default function Home() {
         <div className="gradient-mesh" />
         <ThemeToggleButton darkMode={darkMode} onToggle={toggleTheme} />
         <div className="relative z-10 container mx-auto px-4 py-8 max-w-2xl">
-          <SearchResults data={searchData} onBack={handleBack} />
+          <SearchResults data={searchData} onBack={handleBack} onRefine={(feedback) => {
+            const originalQuery = searchData.query;
+            setSearchData(null);
+            setQuery(originalQuery);
+            handleSearch(originalQuery, undefined, undefined, feedback);
+          }} />
         </div>
       </main>
     );
@@ -2748,8 +2835,11 @@ export default function Home() {
               className="mb-8"
             >
               <div className="bg-[var(--card-bg)]/80 backdrop-blur-2xl border border-white/15 dark:border-white/8 shadow-[var(--card-shadow)] p-6 rounded-[20px] max-w-md mx-auto">
-                <p className="text-sm text-[var(--text-secondary)] text-center mb-4">
-                  Entre ton email pour commencer tes recherches
+                <p className="text-sm font-medium text-[var(--text-primary)] text-center mb-1">
+                  Telecharge l&apos;extension
+                </p>
+                <p className="text-xs text-[var(--text-secondary)] text-center mb-4">
+                  Entre ton email une seule fois pour activer ton compte. Ensuite, la connexion est automatique.
                 </p>
                 {authMessage && (
                   <div className={`mb-3 p-3 rounded-xl text-sm text-center ${
@@ -2774,12 +2864,9 @@ export default function Home() {
                     disabled={authSending || !authEmail.trim()}
                     className="px-5 py-3 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white font-medium transition-all text-sm whitespace-nowrap"
                   >
-                    {authSending ? 'Envoi...' : 'Connexion'}
+                    {authSending ? 'Envoi...' : 'Activer'}
                   </button>
                 </form>
-                <p className="text-[10px] text-[var(--text-tertiary)] text-center mt-3">
-                  Ton email sert uniquement à protéger le service. Pas de pub.
-                </p>
               </div>
             </motion.div>
           )}
