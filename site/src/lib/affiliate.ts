@@ -16,9 +16,9 @@ export function wrapAffiliateLink(url: string): string {
       return wrapAwin(url, process.env.NEXT_PUBLIC_AWIN_MID_BACKMARKET);
     }
 
-    // eBay → Awin
+    // eBay → EPN direct (eBay Partner Network)
     if (hostname.includes('ebay.')) {
-      return wrapAwin(url, process.env.NEXT_PUBLIC_AWIN_MID_EBAY);
+      return wrapEbayEPN(url);
     }
 
     // Amazon → Tag direct
@@ -47,6 +47,30 @@ function wrapAwin(url: string, merchantId: string | undefined): string {
 
   const encodedUrl = encodeURIComponent(url);
   return `https://www.awin1.com/cread.php?awinmid=${merchantId}&awinaffid=${affiliateId}&ued=${encodedUrl}`;
+}
+
+/**
+ * Wrap eBay EPN : ajouter les paramètres de tracking EPN direct
+ * mkrid 709-53476-19255-0 = eBay France
+ */
+function wrapEbayEPN(url: string): string {
+  const campid = process.env.NEXT_PUBLIC_EPN_CAMPID;
+
+  if (!campid) {
+    return url;
+  }
+
+  try {
+    const urlObj = new URL(url);
+    urlObj.searchParams.set('mkevt', '1');
+    urlObj.searchParams.set('mkcid', '1');
+    urlObj.searchParams.set('mkrid', '709-53476-19255-0');
+    urlObj.searchParams.set('campid', campid);
+    urlObj.searchParams.set('toolid', '10001');
+    return urlObj.toString();
+  } catch {
+    return url;
+  }
 }
 
 /**
