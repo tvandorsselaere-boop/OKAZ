@@ -1187,8 +1187,8 @@ function ExtensionSetup({ onSave }: { onSave: (id: string) => void }) {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
 
-  // Detect Chromium-based browsers (Chrome, Edge, Brave, Opera, Vivaldi)
-  const isChromium = typeof window !== 'undefined' && 'chrome' in window && !!(window as unknown as { chrome?: { runtime?: unknown } }).chrome?.runtime;
+  // Detect Chromium-based browsers via user agent (chrome.runtime absent en navigation privee)
+  const isChromium = typeof navigator !== 'undefined' && /Chrome|Chromium/i.test(navigator.userAgent);
 
   const testDevConnection = async () => {
     if (!devId.trim()) return;
