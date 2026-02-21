@@ -924,6 +924,48 @@ function SearchResults({ data, onBack, onRefine }: { data: { query: string; cate
               {totalResults} resultat{totalResults > 1 ? 's' : ''} &middot; {(duration / 1000).toFixed(1)}s
             </span>
           </div>
+
+          {/* Affiner la recherche */}
+          <AnimatePresence mode="wait">
+            {!showRefine ? (
+              <motion.div key="btn" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="mt-2 pt-2 border-t border-[var(--separator)]">
+                <button
+                  onClick={() => setShowRefine(true)}
+                  className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--accent)] transition-colors"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  Affiner la recherche
+                </button>
+              </motion.div>
+            ) : (
+              <motion.div key="form" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mt-2 pt-2 border-t border-[var(--separator)]">
+                <form onSubmit={(e) => { e.preventDefault(); if (refineText.trim()) onRefine(refineText.trim()); }} className="flex gap-2">
+                  <input
+                    type="text"
+                    value={refineText}
+                    onChange={(e) => setRefineText(e.target.value)}
+                    placeholder="Ex: plutot en 256Go, budget max 400€..."
+                    className="flex-1 px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--separator)] rounded-xl text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/30 focus:border-[var(--accent)] text-xs"
+                    autoFocus
+                  />
+                  <button
+                    type="submit"
+                    disabled={!refineText.trim()}
+                    className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white text-xs font-medium transition-all whitespace-nowrap"
+                  >
+                    Relancer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowRefine(false); setRefineText(''); }}
+                    className="px-2 py-2 rounded-xl text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </form>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
 
         {/* Briefing prix — persistant sur la page de résultats */}
@@ -996,47 +1038,6 @@ function SearchResults({ data, onBack, onRefine }: { data: { query: string; cate
           excludeIds={excludeIds}
           userLocation={userLocation}
         />
-
-        {/* Affiner la recherche — discret */}
-        {totalResults > 0 && (
-          <div className="mt-6 text-center">
-            {!showRefine ? (
-              <button
-                onClick={() => setShowRefine(true)}
-                className="text-xs text-[var(--text-tertiary)] hover:text-[var(--accent)] transition-colors"
-              >
-                Pas ce que tu cherchais ? <span className="underline">Affiner</span>
-              </button>
-            ) : (
-              <motion.div
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="max-w-md mx-auto"
-              >
-                <p className="text-xs text-[var(--text-secondary)] mb-2">
-                  Explique ce qui ne va pas, on relance avec tes precisions
-                </p>
-                <form onSubmit={(e) => { e.preventDefault(); if (refineText.trim()) onRefine(refineText.trim()); }} className="flex gap-2">
-                  <input
-                    type="text"
-                    value={refineText}
-                    onChange={(e) => setRefineText(e.target.value)}
-                    placeholder="Ex: je cherche en 256Go, budget max 400€..."
-                    className="flex-1 px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--separator)] rounded-xl text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/30 focus:border-[var(--accent)] text-xs"
-                    autoFocus
-                  />
-                  <button
-                    type="submit"
-                    disabled={!refineText.trim()}
-                    className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white text-xs font-medium transition-all whitespace-nowrap"
-                  >
-                    Relancer
-                  </button>
-                </form>
-              </motion.div>
-            )}
-          </div>
-        )}
 
         {/* Mention légale affiliation */}
         {totalResults > 0 && (
