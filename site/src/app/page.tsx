@@ -931,7 +931,7 @@ function SearchResults({ data, onBack, onRefine }: { data: { query: string; cate
           {totalResults > 0 && briefing && (briefing.newProductPrice || briefing.marketPriceRange || (briefing.warningText && briefing.warningPrice > 0)) && (
             <div className="flex items-center gap-2 flex-wrap mt-2 text-[var(--text-secondary)]">
               {briefing.newProductPrice && (
-                <span className="text-[11px]">Neuf : {briefing.newProductPrice.label}</span>
+                <span className="text-[11px]">Neuf : {briefing.newProductPrice.price}€</span>
               )}
               {briefing.newProductPrice && briefing.marketPriceRange && (
                 <span className="text-[var(--text-tertiary)]">&middot;</span>
