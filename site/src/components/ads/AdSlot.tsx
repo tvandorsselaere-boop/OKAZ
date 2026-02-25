@@ -183,9 +183,14 @@ export function AffiliateBanner({
   className?: string;
 }) {
   const tag = process.env.NEXT_PUBLIC_AMAZON_TAG || "";
-  const awinAffId = process.env.NEXT_PUBLIC_AWIN_AFFID || "";
-  const awinMidEbay = process.env.NEXT_PUBLIC_AWIN_MID_EBAY || "";
+  const epnCampid = process.env.NEXT_PUBLIC_EPN_CAMPID || "";
   const encodedKw = encodeURIComponent(keywords);
+
+  // eBay EPN link with tracking params (same format as wrapEbayEPN in affiliate.ts)
+  const ebayBaseUrl = `https://www.ebay.fr/sch/i.html?_nkw=${encodedKw}`;
+  const ebayHref = epnCampid
+    ? `${ebayBaseUrl}&mkevt=1&mkcid=1&mkrid=709-53476-19255-0&campid=${epnCampid}&toolid=10001`
+    : ebayBaseUrl;
 
   const config = site === "amazon"
     ? {
@@ -202,9 +207,7 @@ export function AffiliateBanner({
         color: "#E53238",
         bgColor: "rgba(229, 50, 56, 0.06)",
         borderColor: "rgba(229, 50, 56, 0.15)",
-        href: awinAffId && awinMidEbay
-          ? `https://www.awin1.com/cread.php?awinmid=${awinMidEbay}&awinaffid=${awinAffId}&ued=${encodeURIComponent(`https://www.ebay.fr/sch/i.html?_nkw=${encodedKw}`)}`
-          : `https://www.ebay.fr/sch/i.html?_nkw=${encodedKw}`,
+        href: ebayHref,
       };
 
   return (
@@ -315,6 +318,7 @@ export function SmartAdSlot({
 
 // eBay Smart Placement — widget dynamique EPN
 // Nécessite NEXT_PUBLIC_EPN_PLACEMENT_ID (data-config-id du dashboard EPN)
+// Fallback: si le widget ne rend rien après 3s, affiche AffiliateBanner
 export function EbaySmartPlacement({
   keywords,
   className = "",
@@ -324,9 +328,12 @@ export function EbaySmartPlacement({
 }) {
   const placementId = process.env.NEXT_PUBLIC_EPN_PLACEMENT_ID;
   const containerRef = useRef<HTMLDivElement>(null);
+  const [showFallback, setShowFallback] = useState(false);
 
   useEffect(() => {
     if (!placementId || !containerRef.current) return;
+
+    setShowFallback(false);
 
     // Nettoyer le contenu précédent (changement de keywords)
     containerRef.current.innerHTML = "";
@@ -345,10 +352,22 @@ export function EbaySmartPlacement({
     if (typeof window !== "undefined" && (window as EPNWindow)._epn_process) {
       (window as EPNWindow)._epn_process!();
     }
+
+    // Fallback: si le widget EPN ne rend rien après 3s, afficher la bannière affiliée
+    const timeout = setTimeout(() => {
+      if (containerRef.current) {
+        const rendered = containerRef.current.querySelector("iframe, .epn-widget, [data-epn]");
+        if (!rendered) {
+          setShowFallback(true);
+        }
+      }
+    }, 3000);
+
+    return () => clearTimeout(timeout);
   }, [placementId, keywords]);
 
-  // Pas de config-id → fallback bannière affiliée classique
-  if (!placementId) {
+  // Pas de config-id ou widget EPN n'a rien rendu → fallback bannière affiliée
+  if (!placementId || showFallback) {
     return <AffiliateBanner site="ebay" keywords={keywords} className={className} />;
   }
 

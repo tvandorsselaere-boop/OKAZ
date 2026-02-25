@@ -1520,6 +1520,18 @@ export default function Home() {
   const searchGenRef = useRef(0);
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // Beta banner (fermable, persist dans localStorage)
+  const [showBetaBanner, setShowBetaBanner] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('okaz_beta_banner_dismissed') !== 'true';
+    }
+    return true;
+  });
+  const dismissBetaBanner = () => {
+    setShowBetaBanner(false);
+    localStorage.setItem('okaz_beta_banner_dismissed', 'true');
+  };
+
   // Theme toggle (doit être avant tout return conditionnel)
   const [darkMode, setDarkMode] = useState(false);
   useEffect(() => {
@@ -2800,12 +2812,30 @@ export default function Home() {
     return <MobileLanding />;
   }
 
+  // Bandeau beta réutilisable
+  const betaBanner = showBetaBanner ? (
+    <div className="relative z-20 w-full px-4 pt-3">
+      <div className="max-w-3xl mx-auto flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl text-sm" style={{ background: 'var(--accent)', color: 'white' }}>
+        <p className="flex-1 text-center">
+          <span className="font-semibold">Version beta</span>
+          <span className="mx-1.5 opacity-60">—</span>
+          Vos retours comptent ! Ecrivez-nous a{' '}
+          <a href="mailto:thomas@facile-ia.fr" className="underline font-medium hover:opacity-80 transition-opacity">thomas@facile-ia.fr</a>
+        </p>
+        <button onClick={dismissBetaBanner} className="p-1 rounded-lg hover:bg-white/20 transition-colors flex-shrink-0" aria-label="Fermer">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  ) : null;
+
   // Show results screen
   if (searchData) {
     return (
       <main className="min-h-screen bg-[var(--bg-primary)]">
         <div className="gradient-mesh" />
         <ThemeToggleButton darkMode={darkMode} onToggle={toggleTheme} />
+        {betaBanner}
         <div className="relative z-10 container mx-auto px-4 py-8 max-w-3xl">
           <SearchResults data={searchData} onBack={handleBack} onRefine={(feedback) => {
             const originalQuery = searchData.query;
@@ -2824,6 +2854,7 @@ export default function Home() {
       <main className="min-h-screen bg-[var(--bg-primary)]">
         <div className="gradient-mesh" />
         <ThemeToggleButton darkMode={darkMode} onToggle={toggleTheme} />
+        {betaBanner}
         <div className="relative z-10 container mx-auto px-4 py-16 max-w-md">
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
             <h1 className="text-4xl font-bold tracking-tight text-center mb-8 okaz-title">OKAZ</h1>
@@ -2841,6 +2872,7 @@ export default function Home() {
     <main className="min-h-screen bg-[var(--bg-primary)]">
       <div className="gradient-mesh" />
       <ThemeToggleButton darkMode={darkMode} onToggle={toggleTheme} />
+      {betaBanner}
 
       <div className="relative z-10 container mx-auto px-4 py-16 lg:py-24">
         <div className={`mx-auto transition-all duration-300 ${isSearching ? 'max-w-6xl' : 'max-w-2xl'}`}>
